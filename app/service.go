@@ -133,12 +133,16 @@ func initializeCert() tls.Certificate {
 
 	if config.Env == "development" || config.Env == "test" {
 		if _, err := os.Stat(certFile); os.IsNotExist(err) {
-			log.WithFields(fields).Info("Self-signed certificate not found, generating...")
+			log.WithFields(fields).Info(
+				"Self-signed certificate not found, generating...")
 			if err := generateSelfSignedCert(certFile, keyFile); err != nil {
 				log.WithFields(fields).Fatal(err)
 			}
-			log.WithFields(fields).Info("Self-signed certificate generated successfully")
-			log.WithFields(fields).Info("You will need to accept the self-signed certificate in your browser")
+			log.WithFields(fields).Info(
+				"Self-signed certificate generated successfully")
+			log.WithFields(fields).Info(
+				"You will need to accept the self-signed certificate " +
+					"in your browser")
 		}
 	}
 
@@ -168,12 +172,14 @@ func generateSelfSignedCert(certFile string, keyFile string) error {
 		NotBefore: time.Now(),
 		NotAfter:  time.Now().Add(time.Hour * 24 * 180),
 
-		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		KeyUsage: x509.KeyUsageKeyEncipherment |
+			x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
 	}
 
-	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	derBytes, err := x509.CreateCertificate(
+		rand.Reader, &template, &template, &priv.PublicKey, priv)
 	if err != nil {
 		return err
 	}
@@ -182,7 +188,15 @@ func generateSelfSignedCert(certFile string, keyFile string) error {
 	if err != nil {
 		return err
 	}
-	defer certOut.Close()
+	defer func() {
+		if closeErr := certOut.Close(); closeErr != nil {
+			log.WithFields(log.Fields{
+				"service": "app",
+				"context": "generateSelfSignedCert",
+				"error":   closeErr,
+			}).Error("Failed to close certificate file")
+		}
+	}()
 
 	_ = pem.Encode(certOut, &pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
 
@@ -190,9 +204,20 @@ func generateSelfSignedCert(certFile string, keyFile string) error {
 	if err != nil {
 		return err
 	}
-	defer keyOut.Close()
+	defer func() {
+		if closeErr := keyOut.Close(); closeErr != nil {
+			log.WithFields(log.Fields{
+				"service": "app",
+				"context": "generateSelfSignedCert",
+				"error":   closeErr,
+			}).Error("Failed to close key file")
+		}
+	}()
 
-	_ = pem.Encode(keyOut, &pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(priv)})
+	_ = pem.Encode(keyOut, &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(priv),
+	})
 
 	return nil
 }
