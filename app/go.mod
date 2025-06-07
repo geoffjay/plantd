@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/geoffjay/plantd/core v0.0.0-20240125055833-a513a6b5fef0
 	github.com/goccy/go-json v0.10.2
-	github.com/gofiber/fiber/v2 v2.52.0
+	github.com/gofiber/fiber/v2 v2.52.1
 	github.com/gofiber/storage/redis/v3 v3.1.0
 	github.com/gofiber/swagger v0.1.14
 	github.com/gofiber/template/html/v2 v2.1.0
