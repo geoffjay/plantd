@@ -1,3 +1,4 @@
+// Package main provides configuration management for the PlantD proxy service.
 package main
 
 import (
@@ -8,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Config represents the configuration for the proxy service.
 type Config struct {
 	cfg.Config
 
@@ -25,7 +27,8 @@ var defaults = map[string]interface{}{
 	"log.formatter":    "text",
 	"log.level":        "info",
 	"log.loki.address": "http://localhost:3100",
-	"log.loki.labels":  map[string]string{"app": "proxy", "environment": "development"},
+	"log.loki.labels": map[string]string{
+		"app": "proxy", "environment": "development"},
 }
 
 // GetConfig returns the application configuration singleton.
@@ -34,7 +37,8 @@ func GetConfig() *Config {
 		lock.Lock()
 		defer lock.Unlock()
 		if instance == nil {
-			if err := cfg.LoadConfigWithDefaults("proxy", &instance, defaults); err != nil {
+			if err := cfg.LoadConfigWithDefaults("proxy", &instance,
+				defaults); err != nil {
 				log.Fatalf("error reading config file: %s\n", err)
 			}
 		}
