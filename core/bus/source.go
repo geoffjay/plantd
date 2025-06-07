@@ -75,6 +75,7 @@ func (s *Source) Run(ctx context.Context, wg *sync.WaitGroup) {
 	s.Stop()
 }
 
+// Shutdown gracefully shuts down the source.
 func (s *Source) Shutdown() {
 	if s.running {
 		s.queue <- shutdownCommand
@@ -93,6 +94,7 @@ func (s *Source) Running() bool {
 	return s.running
 }
 
+// QueueMessage adds a message to the source's message queue.
 func (s *Source) QueueMessage(message []byte) {
 	s.queue <- message
 }

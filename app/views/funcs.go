@@ -1,7 +1,9 @@
+// Package views provides view rendering functionality.
 package views
 
 import "errors"
 
+// Args creates a map from key-value pairs for template rendering.
 func Args(kvs ...interface{}) (map[string]interface{}, error) {
 	if len(kvs)%2 != 0 {
 		return nil, errors.New("args requires even number of arguments")

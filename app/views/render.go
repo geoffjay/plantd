@@ -6,7 +6,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-func Render(c *fiber.Ctx, component templ.Component, options ...func(*templ.ComponentHandler)) error {
+// Render renders a templ component using fiber context.
+func Render(
+	c *fiber.Ctx,
+	component templ.Component,
+	options ...func(*templ.ComponentHandler),
+) error {
 	componentHandler := templ.Handler(component)
 	for _, o := range options {
 		o(componentHandler)

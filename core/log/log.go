@@ -1,3 +1,4 @@
+// Package log provides logging initialization functionality.
 package log
 
 import (
@@ -7,6 +8,7 @@ import (
 	loki "github.com/yukitsune/lokirus"
 )
 
+// Initialize sets up the logging configuration.
 func Initialize(logConfig config.LogConfig) {
 	if logLevel, err := log.ParseLevel(logConfig.Level); err == nil {
 		log.SetLevel(logLevel)

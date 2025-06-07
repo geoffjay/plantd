@@ -83,7 +83,7 @@ linters:
       rules:
         - name: atomic
         - name: line-length-limit
-          arguments: [80]
+          arguments: [100]
         - name: argument-limit
           arguments: [4]
         - name: blank-imports

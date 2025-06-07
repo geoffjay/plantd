@@ -14,6 +14,7 @@ type reloadClient struct {
 	events chan string
 }
 
+// Reload handles server-sent events for live reloading.
 func Reload(w http.ResponseWriter, _ *http.Request) {
 	client := &reloadClient{events: make(chan string, 10)}
 	go publishReload(client)
@@ -29,7 +30,7 @@ func Reload(w http.ResponseWriter, _ *http.Request) {
 		// select {
 		// case event := <-client.events:
 		// event := <-client.events
-		fmt.Fprintf(w, "data: %s\n\n", event)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", event)
 		log.Debugf("data: %s\n", event)
 		// }
 
@@ -46,6 +47,7 @@ func publishReload(client *reloadClient) {
 	}
 }
 
+// UpgradeWS upgrades HTTP connections to WebSocket connections.
 func UpgradeWS(c *fiber.Ctx) error {
 	if websocket.IsWebSocketUpgrade(c) {
 		c.Locals("allowed", true)
@@ -55,6 +57,7 @@ func UpgradeWS(c *fiber.Ctx) error {
 	return fiber.ErrUpgradeRequired
 }
 
+// ReloadWS handles WebSocket connections for live reloading.
 func ReloadWS(c *websocket.Conn) {
 	for {
 		// mt, msg, err := c.ReadMessage()

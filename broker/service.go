@@ -82,8 +82,13 @@ func initBuses() (buses []*bus.Bus) {
 			"frontend": b.Frontend,
 			"capture":  b.Capture,
 		}).Info("initializing message bus")
-		buses = append(buses, bus.NewBus(b.Name, b.Name, b.Backend,
-			b.Frontend, b.Capture))
+		buses = append(buses, bus.NewBus(bus.Config{
+			Name:     b.Name,
+			Unit:     b.Name,
+			Backend:  b.Backend,
+			Frontend: b.Frontend,
+			Capture:  b.Capture,
+		}))
 	}
 
 	return

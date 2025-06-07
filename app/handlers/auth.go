@@ -1,3 +1,4 @@
+// Package handlers provides HTTP request handlers for the application.
 package handlers
 
 import (
@@ -13,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Register handles user registration requests.
 // TODO: add registration page.
 func Register(c *fiber.Ctx) error {
 	// Validate user input (username, email, password)
@@ -22,6 +24,7 @@ func Register(c *fiber.Ctx) error {
 	return c.Send([]byte("Register"))
 }
 
+// LoginPage renders the login page for users.
 func LoginPage(c *fiber.Ctx) error {
 	session, err := SessionStore.Get(c)
 	if err != nil {
@@ -47,6 +50,7 @@ func LoginPage(c *fiber.Ctx) error {
 	return views.Render(c, pages.Login(), templ.WithStatus(http.StatusOK))
 }
 
+// Login handles user authentication requests.
 func Login(c *fiber.Ctx) error {
 	fields := log.Fields{
 		"service": "app",
@@ -96,6 +100,7 @@ func Login(c *fiber.Ctx) error {
 	return c.SendStatus(fiber.StatusOK)
 }
 
+// Logout handles user logout requests.
 func Logout(c *fiber.Ctx) error {
 	session, err := SessionStore.Get(c)
 	if err != nil {

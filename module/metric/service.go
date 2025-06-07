@@ -152,11 +152,31 @@ func (p *Producer) Run(ctx context.Context, wg *sync.WaitGroup) {
 				continue
 			}
 
-			log.Debugf("temperature: %f %s", weatherResponse.Values["temperature_2m"], weatherResponse.Units["temperature_2m"])
-			log.Debugf("humidity: %f %s", weatherResponse.Values["relative_humidity_2m"], weatherResponse.Units["relative_humidity_2m"])
-			log.Debugf("pressure: %f %s", weatherResponse.Values["pressure_msl"], weatherResponse.Units["pressure_msl"])
-			log.Debugf("wind speed: %f %s", weatherResponse.Values["wind_speed_10m"], weatherResponse.Units["wind_speed_10m"])
-			log.Debugf("wind direction: %f %s", weatherResponse.Values["wind_direction_10m"], weatherResponse.Units["wind_direction_10m"])
+			log.Debugf(
+				"temperature: %f %s",
+				weatherResponse.Values["temperature_2m"],
+				weatherResponse.Units["temperature_2m"],
+			)
+			log.Debugf(
+				"humidity: %f %s",
+				weatherResponse.Values["relative_humidity_2m"],
+				weatherResponse.Units["relative_humidity_2m"],
+			)
+			log.Debugf(
+				"pressure: %f %s",
+				weatherResponse.Values["pressure_msl"],
+				weatherResponse.Units["pressure_msl"],
+			)
+			log.Debugf(
+				"wind speed: %f %s",
+				weatherResponse.Values["wind_speed_10m"],
+				weatherResponse.Units["wind_speed_10m"],
+			)
+			log.Debugf(
+				"wind direction: %f %s",
+				weatherResponse.Values["wind_direction_10m"],
+				weatherResponse.Units["wind_direction_10m"],
+			)
 
 			metric := Metric{
 				Timestamp: time.Now().String(),

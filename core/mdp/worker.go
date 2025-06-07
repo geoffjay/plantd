@@ -157,7 +157,11 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 	for {
 		socket, perr := w.poller.Wait(int(w.heartbeat / 1e6))
 		if perr != nil {
-			log.WithFields(log.Fields{"err": perr}).Error("an error occurred while the worker was receiving data")
+			log.WithFields(
+				log.Fields{"err": perr},
+			).Error(
+				"an error occurred while the worker was receiving data",
+			)
 			break
 		}
 
@@ -173,7 +177,9 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 			if w.liveness == 0 {
 				time.Sleep(w.reconnect)
 				if err = w.ConnectToBroker(); err != nil {
-					log.WithFields(log.Fields{"err": err}).Error("worker failed to connect to broker")
+					log.WithFields(log.Fields{
+						"err": err,
+					}).Error("worker failed to connect to broker")
 				}
 			}
 		} else {
@@ -183,7 +189,8 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 			if len(recvMsg) > 0 {
 				w.liveness = HeartbeatLiveness
 
-				// FIXME: I can't remember why this was changed to just index, should do this instead:
+				// FIXME: I can't remember why this was changed to just index,
+				// should do this instead:
 				//  header, request := Unwrap(recvMsg)
 				//  command, msg := PopStr(request)
 
@@ -213,7 +220,10 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 
 				switch command {
 				case MdpwRequest:
-					log.WithFields(log.Fields{"command": command, "msg": msg}).Debug("received request")
+					log.WithFields(log.Fields{
+						"command": command,
+						"msg":     msg,
+					}).Debug("received request")
 					// we should pop and save as many addresses as there are
 					// up to a null part, but for now, just save one...
 					w.replyTo, msg = util.Unwrap(msg)
@@ -225,7 +235,9 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 					log.Trace("worker received a heartbeat command")
 				case MdpwDisconnect:
 					if err = w.ConnectToBroker(); err != nil {
-						log.WithFields(log.Fields{"err": err}).Error("worker failed to connect to broker")
+						log.WithFields(log.Fields{
+							"err": err,
+						}).Error("worker failed to connect to broker")
 					}
 					log.Debug("worker received a disconnection command")
 				default:
@@ -238,7 +250,9 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 				if w.liveness == 0 {
 					time.Sleep(w.reconnect)
 					if err = w.ConnectToBroker(); err != nil {
-						log.WithFields(log.Fields{"err": err}).Error("worker failed to connect to broker")
+						log.WithFields(log.Fields{
+							"err": err,
+						}).Error("worker failed to connect to broker")
 					}
 				}
 			}
@@ -247,7 +261,9 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 		// send HEARTBEAT if it's time
 		if time.Now().After(w.heartbeatAt) {
 			if err = w.SendToBroker(MdpwHeartbeat, "", []string{}); err != nil {
-				log.WithFields(log.Fields{"err": err}).Error("worker failed to send heartbeat to broker")
+				log.WithFields(log.Fields{
+					"err": err,
+				}).Error("worker failed to send heartbeat to broker")
 			}
 			w.heartbeatAt = time.Now().Add(w.heartbeat)
 		}

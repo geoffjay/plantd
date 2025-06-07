@@ -65,6 +65,7 @@ func formatSSEMessage(eventType string, data any) (string, error) {
 	return sb.String(), nil
 }
 
+// ReloadSSE handles server-sent events for live reloading functionality.
 // nolint: funlen, staticcheck
 func ReloadSSE(c *fiber.Ctx) error {
 	c.Set("Content-Type", "text/event-stream")
@@ -131,7 +132,7 @@ func ReloadSSE(c *fiber.Ctx) error {
 					break
 				}
 			case <-keepAliveTickler.C:
-				fmt.Fprintf(w, "%s", keepAliveMsg)
+				_, _ = fmt.Fprintf(w, "%s", keepAliveMsg)
 				err := w.Flush()
 				if err != nil {
 					log.Printf("Error while flushing: %v.\n", err)

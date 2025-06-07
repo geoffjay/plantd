@@ -1,3 +1,4 @@
+// Package bus provides PUB/SUB messaging functionality.
 package bus
 
 import (
@@ -19,14 +20,23 @@ type Bus struct {
 	capture  string
 }
 
+// Config holds configuration parameters for creating a new Bus.
+type Config struct {
+	Name     string
+	Unit     string
+	Backend  string
+	Frontend string
+	Capture  string
+}
+
 // NewBus instantiates a new PUB/SUB bus type.
-func NewBus(name, unit, backend, frontend, capture string) *Bus {
+func NewBus(config Config) *Bus {
 	return &Bus{
-		name,
-		unit,
-		backend,
-		frontend,
-		capture,
+		name:     config.Name,
+		unit:     config.Unit,
+		backend:  config.Backend,
+		frontend: config.Frontend,
+		capture:  config.Capture,
 	}
 }
 
