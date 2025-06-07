@@ -16,7 +16,7 @@ func TestNewHandler(t *testing.T) {
 
 	assert.NotNil(t, h)
 	assert.Equal(t, h.running, false)
-	assert.Equal(t, h.cancelled, false)
+	assert.Equal(t, h.canceled, false)
 	assert.Equal(t, len(h.callbacks), 0)
 }
 

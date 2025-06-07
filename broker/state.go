@@ -4,22 +4,27 @@ import (
 	"sync"
 )
 
+// SetStatus sets the current status of the broker service.
 func SetStatus(value string) {
 	s.setStatus(value)
 }
 
+// GetStatus returns the current status of the broker service.
 func GetStatus() string {
 	return s.getStatus()
 }
 
+// SetLastError sets the last error encountered by the broker service.
 func SetLastError(err error) {
 	s.setLastError(err)
 }
 
+// GetErrorCount returns the total number of errors encountered.
 func GetErrorCount() int {
 	return s.getErrorCount()
 }
 
+// GetLastError returns the last error encountered by the broker service.
 func GetLastError() error {
 	return s.getLastError()
 }

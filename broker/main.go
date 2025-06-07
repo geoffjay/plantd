@@ -1,8 +1,8 @@
+// Package main provides the main entry point for the PlantD broker service.
 package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"regexp"
@@ -48,7 +48,7 @@ func processArgs() {
 	if len(os.Args) > 1 {
 		r := regexp.MustCompile("^-V$|(-{2})?version$")
 		if r.Match([]byte(os.Args[1])) {
-			fmt.Println(core.VERSION)
+			log.Info(core.VERSION)
 		}
 		os.Exit(0)
 	}
