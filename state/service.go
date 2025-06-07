@@ -40,15 +40,20 @@ func (s *Service) setupStore() {
 func (s *Service) setupHandler() {
 	var err error
 	s.handler = NewHandler()
-	err = s.RegisterCallback("create-scope", &createScopeCallback{name: "create-scope", store: s.store, manager: s.manager})
+	err = s.RegisterCallback("create-scope", &createScopeCallback{
+		name: "create-scope", store: s.store, manager: s.manager,
+	})
 	if err != nil {
 		panic(err)
 	}
-	err = s.RegisterCallback("delete-scope", &deleteScopeCallback{name: "delete-scope", store: s.store, manager: s.manager})
+	err = s.RegisterCallback("delete-scope", &deleteScopeCallback{
+		name: "delete-scope", store: s.store, manager: s.manager,
+	})
 	if err != nil {
 		panic(err)
 	}
-	err = s.RegisterCallback("delete", &deleteCallback{name: "delete", store: s.store})
+	err = s.RegisterCallback("delete", &deleteCallback{
+		name: "delete", store: s.store})
 	if err != nil {
 		panic(err)
 	}
@@ -64,9 +69,11 @@ func (s *Service) setupHandler() {
 
 func (s *Service) setupWorker() {
 	var err error
-	endpoint := util.Getenv("PLANTD_STATE_BROKER_ENDPOINT", "tcp://127.0.0.1:9797")
+	endpoint := util.Getenv("PLANTD_STATE_BROKER_ENDPOINT",
+		"tcp://127.0.0.1:9797")
 	if s.worker, err = mdp.NewWorker(endpoint, "org.plantd.State"); err != nil {
-		log.WithFields(log.Fields{"err": err}).Panic("failed to setup message queue worker")
+		log.WithFields(log.Fields{"err": err}).Panic(
+			"failed to setup message queue worker")
 	}
 }
 
@@ -75,7 +82,8 @@ func (s *Service) setupConsumers() {
 		log.Panic("data store must be available for state sinks")
 	}
 	for _, scope := range s.store.ListAllScope() {
-		log.WithFields(log.Fields{"scope": scope}).Debug("creating sink for scope")
+		log.WithFields(log.Fields{"scope": scope}).Debug(
+			"creating sink for scope")
 		s.manager.AddSink(scope, &sinkCallback{store: s.store})
 	}
 }
@@ -107,11 +115,13 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	log.WithFields(log.Fields{"context": "service.run-health"}).Debug("starting")
+	log.WithFields(log.Fields{"context": "service.run-health"}).Debug(
+		"starting")
 
 	port, err := strconv.Atoi(util.Getenv("PLANTD_STATE_HEALTH_PORT", "8081"))
 	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Fatal("failed to parse health port")
+		log.WithFields(log.Fields{"error": err}).Fatal(
+			"failed to parse health port")
 	}
 
 	go func() {
@@ -122,8 +132,10 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 			},
 		)
 		http.HandleFunc("/healthz", h.Handler)
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-			log.WithFields(log.Fields{"error": err}).Fatal("failed to start health server")
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", port),
+			nil); err != nil {
+			log.WithFields(log.Fields{"error": err}).Fatal(
+				"failed to start health server")
 		}
 	}()
 
@@ -143,7 +155,8 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 			log.WithFields(fields).Debug("waiting for request")
 
 			if request, err = s.worker.Recv(reply); err != nil {
-				log.WithFields(log.Fields{"error": err}).Error("failed while receiving request")
+				log.WithFields(log.Fields{"error": err}).Error(
+					"failed while receiving request")
 			}
 
 			log.WithFields(log.Fields{
@@ -169,7 +182,8 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 				switch msgType {
 				case "create-scope", "delete-scope", "delete", "get", "set":
 					log.Tracef("part: %s", part)
-					if data, err = s.handler.callbacks[msgType].Execute(part); err != nil {
+					if data, err = s.handler.callbacks[msgType].Execute(
+						part); err != nil {
 						log.WithFields(log.Fields{
 							"context": "service.worker",
 							"type":    msgType,
@@ -196,9 +210,7 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 }
 
 // RegisterCallback is a pointless wrapper around the handler.
-func (s *Service) RegisterCallback(name string, callback HandlerCallback) error {
-	if err := s.handler.AddCallback(name, callback); err != nil {
-		return err
-	}
-	return nil
+func (s *Service) RegisterCallback(name string,
+	callback HandlerCallback) error {
+	return s.handler.AddCallback(name, callback)
 }

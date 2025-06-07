@@ -44,6 +44,7 @@ func (suite *HandlerTestSuite) TestHandler_Get() {
 	assert.Nil(suite.T(), err, "callback retrieve failed")
 	callback, err = suite.handler.GetCallback("foo-get")
 	assert.Nil(suite.T(), callback, "callback doesn't exist for `foo-get`")
-	assert.NotNil(suite.T(), err, "callback retrieval failed for unavailable name")
+	assert.NotNil(suite.T(), err,
+		"callback retrieval failed for unavailable name")
 	assert.Equal(suite.T(), err.Error(), "callback not found for foo-get")
 }

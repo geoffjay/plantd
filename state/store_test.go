@@ -21,7 +21,7 @@ func TestStoreLoad(t *testing.T) {
 	}
 	err := store.Load("./tmp")
 	assert.Error(t, err, "should not be able to load a directory")
-	os.Remove("./tmp")
+	_ = os.Remove("./tmp")
 }
 
 func TestStoreTestSuite(t *testing.T) {
