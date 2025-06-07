@@ -15,6 +15,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Manager handles database operations and message bus subscriptions for the
+// logger service.
 type Manager struct {
 	db         *sql.DB
 	migrations []db.Migration
@@ -32,12 +34,21 @@ func NewManager() *Manager {
 	}
 }
 
+// Run starts the manager with database connection, migrations, and message bus
+// subscriptions.
 func (m *Manager) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.WithFields(log.Fields{"context": "manager.run"}).Debug("starting")
 
 	m.openDB()
-	defer m.db.Close()
+	defer func() {
+		if closeErr := m.db.Close(); closeErr != nil {
+			log.WithFields(log.Fields{
+				"context": "manager.run",
+				"error":   closeErr,
+			}).Error("failed to close database connection")
+		}
+	}()
 	m.runMigrations()
 
 	m.stateSink = bus.NewSink(">tcp://localhost:11001", "org.plantd")
@@ -47,9 +58,12 @@ func (m *Manager) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer m.eventSink.Stop()
 	defer m.metricSink.Stop()
 
-	m.stateSink.SetHandler(&bus.SinkHandler{Callback: &stateSinkCallback{db: m.db}})
-	m.eventSink.SetHandler(&bus.SinkHandler{Callback: &eventSinkCallback{db: m.db}})
-	m.metricSink.SetHandler(&bus.SinkHandler{Callback: &metricSinkCallback{db: m.db}})
+	m.stateSink.SetHandler(&bus.SinkHandler{
+		Callback: &stateSinkCallback{db: m.db}})
+	m.eventSink.SetHandler(&bus.SinkHandler{
+		Callback: &eventSinkCallback{db: m.db}})
+	m.metricSink.SetHandler(&bus.SinkHandler{
+		Callback: &metricSinkCallback{db: m.db}})
 
 	wg.Add(3)
 	go m.eventSink.Run(ctx, wg)

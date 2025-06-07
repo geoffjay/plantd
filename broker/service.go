@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/geoffjay/plantd/core"
 	"github.com/geoffjay/plantd/core/bus"
+	cfg "github.com/geoffjay/plantd/core/config"
 	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/core/util"
 
@@ -19,20 +19,21 @@ import (
 
 // Service defines the service type.
 type Service struct {
-	buses    []*bus.Bus
-	config   *brokerConfig
-	handler  *Handler
 	endpoint string
-	broker   *mdp.Broker
+	handler  *Handler
 	running  bool
-	worker   *mdp.Worker
+
+	buses  []*bus.Bus
+	broker *mdp.Broker
+	worker *mdp.Worker
 }
 
 // NewService creates an instance of the service.
-func NewService(config *brokerConfig) *Service {
+func NewService() *Service {
+	config := GetConfig()
+
 	service := &Service{
-		buses:    initBuses(config),
-		config:   config,
+		buses:    initBuses(),
 		handler:  NewHandler(),
 		endpoint: config.Endpoint,
 		broker:   nil,
@@ -45,12 +46,14 @@ func NewService(config *brokerConfig) *Service {
 	service.RegisterCallback("services", &servicesCallback{name: "services"})
 
 	if err := service.initBroker(); err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("failed to initialize broker")
+		log.WithFields(log.Fields{"err": err}).Error(
+			"failed to initialize broker")
 		return nil
 	}
 
-	if err := service.initWorker(config); err != nil {
-		log.WithFields(log.Fields{"err": err}).Error("failed to initialize worker")
+	if err := service.initWorker(); err != nil {
+		log.WithFields(log.Fields{"err": err}).Error(
+			"failed to initialize worker")
 		return nil
 	}
 
@@ -58,15 +61,20 @@ func NewService(config *brokerConfig) *Service {
 }
 
 func (s *Service) dumpConfig() {
-	json, err := core.MarshalConfig(s.config)
+	config := GetConfig()
+
+	json, err := cfg.MarshalConfig(config)
 	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("failed to marshal config")
+		log.WithFields(log.Fields{"error": err}).Error(
+			"failed to marshal config")
 	}
 
 	log.WithFields(log.Fields{"context": "service"}).Trace(json)
 }
 
-func initBuses(config *brokerConfig) (buses []*bus.Bus) {
+func initBuses() (buses []*bus.Bus) {
+	config := GetConfig()
+
 	for _, b := range config.Buses {
 		log.WithFields(log.Fields{
 			"bus":      b.Name,
@@ -74,7 +82,13 @@ func initBuses(config *brokerConfig) (buses []*bus.Bus) {
 			"frontend": b.Frontend,
 			"capture":  b.Capture,
 		}).Info("initializing message bus")
-		buses = append(buses, bus.NewBus(b.Name, b.Name, b.Backend, b.Frontend, b.Capture))
+		buses = append(buses, bus.NewBus(bus.Config{
+			Name:     b.Name,
+			Unit:     b.Name,
+			Backend:  b.Backend,
+			Frontend: b.Frontend,
+			Capture:  b.Capture,
+		}))
 	}
 
 	return
@@ -93,15 +107,19 @@ func (s *Service) initBroker() error {
 	return nil
 }
 
-func (s *Service) initWorker(config *brokerConfig) error {
+func (s *Service) initWorker() error {
 	var err error
-	if s.worker, err = mdp.NewWorker(config.ClientEndpoint, "org.plantd.Broker"); err != nil {
+	config := GetConfig()
+
+	if s.worker, err = mdp.NewWorker(config.ClientEndpoint,
+		"org.plantd.Broker"); err != nil {
 		log.WithFields(log.Fields{
 			"err":             err,
 			"client-endpoint": config.ClientEndpoint,
 		}).Error("failed to setup message queue worker")
 		return err
 	}
+
 	return nil
 }
 
@@ -129,7 +147,12 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 
 	<-ctx.Done()
 
-	s.broker.Close()
+	if err := s.broker.Close(); err != nil {
+		log.WithFields(log.Fields{
+			"context": "service.run",
+			"error":   err,
+		}).Error("failed to close broker")
+	}
 
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("exiting")
 }
@@ -137,11 +160,13 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	log.WithFields(log.Fields{"context": "service.run-health"}).Debug("starting")
+	log.WithFields(log.Fields{"context": "service.run-health"}).Debug(
+		"starting")
 
 	port, err := strconv.Atoi(util.Getenv("PLANTD_BROKER_HEALTH_PORT", "8081"))
 	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Fatal("failed to parse health port")
+		log.WithFields(log.Fields{"error": err}).Fatal(
+			"failed to parse health port")
 	}
 
 	go func() {
@@ -152,8 +177,10 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 			},
 		)
 		http.HandleFunc("/healthz", h.Handler)
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-			log.WithFields(log.Fields{"error": err}).Fatal("failed to start health server")
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", port),
+			nil); err != nil {
+			log.WithFields(log.Fields{"error": err}).Fatal(
+				"failed to start health server")
 		}
 	}()
 
@@ -178,7 +205,8 @@ func (s *Service) runBroker(ctx context.Context) {
 			log.Debug(event)
 		case err = <-s.broker.ErrorChannel:
 			SetLastError(err)
-			log.WithFields(log.Fields{"error": err}).Error("received error from message queue")
+			log.WithFields(log.Fields{"error": err}).Error(
+				"received error from message queue")
 		case <-ctx.Done():
 			_ = s.broker.Close()
 			done <- true
@@ -197,23 +225,23 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 	go func() {
 		var request, reply []string
 		for !s.worker.Terminated() {
-			log.WithFields(log.Fields{"context": "service.worker"}).Debug("waiting for request")
+			log.WithFields(log.Fields{"context": "service.worker"}).Debug(
+				"waiting for request")
 
 			if request, err = s.worker.Recv(reply); err != nil {
-				log.WithFields(log.Fields{"error": err}).Error("failed while receiving request")
+				log.WithFields(log.Fields{"error": err}).Error(
+					"failed while receiving request")
 			}
 
-			log.WithFields(
-				log.Fields{
-					"context": "service.worker",
-					"request": request,
-				},
-			).Debug("received request")
+			log.WithFields(log.Fields{
+				"context": "service.worker",
+				"request": request,
+			}).Debug("received request")
 
 			if len(request) == 0 {
-				log.WithFields(
-					log.Fields{"context": "service.worker"},
-				).Debug("received request is empty")
+				log.WithFields(log.Fields{
+					"context": "service.worker",
+				}).Debug("received request is empty")
 				continue
 			}
 
@@ -231,7 +259,8 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 				switch msgType {
 				case "services", "service":
 					log.Tracef("part: %s", part)
-					if data, err = s.handler.callbacks[msgType].Execute(part); err != nil {
+					if data, err = s.handler.callbacks[msgType].Execute(
+						part); err != nil {
 						log.WithFields(log.Fields{
 							"context": "worker",
 							"type":    msgType,

@@ -1,0 +1,68 @@
+package components
+
+import "strings"
+
+var headerClasses = []string{
+	"flex",
+	"w-full",
+	"h-[64px]",
+	"px-[6px]",
+	"py-[12px]",
+	"bg-slate-50",
+	//"border-b-2",
+	//"border-b-slate",
+	"sticky",
+	"top-0",
+	"z-10",
+}
+
+var iconClasses = []string{
+	"fa-solid",
+	"fa-bars",
+	"fa-xl",
+	"cursor-pointer",
+	"text-slate-700",
+	"drop-shadow-[0_1px_1px_rgba(30,41,59,0.5)]",
+	"hover:drop-shadow-[0_6px_6px_rgba(30,41,59,0.5)]",
+}
+
+func classes(cls []string, extra ...string) string {
+	newCls := append(cls, extra...)
+	return strings.Join(newCls, " ")
+}
+
+templ headerHandlers() {
+	<script type="text/hyperscript">
+        def header.menuClick()
+            if localStorage.sidebarOpen == 'true'
+                add .xyz-out to #sidenav
+                remove .xyz-in from #sidenav
+                wait 500ms add .hidden to #sidenav
+                set localStorage.sidebarOpen to false
+            else
+                remove .hidden from #sidenav
+                add .xyz-in to #sidenav
+                remove .xyz-out from #sidenav
+                set localStorage.sidebarOpen to true
+        end
+    </script>
+}
+
+templ Header() {
+	<div class={ classes(headerClasses) }>
+		<div
+			class="flex justify-center items-center w-[64px] h-full"
+			_="on click call header.menuClick()"
+		>
+			<i class={ classes(iconClasses) }></i>
+		</div>
+		@headerHandlers()
+		<div class="flex">
+			<img
+				class="h-[32px] m-auto drop-shadow-[0_4px_4px_rgba(30,41,59,0.5)]"
+				src="/public/images/logo.svg"
+				alt="logo"
+			/>
+		</div>
+	</div>
+}

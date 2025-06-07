@@ -1,3 +1,4 @@
+// Package main provides callback handlers for the PlantD logger service.
 package main
 
 import (
@@ -20,6 +21,7 @@ type metricSinkCallback struct {
 	db *sql.DB
 }
 
+// Metric represents a single measurement data point with time series metadata.
 type Metric struct {
 	Time    string  `json:"time"`
 	Device  string  `json:"device"`
@@ -59,7 +61,8 @@ func (cb *metricSinkCallback) Handle(data []byte) error {
 		"value":   metric.Value,
 	}).Debug("handler received metric")
 
-	sql := "INSERT INTO metrics (time, device, channel, value) VALUES ($1, $2, $3, $4)"
+	sql := "INSERT INTO metrics (time, device, channel, value) " +
+		"VALUES ($1, $2, $3, $4)"
 
 	tx, err := cb.db.Begin()
 	if err != nil {
@@ -74,15 +77,19 @@ func (cb *metricSinkCallback) Handle(data []byte) error {
 	if err != nil {
 		return err
 	}
-	defer stmt.Close()
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			log.WithFields(log.Fields{
+				"context": "metricSinkCallback",
+				"error":   closeErr,
+			}).Error("failed to close prepared statement")
+		}
+	}()
 
-	if _, err := stmt.Exec(metric.Time, metric.Device, metric.Channel, metric.Value); err != nil {
+	if _, err := stmt.Exec(metric.Time, metric.Device, metric.Channel,
+		metric.Value); err != nil {
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }

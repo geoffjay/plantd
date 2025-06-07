@@ -1,3 +1,4 @@
+// Package repository provides data access functionality.
 package repository
 
 import (

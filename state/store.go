@@ -27,7 +27,12 @@ func (s *Store) Load(path string) (err error) {
 
 // Unload is used to close the database connection.
 func (s *Store) Unload() {
-	s.db.Close()
+	if err := s.db.Close(); err != nil {
+		log.WithFields(log.Fields{
+			"context": "store.unload",
+			"error":   err,
+		}).Error("failed to close database")
+	}
 }
 
 // HasScope checks if the bucket with the name `scope` exists.
@@ -56,11 +61,7 @@ func (s *Store) CreateScope(scope string) (err error) {
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
 // DeleteScope removes a bucket from the store with the name `scope`.
@@ -77,16 +78,13 @@ func (s *Store) DeleteScope(scope string) (err error) {
 		return err
 	}
 
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-
-	return nil
+	return tx.Commit()
 }
 
+// ListAllScope returns a list of all scope names (bucket names) in the store.
 func (s *Store) ListAllScope() (list []string) {
 	_ = s.db.View(func(tx *bolt.Tx) error {
-		_ = tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+		_ = tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
 			list = append(list, string(name))
 			return nil
 		})
@@ -102,7 +100,8 @@ func (s *Store) DebugScope(scope string) {
 		bucket := tx.Bucket([]byte(scope))
 		cursor := bucket.Cursor()
 		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
-			log.WithFields(log.Fields{"scope": scope}).Debugf("key=%s, value=%s\n", k, v)
+			log.WithFields(log.Fields{"scope": scope}).Debugf(
+				"key=%s, value=%s\n", k, v)
 		}
 		return nil
 	})

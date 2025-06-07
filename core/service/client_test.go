@@ -18,6 +18,11 @@ func newMockMdpClient() *mockMdpClient {
 	return &mockMdpClient{}
 }
 
+func (c *mockMdpClient) Close() error {
+	args := c.Called()
+	return args.Error(0)
+}
+
 func (c *mockMdpClient) Send(service string, request ...string) (err error) {
 	args := c.Called(service, request)
 	return args.Error(0)

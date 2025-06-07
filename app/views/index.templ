@@ -1,0 +1,31 @@
+package views
+
+import (
+	"github.com/geoffjay/plantd/app/views/components"
+	"github.com/geoffjay/plantd/app/views/layouts"
+)
+
+templ indexContents() {
+	<div class="flex flex-col h-full w-full">
+		@components.Header()
+		<div class="flex flex-row h-full w-full">
+			@components.Sidenav()
+			<div id="main" class="flex w-full flex-col px-6 py-6 lg:px-8">
+				<div class="sm:mx-auto sm:w-full sm:max-w-sm">
+					<img
+						class="mx-auto h-128 w-auto"
+						src="/public/images/logo.svg"
+						alt="Plantd"
+					/>
+					<h2 class="mt-10 text-center text-2xl font-bold leading-9 tracking-tight text-gray-900">
+						App
+					</h2>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ Index() {
+	@layouts.Base(indexContents())
+}

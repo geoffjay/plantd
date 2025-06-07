@@ -1,8 +1,8 @@
+// Package main provides the main entry point for the PlantD logger service.
 package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"regexp"
@@ -10,17 +10,19 @@ import (
 	"syscall"
 
 	"github.com/geoffjay/plantd/core"
-	"github.com/geoffjay/plantd/core/util"
+	plog "github.com/geoffjay/plantd/core/log"
 
 	log "github.com/sirupsen/logrus"
-	loki "github.com/yukitsune/lokirus"
 )
 
 func main() {
+	config := GetConfig()
+
 	processArgs()
-	initLogging()
+	plog.Initialize(config.Log)
 
 	app := NewService()
+	fields := log.Fields{"service": "logger", "context": "main"}
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
@@ -28,66 +30,25 @@ func main() {
 	wg.Add(1)
 	go app.run(ctx, wg)
 
-	log.Debug("service started")
+	log.WithFields(fields).Debug("starting")
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 	<-termChan
 
-	log.Debug("service terminated")
+	log.WithFields(fields).Debug("terminated")
 
 	cancelFunc()
 	wg.Wait()
 
-	log.Debug("logger exiting")
-}
-
-func initLogging() {
-	level := util.Getenv("PLANTD_LOGGER_LOG_LEVEL", "info")
-	if logLevel, err := log.ParseLevel(level); err == nil {
-		log.SetLevel(logLevel)
-	}
-
-	format := util.Getenv("PLANTD_LOGGER_LOG_FORMAT", "text")
-	if format == "json" {
-		log.SetFormatter(&log.JSONFormatter{
-			TimestampFormat: "2006-01-02 15:04:05",
-		})
-	} else {
-		log.SetFormatter(&log.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "2006-01-02 15:04:05",
-		})
-	}
-
-	opts := loki.NewLokiHookOptions().WithLevelMap(
-		loki.LevelMap{log.PanicLevel: "critical"},
-	).WithFormatter(
-		&log.JSONFormatter{},
-	).WithStaticLabels(
-		loki.Labels{
-			"app":         "broker",
-			"environment": "development",
-		},
-	)
-
-	hook := loki.NewLokiHookWithOpts(
-		"http://localhost:3100",
-		opts,
-		log.InfoLevel,
-		log.WarnLevel,
-		log.ErrorLevel,
-		log.FatalLevel,
-	)
-
-	log.AddHook(hook)
+	log.WithFields(fields).Debug("exiting")
 }
 
 func processArgs() {
 	if len(os.Args) > 1 {
 		r := regexp.MustCompile("^-V$|(-{2})?version$")
 		if r.Match([]byte(os.Args[1])) {
-			fmt.Println(core.VERSION)
+			log.Info(core.VERSION)
 		}
 		os.Exit(0)
 	}

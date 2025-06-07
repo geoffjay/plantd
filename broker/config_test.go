@@ -5,16 +5,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/geoffjay/plantd/core"
+	cfg "github.com/geoffjay/plantd/core/config"
 )
 
-func buildConfig(t *testing.T, path string) *brokerConfig {
-	var config *brokerConfig
+func buildConfig(t *testing.T, path string) *Config {
+	var config *Config
 
-	os.Unsetenv("PLANTD_BROKER_ENDPOINT")
+	_ = os.Unsetenv("PLANTD_BROKER_ENDPOINT")
 
 	_ = os.Setenv("PLANTD_BROKER_CONFIG", path)
-	err := core.LoadConfig("broker", &config)
+	err := cfg.LoadConfig("broker", &config)
 	if err != nil {
 		t.Fatalf("Cannot create configuration: %v", err)
 	}
@@ -24,32 +24,30 @@ func buildConfig(t *testing.T, path string) *brokerConfig {
 
 // nolint: funlen
 func TestLoadConfig(t *testing.T) {
-	emptyConfig := &brokerConfig{
+	emptyConfig := &Config{
 		Env:               "",
 		Endpoint:          "",
 		HeartbeatLiveness: 0,
 		HeartbeatInterval: 0,
-		Log: logConfig{
-			Debug:     false,
+		Log: cfg.LogConfig{
 			Formatter: "",
 			Level:     "",
 		},
 	}
-	validConfig := &brokerConfig{
+	validConfig := &Config{
 		Env:               "testing",
 		Endpoint:          "tcp://*:7200",
 		ClientEndpoint:    "tcp://localhost:7200",
 		HeartbeatLiveness: 3,
 		HeartbeatInterval: 2500000,
-		Log: logConfig{
-			Debug:     true,
+		Log: cfg.LogConfig{
 			Formatter: "text",
 			Level:     "debug",
 		},
 	}
 	cases := []struct {
 		fixture string
-		want    *brokerConfig
+		want    *Config
 		name    string
 	}{
 		{

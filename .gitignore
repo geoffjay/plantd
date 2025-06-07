@@ -19,3 +19,7 @@ cert/*.pem
 /target/
 /tmp/
 /vendor/
+
+# generated files
+/app/views/**/*_templ.go
+/app/views/**/*_templ.txt

@@ -1,30 +1,24 @@
+// Package config provides application configuration functionality.
 package config
 
 import (
 	"sync"
 
-	"github.com/geoffjay/plantd/core"
+	cfg "github.com/geoffjay/plantd/core/config"
 
 	log "github.com/sirupsen/logrus"
 )
 
 // TODO:
-// - add a new configuration section for the session middleware
 // - add a new configuration section for the database
-// - assign defaults to the configuration values
 
-type logConfig struct {
-	Debug     bool   `mapstructure:"debug"`
-	Formatter string `mapstructure:"formatter"`
-	Level     string `mapstructure:"level"`
-}
-
+// Config represents the application configuration structure.
 type Config struct {
-	core.Config
+	cfg.Config
+
 	Env            string        `mapstructure:"env"`
 	ClientEndpoint string        `mapstructure:"client-endpoint"`
-	Secret         string        `mapstructure:"secret"`
-	Log            logConfig     `mapstructure:"log"`
+	Log            cfg.LogConfig `mapstructure:"log"`
 	Cors           corsConfig    `mapstructure:"cors"`
 	Session        sessionConfig `mapstructure:"session"`
 }
@@ -32,29 +26,24 @@ type Config struct {
 var lock = &sync.Mutex{}
 var instance *Config
 
-func (c *Config) setDefaults() {
-	if c.Env == "" {
-		c.Env = "development"
-	}
-
-	if c.ClientEndpoint == "" {
-		c.ClientEndpoint = "tcp://localhost:9797"
-	}
-
-	if c.Secret == "" {
-		c.Secret = "secret"
-	}
-
-	if c.Log.Formatter == "" {
-		c.Log.Formatter = "text"
-	}
-
-	if c.Log.Level == "" {
-		c.Log.Level = "info"
-	}
-
-	c.Cors.setDefaults()
-	c.Session.setDefaults()
+var defaults = map[string]interface{}{
+	"env":                    "development",
+	"client-endpoint":        "tcp://localhost:9797",
+	"log.formatter":          "text",
+	"log.level":              "info",
+	"log.loki.address":       "http://localhost:3100",
+	"log.loki.labels":        map[string]string{"app": "app", "environment": "development"},
+	"cors.allow-credentials": true,
+	"cors.allow-origins":     "*",
+	"cors.allow-headers": "Origin, Content-Type, Accept, Content-Length, Accept-Language, " +
+		"Accept-Encoding, Connection, Authorization, Access-Control-Allow-Origin, " +
+		"Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin",
+	"cors.allow-methods":       "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
+	"session.expiration":       "2h",
+	"session.key-lookup":       "cookie:__Host-session",
+	"session.cookie-secure":    true,
+	"session.cookie-http-only": true,
+	"session.cookie-same-site": "Lax",
 }
 
 // GetConfig returns the application configuration singleton.
@@ -63,10 +52,9 @@ func GetConfig() *Config {
 		lock.Lock()
 		defer lock.Unlock()
 		if instance == nil {
-			if err := core.LoadConfig("app", &instance); err != nil {
+			if err := cfg.LoadConfigWithDefaults("app", &instance, defaults); err != nil {
 				log.Fatalf("error reading config file: %s\n", err)
 			}
-			instance.setDefaults()
 		}
 	}
 

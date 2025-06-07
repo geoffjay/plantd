@@ -12,6 +12,8 @@ echo "Running pre-commit hooks"
 ./scripts/utility go-lint app
 _check $? "golangci-lint" "app"
 
+templ fmt app/views/
+
 ./scripts/utility go-lint broker
 _check $? "golangci-lint" "broker"
 

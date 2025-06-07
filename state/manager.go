@@ -83,11 +83,13 @@ func (m *Manager) Run(ctx context.Context, wg *sync.WaitGroup) {
 		for event := range m.sinkChan {
 			switch event.id {
 			case SinkAdded:
-				log.WithFields(log.Fields{"scope": event.scope}).Debug("sink add received")
+				log.WithFields(log.Fields{"scope": event.scope}).Debug(
+					"sink add received")
 				wg.Add(1)
 				go m.sinkList[event.scope].Run(ctx, wg)
 			case SinkRemoved:
-				log.WithFields(log.Fields{"scope": event.scope}).Debug("sink remove received")
+				log.WithFields(log.Fields{"scope": event.scope}).Debug(
+					"sink remove received")
 			case SinkShutdown:
 				log.Debug("sink shutdown received")
 				break sinkMonitor
@@ -107,5 +109,6 @@ func (m *Manager) Shutdown() {
 		m.RemoveSink(scope)
 	}
 
-	log.WithFields(log.Fields{"context": "manager.shutdown"}).Debug("terminating")
+	log.WithFields(log.Fields{"context": "manager.shutdown"}).Debug(
+		"terminating")
 }

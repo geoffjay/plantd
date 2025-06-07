@@ -1,23 +1,28 @@
+// Package service provides client service functionality.
 package service
 
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/geoffjay/plantd/core/mdp"
+
+	log "github.com/sirupsen/logrus"
 )
 
+// Connection defines the interface for service connections.
 type Connection interface {
+	Close() error
 	Send(service string, request ...string) (err error)
 	Recv() (reply []string, err error)
 }
 
+// Client represents a service client.
 type Client struct {
 	conn Connection
 }
 
-// Establish a connection using the ZeroMQ API device.
+// NewClient establishes a connection using the ZeroMQ API device.
 func NewClient(endpoint string) (c *Client, err error) {
 	conn, err := mdp.NewClient(endpoint)
 	if err != nil {
@@ -27,6 +32,12 @@ func NewClient(endpoint string) (c *Client, err error) {
 	c = &Client{conn}
 
 	return
+}
+
+// Close the connection to the ZeroMQ API device.
+func (c *Client) Close() error {
+	log.Debug("closing client connection")
+	return c.conn.Close()
 }
 
 func (c *Client) sendMessage(id, message string, in interface{}, out interface{}) error {
@@ -58,17 +69,24 @@ func (c *Client) sendMessage(id, message string, in interface{}, out interface{}
 		idx = 2
 	}
 
-	fmt.Printf("reply: %+v\n", reply)
+	log.Debugf("reply: %+v\n", reply)
 
 	// Deserialize reply into a response
 	err = json.Unmarshal([]byte(reply[idx]), out)
 	return err
 }
 
+// RawRequest represents a raw service request.
 type RawRequest map[string]interface{}
+
+// RawResponse represents a raw service response.
 type RawResponse map[string]interface{}
 
-func (c *Client) SendRawRequest(id, requestType string, request *RawRequest) (response RawResponse, err error) {
+// SendRawRequest sends a raw request to the service.
+func (c *Client) SendRawRequest(
+	id, requestType string,
+	request *RawRequest,
+) (response RawResponse, err error) {
 	response = make(RawResponse)
 	err = c.sendMessage(id, requestType, request, &response)
 	if err != nil {
