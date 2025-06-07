@@ -1,0 +1,14 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Plantd
+
+## Description
+
+You are an expert at Golang, distributed systems, and messaging using ZeroMQ. The `plantd` project is a set of services that are meant to provide building blocks for a distributed control system (DCS).
+
+## Maintenance
+
+After completing tasks you should review the [current-state.md](mdc:docs/analysis/current-state.md) document that's kept in `/docs/analysis/current-state.md`, specifically the "Service Maturity Matrix". If work has been done that is related to the service state in this matrix its value should be updated according to the options available in the legend.

@@ -3,12 +3,14 @@ package service
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 
 	"github.com/geoffjay/plantd/core/mdp"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type Connection interface {
+	Close() error
 	Send(service string, request ...string) (err error)
 	Recv() (reply []string, err error)
 }
@@ -27,6 +29,12 @@ func NewClient(endpoint string) (c *Client, err error) {
 	c = &Client{conn}
 
 	return
+}
+
+// Close the connection to the ZeroMQ API device.
+func (c *Client) Close() error {
+	log.Debug("closing client connection")
+	return c.conn.Close()
 }
 
 func (c *Client) sendMessage(id, message string, in interface{}, out interface{}) error {
@@ -58,7 +66,7 @@ func (c *Client) sendMessage(id, message string, in interface{}, out interface{}
 		idx = 2
 	}
 
-	fmt.Printf("reply: %+v\n", reply)
+	log.Debugf("reply: %+v\n", reply)
 
 	// Deserialize reply into a response
 	err = json.Unmarshal([]byte(reply[idx]), out)

@@ -134,22 +134,25 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 
 func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 	var err error
-
+	fields := log.Fields{"context": "service.worker"}
 	defer wg.Done()
 
 	go func() {
 		var request, reply []string
 		for !s.worker.Terminated() {
-			log.WithFields(log.Fields{"context": "service.worker"}).Debug("waiting for request")
+			log.WithFields(fields).Debug("waiting for request")
 
 			if request, err = s.worker.Recv(reply); err != nil {
 				log.WithFields(log.Fields{"error": err}).Error("failed while receiving request")
 			}
 
-			log.WithFields(log.Fields{"context": "service.worker", "request": request}).Debug("received request")
+			log.WithFields(log.Fields{
+				"context": "service.worker",
+				"request": request,
+			}).Debug("received request")
 
 			if len(request) == 0 {
-				log.WithFields(log.Fields{"context": "service.worker"}).Debug("received request is empty")
+				log.WithFields(fields).Debug("received request is empty")
 				continue
 			}
 
@@ -157,7 +160,6 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 
 			// Reset reply
 			reply = []string{}
-
 			for _, part := range request[1:] {
 				log.WithFields(log.Fields{
 					"context": "worker",
@@ -169,7 +171,7 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 					log.Tracef("part: %s", part)
 					if data, err = s.handler.callbacks[msgType].Execute(part); err != nil {
 						log.WithFields(log.Fields{
-							"context": "worker",
+							"context": "service.worker",
 							"type":    msgType,
 							"error":   err,
 						}).Warn("message failed")
@@ -190,7 +192,7 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 	<-ctx.Done()
 	s.worker.Shutdown()
 
-	log.WithFields(log.Fields{"context": "worker"}).Debug("exiting")
+	log.WithFields(fields).Debug("exiting")
 }
 
 // RegisterCallback is a pointless wrapper around the handler.

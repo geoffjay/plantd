@@ -1,13 +1,19 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/geoffjay/plantd/app/repository"
 	"github.com/geoffjay/plantd/app/types"
+	"github.com/geoffjay/plantd/app/views"
+	"github.com/geoffjay/plantd/app/views/pages"
 
+	"github.com/a-h/templ"
 	"github.com/gofiber/fiber/v2"
 	log "github.com/sirupsen/logrus"
 )
 
+// TODO: add registration page.
 func Register(c *fiber.Ctx) error {
 	// Validate user input (username, email, password)
 	// Hash the password
@@ -17,18 +23,28 @@ func Register(c *fiber.Ctx) error {
 }
 
 func LoginPage(c *fiber.Ctx) error {
+	session, err := SessionStore.Get(c)
+	if err != nil {
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	loggedIn, _ := session.Get("loggedIn").(bool)
+	if loggedIn {
+		// User is authenticated, redirect to the main page
+		return c.Redirect("/")
+	}
+
 	csrfToken, ok := c.Locals("csrf").(string)
 	if !ok {
 		log.Info("csrf token not found")
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	log.Infof("login page with csrf token: %s", csrfToken)
+	log.Debugf("login page with csrf token: %s", csrfToken)
 
-	return c.Render("login", fiber.Map{
-		"Title": "Login",
-		"csrf":  csrfToken,
-	}, "layouts/base")
+	c.Locals("title", "Login")
+
+	return views.Render(c, pages.Login(), templ.WithStatus(http.StatusOK))
 }
 
 func Login(c *fiber.Ctx) error {
@@ -36,8 +52,6 @@ func Login(c *fiber.Ctx) error {
 		"service": "app",
 		"context": "handlers.login",
 	}
-
-	log.Info("login")
 
 	// Extract the credentials from the request body
 	loginRequest := new(types.LoginRequest)
@@ -56,11 +70,11 @@ func Login(c *fiber.Ctx) error {
 			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 
-		return c.Render("login", fiber.Map{
-			"title": "Login",
-			"csrf":  csrfToken,
-			"error": "Invalid credentials",
-		}, "layouts/base")
+		c.Locals("title", "Login")
+		c.Locals("csrf", csrfToken)
+		c.Locals("error", "Invalid credentials")
+
+		return views.Render(c, pages.Login(), templ.WithStatus(http.StatusUnauthorized))
 	}
 
 	log.WithFields(fields).Debugf("logging in: %s", loginRequest.Email)
@@ -77,7 +91,7 @@ func Login(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	c.Set("HX-Redirect", "/dashboard")
+	c.Set("HX-Redirect", "/")
 
 	return c.SendStatus(fiber.StatusOK)
 }

@@ -3,7 +3,7 @@ package cmd
 import (
 	"log"
 
-	"github.com/geoffjay/plantd/core"
+	cfg "github.com/geoffjay/plantd/core/config"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -66,7 +66,7 @@ func addCommands() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if err := core.LoadConfig("client", &config); err != nil {
+	if err := cfg.LoadConfig("client", &config); err != nil {
 		log.Fatalf("error reading config file: %s\n", err)
 	}
 

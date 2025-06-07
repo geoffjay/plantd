@@ -1,6 +1,6 @@
 module github.com/geoffjay/plantd/module/echo
 
-go 1.21.5
+go 1.24
 
 require (
 	github.com/geoffjay/plantd/core v0.0.0-20240125055409-a3c9359725a8

@@ -9,11 +9,11 @@ import (
 	"sync"
 	"syscall"
 
+	cfg "github.com/geoffjay/plantd/app/config"
 	"github.com/geoffjay/plantd/core"
-	"github.com/geoffjay/plantd/core/util"
+	plog "github.com/geoffjay/plantd/core/log"
 
 	log "github.com/sirupsen/logrus"
-	loki "github.com/yukitsune/lokirus"
 )
 
 // @title Plantd Web Application
@@ -24,8 +24,10 @@ import (
 // @license.name MIT
 // @license.url https://opensource.org/license/mit/
 func main() {
+	config := cfg.GetConfig()
+
 	processArgs()
-	initLogging()
+	plog.Initialize(config.Log)
 
 	service := service{}
 	service.init()
@@ -50,48 +52,6 @@ func main() {
 	wg.Wait()
 
 	log.WithFields(fields).Debug("exiting")
-}
-
-func initLogging() {
-	level := util.Getenv("PLANTD_APP_LOG_LEVEL", "info")
-	if logLevel, err := log.ParseLevel(level); err == nil {
-		log.SetLevel(logLevel)
-	}
-
-	format := util.Getenv("PLANTD_APP_LOG_FORMAT", "text")
-	if format == "json" {
-		log.SetFormatter(&log.JSONFormatter{
-			TimestampFormat: "2006-01-02 15:04:05",
-		})
-	} else {
-		log.SetFormatter(&log.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "2006-01-02 15:04:05",
-		})
-	}
-
-	opts := loki.NewLokiHookOptions().WithLevelMap(
-		loki.LevelMap{log.PanicLevel: "critical"},
-	).WithFormatter(
-		&log.JSONFormatter{},
-	).WithStaticLabels(
-		loki.Labels{
-			"app":         "app",
-			"environment": "development",
-		},
-	)
-
-	lokiAddress := util.Getenv("PLANTD_APP_LOG_LOKI_ADDRESS", "http://localhost:3100")
-	hook := loki.NewLokiHookWithOpts(
-		lokiAddress,
-		opts,
-		log.InfoLevel,
-		log.WarnLevel,
-		log.ErrorLevel,
-		log.FatalLevel,
-	)
-
-	log.AddHook(hook)
 }
 
 func processArgs() {

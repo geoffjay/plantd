@@ -11,11 +11,13 @@ import (
 	"github.com/geoffjay/plantd/core/util"
 
 	log "github.com/sirupsen/logrus"
+	loki "github.com/yukitsune/lokirus"
 )
 
 func main() {
 	initLogging()
 
+	fields := log.Fields{"module": "echo"}
 	port, _ := strconv.Atoi(util.Getenv("PLANTD_MODULE_ECHO_PORT", "5000"))
 	bind := util.Getenv("PLANTD_MODULE_ECHO_ADDRESS", "0.0.0.0")
 	service := NewService(port, bind)
@@ -26,18 +28,18 @@ func main() {
 	wg.Add(1)
 	go service.run(ctx, wg)
 
-	log.WithFields(log.Fields{"module": "echo"}).Debug("started")
+	log.WithFields(fields).Debug("started")
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
 	<-termChan
 
-	log.WithFields(log.Fields{"module": "echo"}).Debug("terminated")
+	log.WithFields(fields).Debug("terminated")
 
 	cancelFunc()
 	wg.Wait()
 
-	log.WithFields(log.Fields{"module": "echo"}).Debug("exiting")
+	log.WithFields(fields).Debug("exiting")
 }
 
 func initLogging() {
@@ -48,6 +50,35 @@ func initLogging() {
 
 	format := util.Getenv("PLANTD_MODULE_ECHO_LOG_FORMAT", "text")
 	if format == "json" {
-		log.SetFormatter(&log.JSONFormatter{})
+		log.SetFormatter(&log.JSONFormatter{
+			TimestampFormat: "2006-01-02 15:04:05",
+		})
+	} else {
+		log.SetFormatter(&log.TextFormatter{
+			FullTimestamp:   true,
+			TimestampFormat: "2006-01-02 15:04:05",
+		})
 	}
+
+	opts := loki.NewLokiHookOptions().WithLevelMap(
+		loki.LevelMap{log.PanicLevel: "critical"},
+	).WithFormatter(
+		&log.JSONFormatter{},
+	).WithStaticLabels(
+		loki.Labels{
+			"app":         "broker",
+			"environment": "development",
+		},
+	)
+
+	hook := loki.NewLokiHookWithOpts(
+		"http://localhost:3100",
+		opts,
+		log.InfoLevel,
+		log.WarnLevel,
+		log.ErrorLevel,
+		log.FatalLevel,
+	)
+
+	log.AddHook(hook)
 }

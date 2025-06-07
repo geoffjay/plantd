@@ -7,3 +7,13 @@ are not meant to be essential to a Plantd system as a whole.
 ## Echo
 
 Created for testing.
+
+## Metric
+
+### Producer
+
+Generates data on the metric bus for testing.
+
+### Consumer
+
+Listens for data on the metric bus for testing.

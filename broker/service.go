@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/geoffjay/plantd/core"
 	"github.com/geoffjay/plantd/core/bus"
+	cfg "github.com/geoffjay/plantd/core/config"
 	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/core/util"
 
@@ -19,20 +19,21 @@ import (
 
 // Service defines the service type.
 type Service struct {
-	buses    []*bus.Bus
-	config   *brokerConfig
-	handler  *Handler
 	endpoint string
-	broker   *mdp.Broker
+	handler  *Handler
 	running  bool
-	worker   *mdp.Worker
+
+	buses  []*bus.Bus
+	broker *mdp.Broker
+	worker *mdp.Worker
 }
 
 // NewService creates an instance of the service.
-func NewService(config *brokerConfig) *Service {
+func NewService() *Service {
+	config := GetConfig()
+
 	service := &Service{
-		buses:    initBuses(config),
-		config:   config,
+		buses:    initBuses(),
 		handler:  NewHandler(),
 		endpoint: config.Endpoint,
 		broker:   nil,
@@ -49,7 +50,7 @@ func NewService(config *brokerConfig) *Service {
 		return nil
 	}
 
-	if err := service.initWorker(config); err != nil {
+	if err := service.initWorker(); err != nil {
 		log.WithFields(log.Fields{"err": err}).Error("failed to initialize worker")
 		return nil
 	}
@@ -58,7 +59,9 @@ func NewService(config *brokerConfig) *Service {
 }
 
 func (s *Service) dumpConfig() {
-	json, err := core.MarshalConfig(s.config)
+	config := GetConfig()
+
+	json, err := cfg.MarshalConfig(config)
 	if err != nil {
 		log.WithFields(log.Fields{"error": err}).Error("failed to marshal config")
 	}
@@ -66,7 +69,9 @@ func (s *Service) dumpConfig() {
 	log.WithFields(log.Fields{"context": "service"}).Trace(json)
 }
 
-func initBuses(config *brokerConfig) (buses []*bus.Bus) {
+func initBuses() (buses []*bus.Bus) {
+	config := GetConfig()
+
 	for _, b := range config.Buses {
 		log.WithFields(log.Fields{
 			"bus":      b.Name,
@@ -93,8 +98,10 @@ func (s *Service) initBroker() error {
 	return nil
 }
 
-func (s *Service) initWorker(config *brokerConfig) error {
+func (s *Service) initWorker() error {
 	var err error
+	config := GetConfig()
+
 	if s.worker, err = mdp.NewWorker(config.ClientEndpoint, "org.plantd.Broker"); err != nil {
 		log.WithFields(log.Fields{
 			"err":             err,
@@ -102,6 +109,7 @@ func (s *Service) initWorker(config *brokerConfig) error {
 		}).Error("failed to setup message queue worker")
 		return err
 	}
+
 	return nil
 }
 
@@ -203,17 +211,15 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 				log.WithFields(log.Fields{"error": err}).Error("failed while receiving request")
 			}
 
-			log.WithFields(
-				log.Fields{
-					"context": "service.worker",
-					"request": request,
-				},
-			).Debug("received request")
+			log.WithFields(log.Fields{
+				"context": "service.worker",
+				"request": request,
+			}).Debug("received request")
 
 			if len(request) == 0 {
-				log.WithFields(
-					log.Fields{"context": "service.worker"},
-				).Debug("received request is empty")
+				log.WithFields(log.Fields{
+					"context": "service.worker",
+				}).Debug("received request is empty")
 				continue
 			}
 

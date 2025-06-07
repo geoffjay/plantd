@@ -6,7 +6,6 @@
   "heartbeat-liveness": 3,
   "heartbeat-interval": 2500000,
   "log": {
-    "debug": true,
     "formatter": "text",
     "level": "debug"
   }

@@ -1,0 +1,36 @@
+package components
+
+templ sidenavHandleExpand() {
+	<script type="text/hyperscript">
+        def sidenav.handleExpand(el)
+            toggle .hidden on el
+        end
+    </script>
+}
+
+templ Sidenav() {
+	<div
+		id="sidenav"
+		class="flex flex-col w-[256px] bg-slate-50 py-4 hidden"
+		xyz="fade left-100%"
+		_="init if localStorage.sidebarOpen == 'true' then remove .hidden"
+	>
+		@SidenavItem("/", "Dashboard", "table-columns", nil)
+		<div class="p-4"><hr/></div>
+		@SidenavItem("/api/v1/services", "Services", "paper-plane", "#services-menu")
+		<div
+			id="services-menu"
+			class="hidden"
+			xyz="fade down-100%"
+			_="on sidenavItemExpandClicked call sidenav.handleExpand(me)"
+		>
+			@SidenavItem("/api/v1/services/broker", "Broker", nil, nil)
+			@SidenavItem("/api/v1/services/logger", "Logger", "floppy-disk", nil)
+			@SidenavItem("/api/v1/services/proxy", "Proxy", nil, nil)
+			@SidenavItem("/api/v1/services/state", "State", nil, nil)
+		</div>
+		<div class="p-4"><hr/></div>
+		@SidenavItem("/admin", "Admin", "hand-back-fist", nil)
+	</div>
+	@sidenavHandleExpand()
+}
