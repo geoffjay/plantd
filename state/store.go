@@ -86,7 +86,7 @@ func (s *Store) DeleteScope(scope string) (err error) {
 
 func (s *Store) ListAllScope() (list []string) {
 	_ = s.db.View(func(tx *bolt.Tx) error {
-		_ = tx.ForEach(func(name []byte, b *bolt.Bucket) error {
+		_ = tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
 			list = append(list, string(name))
 			return nil
 		})

@@ -1,6 +1,6 @@
 module github.com/geoffjay/plantd/state
 
-go 1.21
+go 1.24
 
 require (
 	github.com/geoffjay/plantd/core v0.0.0-20240120031930-de5686649da5

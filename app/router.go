@@ -88,11 +88,6 @@ func initializeRouter(app *fiber.App) {
 
 	app.Get("/sse", handlers.ReloadSSE)
 
-	// TODO: this is just here until the API is implemented.
-	defaultHandler := func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	}
-
 	// API routes
 	api := app.Group("/api")
 	api.Get("/docs/*", swagger.HandlerDefault)
@@ -102,19 +97,32 @@ func initializeRouter(app *fiber.App) {
 		return c.Next()
 	})
 
-	broker := v1.Group("/broker")
+	initializeBrokerRoutes(&v1)
+	initializeDevRoutes(app)
+
+	app.Use(handlers.NotFound)
+}
+
+func initializeBrokerRoutes(app *fiber.Router) {
+	// TODO: this is just here until the API is implemented.
+	defaultHandler := func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	}
+
+	broker := (*app).Group("/broker")
 	broker.Get("/status", defaultHandler)
 	broker.Get("/errors", defaultHandler)
 	broker.Get("/workers", defaultHandler)
 	broker.Get("/workers/:id", defaultHandler)
 	broker.Get("/info", defaultHandler)
+}
 
-	// Development routes
+func initializeDevRoutes(app *fiber.App) {
 	config := cfg.GetConfig()
 	if strings.ToLower(config.Env) == Development {
 		log.Debug("Development routes enabled")
 
-		dev := app.Group("/dev")
+		dev := (*app).Group("/dev")
 		dev.Get("/reload", adaptor.HTTPHandler(httpHandler(handlers.Reload)))
 		dev.Use("/reload2", handlers.UpgradeWS)
 		dev.Get("/reload2", websocket.New(handlers.ReloadWS))
@@ -127,6 +135,4 @@ func initializeRouter(app *fiber.App) {
 		//     return c.JSON(m)
 		//    })
 	}
-
-	app.Use(handlers.NotFound)
 }

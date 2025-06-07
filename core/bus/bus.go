@@ -127,7 +127,7 @@ func (b *Bus) Start(ctx context.Context, wg *sync.WaitGroup) error {
 			"capture":  b.capture,
 		}
 
-		if err = proxy.SetFrontend(czmq.XSub, b.frontend); err != nil {
+		if err = proxy.SetFrontend(czmq.Sub, b.frontend); err != nil {
 			log.WithFields(fields).Error("failed to connect frontend to proxy")
 			errc <- err
 		}

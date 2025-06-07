@@ -115,7 +115,7 @@ func ReloadSSE(c *fiber.Ctx) error {
 				}
 
 				// send sse formatted message
-				_, err = fmt.Fprintf(w, sseMessage)
+				_, err = fmt.Fprintf(w, "%s", sseMessage)
 
 				if err != nil {
 					log.Printf("Error while writing Data: %v\n", err)
@@ -131,7 +131,7 @@ func ReloadSSE(c *fiber.Ctx) error {
 					break
 				}
 			case <-keepAliveTickler.C:
-				fmt.Fprintf(w, keepAliveMsg)
+				fmt.Fprintf(w, "%s", keepAliveMsg)
 				err := w.Flush()
 				if err != nil {
 					log.Printf("Error while flushing: %v.\n", err)

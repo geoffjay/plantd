@@ -2,12 +2,15 @@ run:
   tests: true
 
 output:
-  format: colored-line-number
+  formats:
+    - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
-  uniq-by-line: true
   path-prefix: ""
   sort-results: false
+
+issues:
+  uniq-by-line: true
 
 linters:
   # additional linters that aren't enabled by default
@@ -43,7 +46,9 @@ linters-settings:
   errcheck:
     check-type-assertions: false
     check-blank: false
-    ignore: fmt:.*,io/ioutil:^Read.*
+    exclude-functions:
+      - fmt:.*
+      - io/ioutil:^Read.*
 
   errorlint:
     errorf: true

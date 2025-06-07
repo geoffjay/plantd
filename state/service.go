@@ -135,7 +135,6 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 	var err error
 	fields := log.Fields{"context": "service.worker"}
-
 	defer wg.Done()
 
 	go func() {
