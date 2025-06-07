@@ -35,7 +35,6 @@ linters:
     cyclop:
       max-complexity: 10
       package-average: 0.0
-      skip-tests: false
 
     dogsled:
       max-blank-identifiers: 2
@@ -51,7 +50,6 @@ linters:
         - io/ioutil:^Read.*
 
     exhaustive:
-      check-generated: false
       default-signifies-exhaustive: false
 
     forbidigo:
@@ -66,7 +64,6 @@ linters:
     goconst:
       min-len: 3
       min-occurrences: 3
-      ignore-tests: false
 
     godot:
       check-all: false
@@ -78,7 +75,6 @@ linters:
       min-complexity: 4
 
     revive:
-      ignore-generated-header: true
       severity: warning
       rules:
         - name: atomic
@@ -121,4 +117,5 @@ formatters:
       simplify: true
 
     goimports:
-      local-prefixes: github.com/org/project
+      local-prefixes: 
+        - github.com/org/project
