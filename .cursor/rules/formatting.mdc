@@ -1,0 +1,273 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Code Formatting Rules for Readability
+
+## Overview
+These rules prioritize human readability and maintainability over brevity. Code should be formatted to be easily scannable and modifiable.
+
+## Multi-line Function Calls and Method Chaining
+
+### When to Apply Fluent Formatting
+Only apply fluent formatting when:
+- The line exceeds 100 characters
+- Multiple complex parameters make the line hard to read
+- The construct would benefit from easy modification (adding/removing parameters)
+
+### Compact Style for Short Lines
+**✅ Preferred for short lines:**
+```go
+log.WithFields(log.Fields{"error": err}).Error("failed while receiving request")
+```
+
+### Fluent Style for Long Lines
+**✅ Preferred for long or complex lines:**
+```go
+log.WithFields(
+    log.Fields{
+        "context":   "service.worker", 
+        "requestId": requestId,
+        "userId":    userId,
+        "error":     err,
+    },
+).Error(
+    "failed while receiving request from user",
+)
+```
+
+**❌ Avoid unnecessary splitting:**
+```go
+log.WithFields(
+    log.Fields{"error": err},
+).Error(
+    "failed",
+)
+```
+
+### Function Calls with Multiple Arguments
+Keep short function calls compact. Only break into multiple lines when the call is long or complex:
+
+**✅ Preferred for short calls:**
+```go
+result := SomeFunction(arg1, arg2, arg3)
+```
+
+**✅ Preferred for long calls:**
+```go
+result := SomeFunction(
+    firstArgument,
+    secondArgument,
+    thirdArgument,
+)
+```
+
+**❌ Avoid inconsistent breaking:**
+```go
+result := SomeFunction(firstArgument, secondArgument,
+    thirdArgument)
+```
+
+### Struct Initialization
+Keep simple struct initialization compact. Use multi-line format for complex structs:
+
+**✅ Preferred for simple structs:**
+```go
+config := &Config{Name: "example", Timeout: 30}
+```
+
+**✅ Preferred for complex structs:**
+```go
+config := &Config{
+    Name:     "example",
+    Timeout:  30 * time.Second,
+    Retries:  3,
+    Endpoint: "https://api.example.com",
+}
+```
+
+**❌ Avoid missing trailing comma in multi-line:**
+```go
+config := &Config{
+    Name:     "example",
+    Timeout:  30 * time.Second,
+    Retries:  3,
+    Endpoint: "https://api.example.com"}
+```
+
+## Method Chaining
+
+### Long Method Chains
+Break method chains so each method call is on its own line:
+
+**✅ Preferred:**
+```go
+result := builder.
+    WithName("example").
+    WithTimeout(30).
+    WithRetries(3).
+    Build()
+```
+
+**❌ Avoid:**
+```go
+result := builder.WithName("example").WithTimeout(30).WithRetries(3).Build()
+```
+
+## Error Handling with Logging
+
+### Multi-line Error Logging
+For error logging with fields, use the fluent style:
+
+**✅ Preferred:**
+```go
+log.WithFields(
+    log.Fields{
+        "context": "service.worker",
+        "error":   err,
+        "request": requestID,
+    },
+).Error(
+    "failed to process request",
+)
+```
+
+**❌ Avoid:**
+```go
+log.WithFields(log.Fields{
+    "context": "service.worker",
+    "error":   err,
+    "request": requestID}).Error("failed to process request")
+```
+
+## Function Definitions
+
+### Long Parameter Lists
+Break function definitions with many parameters:
+
+**✅ Preferred:**
+```go
+func ProcessRequest(
+    ctx context.Context,
+    userID string,
+    requestData []byte,
+    timeout time.Duration,
+) (Result, error) {
+    // function body
+}
+```
+
+**❌ Avoid:**
+```go
+func ProcessRequest(ctx context.Context, userID string, requestData []byte, timeout time.Duration) (Result, error) {
+    // function body
+}
+```
+
+## Array and Slice Initialization
+
+### Multi-line Arrays/Slices
+Use trailing commas for multi-line array/slice initialization:
+
+**✅ Preferred:**
+```go
+items := []string{
+    "first",
+    "second", 
+    "third",
+}
+```
+
+**❌ Avoid:**
+```go
+items := []string{
+    "first",
+    "second", 
+    "third"}
+```
+
+## Map Initialization
+
+### Multi-line Maps
+Format maps with each key-value pair on its own line:
+
+**✅ Preferred:**
+```go
+config := map[string]interface{}{
+    "host":     "localhost",
+    "port":     8080,
+    "timeout":  30,
+    "retries":  3,
+}
+```
+
+## General Principles
+
+1. **Line Length Threshold**: Only apply fluent formatting when lines exceed 100 characters or when it genuinely improves readability. Keep shorter lines in their compact form.
+
+2. **Trailing Commas**: Use trailing commas in multi-line constructs to:
+   - Make adding/removing items easier
+   - Reduce diff noise in version control
+   - Enable consistent formatting
+
+3. **Consistent Indentation**: Use consistent indentation (tabs in Go) for all nested elements
+
+4. **One Item Per Line**: In multi-line constructs, put each item on its own line for better readability
+
+5. **Method Chaining**: Break method chains at logical points, typically one method per line
+
+6. **Conservative Splitting**: Do not split a line:
+   - Before an indentation change (e.g., function declaration, conditional)
+   - To make a long string (e.g., a URL) fit into multiple shorter lines
+   - When the line is under 100 characters and is already readable
+
+## When NOT to Apply Fluent Formatting
+
+### Keep These Compact
+**✅ Keep simple log statements compact:**
+```go
+log.WithFields(log.Fields{"context": "service"}).Debug("starting")
+log.WithFields(log.Fields{"error": err}).Error("failed to connect")
+```
+
+**❌ Don't over-split simple statements:**
+```go
+log.WithFields(
+    log.Fields{"context": "service"},
+).Debug(
+    "starting",
+)
+```
+
+### Don't Split Long Strings
+**✅ Keep long strings intact:**
+```go
+url := "https://api.example.com/v1/users/12345/settings/notifications"
+message := "This is a very long error message that provides detailed context about what went wrong"
+```
+
+**❌ Don't break long strings:**
+```go
+url := "https://api.example.com/v1/users/" +
+       "12345/settings/notifications"
+```
+
+## Benefits
+
+This conservative formatting approach provides:
+- **Readability Balance**: Keeps simple code compact while making complex code more readable
+- **Easy Modification**: Adding or removing arguments/fields in complex constructs requires minimal changes
+- **Better Diffs**: Version control diffs are cleaner when changes are made to complex structures
+- **Reduced Noise**: Avoids unnecessary line breaks that don't add value
+- **Practical Application**: Applies formatting rules only when they genuinely improve code quality
+- **Maintainability**: Makes it easier to scan and understand code at different complexity levels
+
+## Language-Specific Notes
+
+While these examples focus on Go, similar principles apply to other languages:
+- JavaScript/TypeScript: Use trailing commas in objects, arrays, and function calls
+- Python: Use trailing commas in lists, tuples, and function calls
+- Rust: Use trailing commas in structs, enums, and function calls
+
+Apply these formatting rules consistently across the codebase to maintain readability and ease of maintenance.

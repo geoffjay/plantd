@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	// Development represents the development environment name.
 	Development = "development"
 )
 
@@ -51,7 +52,8 @@ func csrfErrorHandler(c *fiber.Ctx, err error) error {
 		c.Locals("errorCode", "403")
 
 		// Return a 403 Forbidden response for HTML requests
-		return views.Render(c, pages.Error(), templ.WithStatus(http.StatusForbidden))
+		return views.Render(c, pages.Error(),
+			templ.WithStatus(http.StatusForbidden))
 	default:
 		// Return a 403 Forbidden response for all other requests
 		return c.Status(fiber.StatusForbidden).SendString("403 Forbidden")

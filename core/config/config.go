@@ -1,9 +1,11 @@
+// Package config provides configuration loading functionality.
 package config
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -13,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Config represents a generic configuration interface.
 type Config interface{}
 
 func prepare(name string) (*viper.Viper, error) {
@@ -53,6 +56,7 @@ func prepare(name string) (*viper.Viper, error) {
 	return config, nil
 }
 
+// LoadConfigWithDefaults loads configuration with default values.
 func LoadConfigWithDefaults(name string, c interface{}, defaults map[string]interface{}) error {
 	envPrefix := fmt.Sprintf("PLANTD_%s", strings.ToUpper(name))
 
@@ -71,7 +75,7 @@ func LoadConfigWithDefaults(name string, c interface{}, defaults map[string]inte
 	config.AutomaticEnv()
 
 	for key, value := range defaults {
-		fmt.Printf("Setting default: %s = %s\n", key, value)
+		log.Printf("Setting default: %s = %s\n", key, value)
 		config.SetDefault(key, value)
 	}
 

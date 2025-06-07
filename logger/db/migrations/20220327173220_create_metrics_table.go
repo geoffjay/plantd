@@ -1,3 +1,4 @@
+// Package migrations contains database migration definitions.
 package migrations
 
 import (
@@ -5,10 +6,12 @@ import (
 	"database/sql"
 )
 
+// CreateMetricsTable represents a migration to create the metrics table.
 type CreateMetricsTable struct {
 	DB *sql.DB
 }
 
+// Up executes the migration to create the metrics table.
 func (m *CreateMetricsTable) Up() error {
 	sql := `
   CREATE TABLE IF NOT EXISTS metrics (
@@ -38,6 +41,7 @@ func (m *CreateMetricsTable) Up() error {
 	return nil
 }
 
+// Down executes the migration to drop the metrics table.
 func (m *CreateMetricsTable) Down() error {
 	sql := `DROP TABLE IF EXISTS metrics;`
 

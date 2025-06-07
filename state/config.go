@@ -13,6 +13,7 @@ type databaseConfig struct {
 	URI     string `mapstructure:"uri"`
 }
 
+// Config represents the configuration for the state service.
 type Config struct {
 	cfg.Config
 
@@ -36,8 +37,9 @@ var defaults = map[string]interface{}{
 	"log.formatter":    "text",
 	"log.level":        "info",
 	"log.loki.address": "http://localhost:3100",
-	"log.loki.labels":  map[string]string{"app": "state", "environment": "development"},
-	"service.id":       "org.plantd.State",
+	"log.loki.labels": map[string]string{
+		"app": "state", "environment": "development"},
+	"service.id": "org.plantd.State",
 }
 
 // GetConfig returns the application configuration singleton.
@@ -46,7 +48,8 @@ func GetConfig() *Config {
 		lock.Lock()
 		defer lock.Unlock()
 		if instance == nil {
-			if err := cfg.LoadConfigWithDefaults("state", &instance, defaults); err != nil {
+			if err := cfg.LoadConfigWithDefaults("state", &instance,
+				defaults); err != nil {
 				log.Fatalf("error reading config file: %s\n", err)
 			}
 		}

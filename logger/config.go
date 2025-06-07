@@ -8,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Config represents the configuration for the logger service.
 type Config struct {
 	cfg.Config
 
@@ -25,7 +26,8 @@ var defaults = map[string]interface{}{
 	"log.formatter":    "text",
 	"log.level":        "info",
 	"log.loki.address": "http://localhost:3100",
-	"log.loki.labels":  map[string]string{"app": "logger", "environment": "development"},
+	"log.loki.labels": map[string]string{
+		"app": "logger", "environment": "development"},
 }
 
 // GetConfig returns the application configuration singleton.
@@ -34,7 +36,8 @@ func GetConfig() *Config {
 		lock.Lock()
 		defer lock.Unlock()
 		if instance == nil {
-			if err := cfg.LoadConfigWithDefaults("logger", &instance, defaults); err != nil {
+			if err := cfg.LoadConfigWithDefaults("logger", &instance,
+				defaults); err != nil {
 				log.Fatalf("error reading config file: %s\n", err)
 			}
 		}

@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 
 	plantd "github.com/geoffjay/plantd/core/service"
@@ -36,7 +35,7 @@ func init() {
 }
 
 func get(_ *cobra.Command, args []string) {
-	fmt.Println(endpoint)
+	log.Println(endpoint)
 	client, err := plantd.NewClient(endpoint)
 	if err != nil {
 		log.Fatal(err)
@@ -52,11 +51,11 @@ func get(_ *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%+v\n", response)
+	log.Printf("%+v\n", response)
 }
 
 func set(_ *cobra.Command, args []string) {
-	fmt.Println(endpoint)
+	log.Println(endpoint)
 	client, err := plantd.NewClient(endpoint)
 	if err != nil {
 		log.Fatal(err)
@@ -74,5 +73,5 @@ func set(_ *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%+v\n", response)
+	log.Printf("%+v\n", response)
 }

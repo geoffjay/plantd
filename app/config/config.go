@@ -1,3 +1,4 @@
+// Package config provides application configuration functionality.
 package config
 
 import (
@@ -11,6 +12,7 @@ import (
 // TODO:
 // - add a new configuration section for the database
 
+// Config represents the application configuration structure.
 type Config struct {
 	cfg.Config
 
@@ -25,15 +27,17 @@ var lock = &sync.Mutex{}
 var instance *Config
 
 var defaults = map[string]interface{}{
-	"env":                      "development",
-	"client-endpoint":          "tcp://localhost:9797",
-	"log.formatter":            "text",
-	"log.level":                "info",
-	"log.loki.address":         "http://localhost:3100",
-	"log.loki.labels":          map[string]string{"app": "app", "environment": "development"},
-	"cors.allow-credentials":   true,
-	"cors.allow-origins":       "*",
-	"cors.allow-headers":       "Origin, Content-Type, Accept, Content-Length, Accept-Language, Accept-Encoding, Connection, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin",
+	"env":                    "development",
+	"client-endpoint":        "tcp://localhost:9797",
+	"log.formatter":          "text",
+	"log.level":              "info",
+	"log.loki.address":       "http://localhost:3100",
+	"log.loki.labels":        map[string]string{"app": "app", "environment": "development"},
+	"cors.allow-credentials": true,
+	"cors.allow-origins":     "*",
+	"cors.allow-headers": "Origin, Content-Type, Accept, Content-Length, Accept-Language, " +
+		"Accept-Encoding, Connection, Authorization, Access-Control-Allow-Origin, " +
+		"Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin",
 	"cors.allow-methods":       "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS",
 	"session.expiration":       "2h",
 	"session.key-lookup":       "cookie:__Host-session",

@@ -1,3 +1,4 @@
+// Package cmd provides command-line interface functionality for the client.
 package cmd
 
 import (
@@ -21,7 +22,8 @@ var (
 	cfgFile  string
 	config   clientConfig
 	endpoint string
-	Verbose  bool
+	// Verbose enables verbose output when set to true.
+	Verbose bool
 
 	cliCmd = &cobra.Command{
 		Use:   "plant",
@@ -30,6 +32,7 @@ var (
 	}
 )
 
+// Execute runs the root command.
 func Execute() {
 	if err := cliCmd.Execute(); err != nil {
 		log.Fatal(err)
