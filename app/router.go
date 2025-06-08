@@ -1,16 +1,29 @@
 package main
 
 import (
+	"net/http"
+	"strings"
 	"time"
 
+	cfg "github.com/geoffjay/plantd/app/config"
 	_ "github.com/geoffjay/plantd/app/docs"
 	"github.com/geoffjay/plantd/app/handlers"
+	"github.com/geoffjay/plantd/app/views"
+	"github.com/geoffjay/plantd/app/views/pages"
 	"github.com/geoffjay/plantd/core/util"
 
+	"github.com/a-h/templ"
+	"github.com/gofiber/adaptor/v2"
+	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/csrf"
 	"github.com/gofiber/swagger"
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// Development represents the development environment name.
+	Development = "development"
 )
 
 func csrfErrorHandler(c *fiber.Ctx, err error) error {
@@ -34,16 +47,21 @@ func csrfErrorHandler(c *fiber.Ctx, err error) error {
 			"error": "403 Forbidden",
 		})
 	case "html":
+		c.Locals("title", "Error")
+		c.Locals("error", "403 Forbidden")
+		c.Locals("errorCode", "403")
+
 		// Return a 403 Forbidden response for HTML requests
-		return c.Status(fiber.StatusForbidden).Render("error", fiber.Map{
-			"Title":     "Error",
-			"Error":     "403 Forbidden",
-			"ErrorCode": "403",
-		}, "layouts/base")
+		return views.Render(c, pages.Error(),
+			templ.WithStatus(http.StatusForbidden))
 	default:
 		// Return a 403 Forbidden response for all other requests
 		return c.Status(fiber.StatusForbidden).SendString("403 Forbidden")
 	}
+}
+
+func httpHandler(f http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(f)
 }
 
 func initializeRouter(app *fiber.App) {
@@ -64,20 +82,15 @@ func initializeRouter(app *fiber.App) {
 
 	app.Static("/public", staticContents)
 
-	app.Get("/", handlers.Index)
-
+	app.Get("/", csrfMiddleware, handlers.Index)
 	app.Get("/login", csrfMiddleware, handlers.LoginPage)
 	app.Post("/login", csrfMiddleware, handlers.Login)
 	app.Get("/logout", handlers.Logout)
 	app.Post("/register", handlers.Register)
 
-	app.Get("/dashboard", csrfMiddleware, handlers.Dashboard)
+	app.Get("/sse", handlers.ReloadSSE)
 
-	// TODO: this is just here until the API is implemented.
-	defaultHandler := func(c *fiber.Ctx) error {
-		return c.SendStatus(fiber.StatusOK)
-	}
-
+	// API routes
 	api := app.Group("/api")
 	api.Get("/docs/*", swagger.HandlerDefault)
 
@@ -86,10 +99,42 @@ func initializeRouter(app *fiber.App) {
 		return c.Next()
 	})
 
-	broker := v1.Group("/broker")
+	initializeBrokerRoutes(&v1)
+	initializeDevRoutes(app)
+
+	app.Use(handlers.NotFound)
+}
+
+func initializeBrokerRoutes(app *fiber.Router) {
+	// TODO: this is just here until the API is implemented.
+	defaultHandler := func(c *fiber.Ctx) error {
+		return c.SendStatus(fiber.StatusOK)
+	}
+
+	broker := (*app).Group("/broker")
 	broker.Get("/status", defaultHandler)
 	broker.Get("/errors", defaultHandler)
 	broker.Get("/workers", defaultHandler)
 	broker.Get("/workers/:id", defaultHandler)
 	broker.Get("/info", defaultHandler)
+}
+
+func initializeDevRoutes(app *fiber.App) {
+	config := cfg.GetConfig()
+	if strings.ToLower(config.Env) == Development {
+		log.Debug("Development routes enabled")
+
+		dev := (*app).Group("/dev")
+		dev.Get("/reload", adaptor.HTTPHandler(httpHandler(handlers.Reload)))
+		dev.Use("/reload2", handlers.UpgradeWS)
+		dev.Get("/reload2", websocket.New(handlers.ReloadWS))
+
+		// dev.Get("/connections", func(c *fiber.Ctx) error {
+		//     m := map[string]any{
+		// 	    "open-connections": app.Server().GetOpenConnectionsCount(),
+		// 	    "sessions":         len(currentSessions.sessions),
+		//     }
+		//     return c.JSON(m)
+		//    })
+	}
 }

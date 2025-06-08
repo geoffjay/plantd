@@ -1,6 +1,11 @@
 package handlers
 
 import (
+	"net/http"
+
+	"github.com/geoffjay/plantd/app/views"
+
+	"github.com/a-h/templ"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 )
@@ -24,31 +29,7 @@ func Index(c *fiber.Ctx) error {
 		return c.Redirect("/login")
 	}
 
-	return c.Render("index", fiber.Map{
-		"Title": "App",
-	}, "layouts/base")
-}
+	c.Locals("title", "App")
 
-// Dashboard renders the dashboard page.
-func Dashboard(c *fiber.Ctx) error {
-	session, err := SessionStore.Get(c)
-	if err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	loggedIn, _ := session.Get("loggedIn").(bool)
-	if !loggedIn {
-		// User is not authenticated, redirect to the login page
-		return c.Redirect("/login")
-	}
-
-	csrfToken, ok := c.Locals("csrf").(string)
-	if !ok {
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-
-	return c.Render("dashboard", fiber.Map{
-		"Title": "Dashboard",
-		"csrf":  csrfToken,
-	}, "layouts/base")
+	return views.Render(c, views.Index(), templ.WithStatus(http.StatusOK))
 }

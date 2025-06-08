@@ -1,8 +1,8 @@
+// Package main provides the main entry point for the PlantD proxy service.
 package main
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"os/signal"
 	"regexp"
@@ -11,15 +11,17 @@ import (
 	"syscall"
 
 	"github.com/geoffjay/plantd/core"
+	plog "github.com/geoffjay/plantd/core/log"
 	"github.com/geoffjay/plantd/core/util"
 
 	log "github.com/sirupsen/logrus"
-	loki "github.com/yukitsune/lokirus"
 )
 
 func main() {
+	config := GetConfig()
+
 	processArgs()
-	initLogging()
+	plog.Initialize(config.Log)
 
 	port, _ := strconv.Atoi(util.Getenv("PLANTD_PROXY_PORT", "5000"))
 	bind := util.Getenv("PLANTD_PROXY_ADDRESS", "0.0.0.0")
@@ -45,52 +47,11 @@ func main() {
 	log.Debug("proxy exiting")
 }
 
-func initLogging() {
-	level := util.Getenv("PLANTD_PROXY_LOG_LEVEL", "info")
-	if logLevel, err := log.ParseLevel(level); err == nil {
-		log.SetLevel(logLevel)
-	}
-
-	format := util.Getenv("PLANTD_PROXY_LOG_FORMAT", "text")
-	if format == "json" {
-		log.SetFormatter(&log.JSONFormatter{
-			TimestampFormat: "2006-01-02 15:04:05",
-		})
-	} else {
-		log.SetFormatter(&log.TextFormatter{
-			FullTimestamp:   true,
-			TimestampFormat: "2006-01-02 15:04:05",
-		})
-	}
-
-	opts := loki.NewLokiHookOptions().WithLevelMap(
-		loki.LevelMap{log.PanicLevel: "critical"},
-	).WithFormatter(
-		&log.JSONFormatter{},
-	).WithStaticLabels(
-		loki.Labels{
-			"app":         "broker",
-			"environment": "development",
-		},
-	)
-
-	hook := loki.NewLokiHookWithOpts(
-		"http://localhost:3100",
-		opts,
-		log.InfoLevel,
-		log.WarnLevel,
-		log.ErrorLevel,
-		log.FatalLevel,
-	)
-
-	log.AddHook(hook)
-}
-
 func processArgs() {
 	if len(os.Args) > 1 {
 		r := regexp.MustCompile("^-V$|(-{2})?version$")
 		if r.Match([]byte(os.Args[1])) {
-			fmt.Println(core.VERSION)
+			log.Info(core.VERSION)
 		}
 		os.Exit(0)
 	}

@@ -1,3 +1,4 @@
+// Package mdp provides Majordomo Protocol implementation.
 package mdp
 
 import (
@@ -224,10 +225,14 @@ func (b *Broker) Run(done chan bool) {
 		if time.Now().After(b.HeartbeatAt) {
 			b.Purge()
 			for _, worker := range b.Waiting {
-				log.WithFields(log.Fields{"service": worker.service.name}).Trace("sending heartbeat to worker")
+				log.WithFields(log.Fields{
+					"service": worker.service.name,
+				}).Trace("sending heartbeat to worker")
 				if err = worker.Send(MdpwHeartbeat, "", []string{}); err != nil {
 					b.ErrorChannel <- err
-					log.WithFields(log.Fields{"error": err}).Error("failed to send heartbeat message")
+					log.WithFields(log.Fields{
+						"error": err,
+					}).Error("failed to send heartbeat message")
 				}
 			}
 			b.HeartbeatAt = time.Now().Add(HeartbeatInterval)
@@ -270,7 +275,8 @@ func (b *Broker) WorkerMsg(sender string, msg []string) {
 			// remove & save client return envelope and insert the
 			// protocol header and service name, then re-wrap envelope.
 			client, msg := util.Unwrap(msg)
-			snd := stringArrayToByte2D(append([]string{client, "", MdpcClient, worker.service.name}, msg...))
+			snd := stringArrayToByte2D(append(
+				[]string{client, "", MdpcClient, worker.service.name}, msg...))
 			if err := b.Socket.SendMessage(snd); err != nil {
 				b.ErrorChannel <- err
 				log.WithFields(log.Fields{"error": err}).Error("failed to send message to worker")

@@ -1,0 +1,74 @@
+package components
+
+import "fmt"
+
+var itemClasses = []string{
+	"flex",
+	"flex-row",
+	"gap-4",
+	"w-full",
+	"h-10",
+	"items-center",
+	"py-2",
+	"pr-4",
+	"z-0",
+	"text-slate-800",
+	"border-r-solid",
+	"border-r-2",
+	"border-slate-50",
+	"hover:text-red-800",
+	"hover:border-red-800",
+	"hover:cursor-pointer",
+	"pointer-events-auto",
+}
+
+var sidenavIconClasses = []string{
+	"fa-solid",
+	"fa-md",
+	"min-w-6",
+	"drop-shadow-[0_1px_1px_rgba(30,41,59,0.3)]",
+}
+
+templ sidenavHandlers() {
+	<script type="text/hyperscript">
+		def sidenav.itemExpand(menu)
+		    send sidenavItemExpandClicked to menu
+		    toggle .fa-caret-right on #sidenav-item-expander
+		    toggle .fa-caret-down on #sidenav-item-expander
+		end
+    </script>
+}
+
+templ SidenavItem(path, name string, icon, menu interface{}) {
+	<div class="flex flex-row gap-4 w-full">
+		if menu != nil {
+			<div
+				class="min-w-6 h-10 py-2 pl-4 cursor-pointer"
+				_={ `on click call sidenav.itemExpand(` + menu.(string) + `)` }
+			>
+				<i
+					id="sidenav-item-expander"
+					class="fa-solid fa-caret-right fa-sm drop-shadow-[0_1px_1px_rgba(30,41,59,0.3)]"
+				></i>
+			</div>
+			@sidenavHandlers()
+		} else {
+			<div class="min-w-6"></div>
+		}
+		<div
+			id="sidenav-item"
+			hx-get={ path }
+			hx-trigger="click"
+			hx-target="#main"
+			hx-swap="outerHTML"
+			class={ classes(itemClasses) }
+		>
+			if icon != nil {
+				<i class={ classes(sidenavIconClasses, fmt.Sprintf("fa-%s", icon.(string))) }></i>
+			} else {
+				<div class="min-w-6"></div>
+			}
+			<p class="text-md">{ name }</p>
+		</div>
+	</div>
+}

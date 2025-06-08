@@ -10,6 +10,6 @@ import (
 func TestGetenv(t *testing.T) {
 	assert.Equal(t, Getenv("TEST", "default"), "default")
 	assert.Equal(t, Getenv("TEST", ""), "")
-	os.Setenv("TEST", "test")
+	_ = os.Setenv("TEST", "test")
 	assert.Equal(t, Getenv("TEST", "default"), "test")
 }

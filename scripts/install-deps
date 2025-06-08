@@ -22,6 +22,10 @@ if __cmd_check "$GO_BIN"/git-chglog; then
   go install github.com/git-chglog/git-chglog/cmd/git-chglog@latest
 fi
 
+if __cmd_check "$GO_BIN"/templ; then
+  go install github.com/a-h/templ/cmd/templ@latest
+fi
+
 if __cmd_check "$GO_BIN"/overmind; then
   go install github.com/DarthSim/overmind/v2
 fi

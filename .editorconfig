@@ -6,10 +6,14 @@ insert_final_newline = true
 indent_style = space
 indent_size = 4
 
+[{scripts/**,*.sh}]
+indent_style = tab
+indent_size = 2
+
 [{Dockerfile,*.yml,*.yaml,*.toml,*.json,*.tmpl,*.js}]
 indent_style = space
 indent_size = 2
 
-[{Makefile,*.mk}]
+[{Makefile,*.go,*.templ,*.mk}]
 indent_style = tab
 indent_size = 4

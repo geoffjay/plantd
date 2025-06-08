@@ -1,3 +1,4 @@
+// Package main provides callback handlers for the PlantD broker service.
 package main
 
 import (
@@ -38,7 +39,8 @@ func (cb *serviceCallback) Execute(msgBody string) ([]byte, error) {
 	}
 
 	if scope, found = request["service"].(string); !found {
-		return []byte(`{"error": "service required for service request"}`), errors.New("`service` missing")
+		return []byte(`{"error": "service required for service request"}`),
+			errors.New("`service` missing")
 	}
 
 	// TODO:
@@ -74,6 +76,7 @@ func (cb *servicesCallback) Execute(msgBody string) ([]byte, error) {
 // Callback handles subscriber events on the state bus.
 // nolint: unused
 func (cb *sinkCallback) Handle(data []byte) error {
-	log.WithFields(log.Fields{"data": string(data)}).Debug("data received on state bus")
+	log.WithFields(log.Fields{"data": string(data)}).Debug(
+		"data received on state bus")
 	return nil
 }

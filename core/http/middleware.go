@@ -1,3 +1,4 @@
+// Package http provides HTTP middleware functionality.
 package http
 
 import (
@@ -7,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// LoggerMiddleware returns a gin middleware for logging HTTP requests.
 func LoggerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startTime := time.Now()

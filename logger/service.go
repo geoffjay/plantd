@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// Service provides the main service coordination for the logger application.
 type Service struct {
 	manager *Manager
 }
@@ -38,11 +39,13 @@ func (s *Service) run(ctx context.Context, wg *sync.WaitGroup) {
 func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	log.WithFields(log.Fields{"context": "service.run-health"}).Debug("starting")
+	log.WithFields(log.Fields{"context": "service.run-health"}).Debug(
+		"starting")
 
 	port, err := strconv.Atoi(util.Getenv("PLANTD_LOGGER_HEALTH_PORT", "8081"))
 	if err != nil {
-		log.WithFields(log.Fields{"error": err}).Fatal("failed to parse health port")
+		log.WithFields(log.Fields{"error": err}).Fatal(
+			"failed to parse health port")
 	}
 
 	go func() {
@@ -53,8 +56,10 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 			},
 		)
 		http.HandleFunc("/healthz", h.Handler)
-		if err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil); err != nil {
-			log.WithFields(log.Fields{"error": err}).Fatal("failed to start health server")
+		if err := http.ListenAndServe(fmt.Sprintf(":%d", port),
+			nil); err != nil {
+			log.WithFields(log.Fields{"error": err}).Fatal(
+				"failed to start health server")
 		}
 	}()
 

@@ -1,0 +1,25 @@
+package pages
+
+import "github.com/geoffjay/plantd/app/views/layouts"
+
+script goToReferer() {
+    function goToReferer() {
+        window.location
+    }
+}
+
+templ errorContents() {
+	<div>
+		<h2>Error { ctx.Value("errorCode").(string) }</h2>
+		<p>Sorry, there was an error</p>
+		<p>{ ctx.Value("error").(string) }</p>
+		<p>
+			<a href="/">Home</a> |
+			<a href="#" onclick={ goToReferer() }>Go to referrer (GET)</a>
+		</p>
+	</div>
+}
+
+templ Error() {
+	@layouts.Base(errorContents())
+}

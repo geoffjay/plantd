@@ -1,7 +1,0 @@
----
-env: development
-client-endpoint: tcp://localhost:9797
-secret: secret
-log:
-  formatter: json
-  level: debug

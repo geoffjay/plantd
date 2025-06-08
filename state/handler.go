@@ -7,7 +7,7 @@ import (
 // Handler defines the type of a callback.
 type Handler struct {
 	running   bool
-	cancelled bool
+	canceled  bool
 	callbacks map[string]HandlerCallback
 }
 
@@ -20,7 +20,7 @@ type HandlerCallback interface {
 func NewHandler() *Handler {
 	return &Handler{
 		running:   false,
-		cancelled: false,
+		canceled:  false,
 		callbacks: make(map[string]HandlerCallback),
 	}
 }

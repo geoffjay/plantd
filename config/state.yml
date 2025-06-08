@@ -1,0 +1,17 @@
+---
+version: "1"
+
+env: "development"
+broker-endpoint: "tcp://localhost:9797"
+state-endpoint: ">tcp://localhost:11001"
+
+log:
+  formatter: "text"
+  level: "info"
+
+service:
+  id: "org.plantd.State"
+
+database:
+  adapter: bbolt
+  uri: "plantd-state.db"

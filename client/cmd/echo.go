@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"log"
 
 	plantd "github.com/geoffjay/plantd/core/service"
@@ -35,5 +34,5 @@ func echo(_ *cobra.Command, args []string) {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%+v\n", response)
+	log.Printf("%+v\n", response)
 }

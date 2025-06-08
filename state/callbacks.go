@@ -1,3 +1,4 @@
+// Package main provides callback handlers for the PlantD state service.
 package main
 
 import (
@@ -58,7 +59,8 @@ func (cb *createScopeCallback) Execute(msgBody string) ([]byte, error) {
 
 	if scope, found = request["service"].(string); !found {
 		err := errors.New("`service` missing")
-		return []byte(`{"error": "service required for create-scope request"}`), err
+		return []byte(`{"error": "service required for create-scope request"}`),
+			err
 	}
 
 	if cb.store.HasScope(scope) {
@@ -73,7 +75,8 @@ func (cb *createScopeCallback) Execute(msgBody string) ([]byte, error) {
 		return []byte(msg), err
 	}
 
-	// if the bucket for the scope was successfully created add a sink to listen for events
+	// if the bucket for the scope was successfully created add a sink to listen
+	// for events
 	cb.manager.AddSink(scope, &sinkCallback{store: cb.store})
 
 	return []byte("{}"), nil
@@ -96,7 +99,8 @@ func (cb *deleteScopeCallback) Execute(msgBody string) ([]byte, error) {
 
 	if scope, found = request["service"].(string); !found {
 		err := errors.New("`service` missing")
-		return []byte(`{"error": "service required for delete-scope request"}`), err
+		return []byte(`{"error": "service required for delete-scope request"}`),
+			err
 	}
 
 	if !cb.store.HasScope(scope) {
@@ -111,7 +115,8 @@ func (cb *deleteScopeCallback) Execute(msgBody string) ([]byte, error) {
 		return []byte(msg), err
 	}
 
-	// if the bucket for the scope was successfully removed drop it from the sink list
+	// if the bucket for the scope was successfully removed drop it from the
+	// sink list
 	cb.manager.RemoveSink(scope)
 
 	return []byte("{}"), nil
@@ -235,6 +240,7 @@ func (cb *setCallback) Execute(msgBody string) ([]byte, error) {
 
 // Callback handles subscriber events on the state bus.
 func (cb *sinkCallback) Handle(data []byte) error {
-	log.WithFields(log.Fields{"data": string(data)}).Debug("data received on state bus")
+	log.WithFields(log.Fields{"data": string(data)}).Debug(
+		"data received on state bus")
 	return nil
 }
