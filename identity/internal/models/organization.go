@@ -1,6 +1,8 @@
 package models
 
 import (
+	"regexp"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -25,4 +27,31 @@ type Organization struct {
 // TableName returns the table name for the Organization model.
 func (Organization) TableName() string {
 	return "organizations"
+}
+
+// GenerateSlug generates a URL-friendly slug from the organization name.
+func (o *Organization) GenerateSlug() {
+	if o.Name == "" {
+		return
+	}
+
+	// Convert to lowercase
+	slug := strings.ToLower(o.Name)
+
+	// Replace spaces and underscores with hyphens
+	slug = strings.ReplaceAll(slug, " ", "-")
+	slug = strings.ReplaceAll(slug, "_", "-")
+
+	// Remove special characters (keep only letters, numbers, and hyphens)
+	reg := regexp.MustCompile(`[^a-z0-9-]+`)
+	slug = reg.ReplaceAllString(slug, "")
+
+	// Remove multiple consecutive hyphens
+	reg = regexp.MustCompile(`-+`)
+	slug = reg.ReplaceAllString(slug, "-")
+
+	// Trim hyphens from beginning and end
+	slug = strings.Trim(slug, "-")
+
+	o.Slug = slug
 }

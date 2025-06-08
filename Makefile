@@ -48,7 +48,7 @@ build-client:
 
 build-identity:
 	@pushd identity >/dev/null; \
-	go build -o ../build/plantd-identity $(BUILD_ARGS) .; \
+	go build -o ../build/plantd-identity $(BUILD_ARGS) ./cmd/main.go; \
 	popd >/dev/null
 
 build-logger:
@@ -91,6 +91,12 @@ test-broker:
 	@pushd broker >/dev/null; \
 	go test $(TEST_ARGS) ./... -v; \
 	if [[ -f coverage.txt ]]; then mv coverage.txt ../coverage/broker.txt; fi; \
+	popd >/dev/null
+
+test-identity:
+	@pushd identity >/dev/null; \
+	go test $(TEST_ARGS) ./... -v; \
+	if [[ -f coverage.txt ]]; then mv coverage.txt ../coverage/identity.txt; fi; \
 	popd >/dev/null
 
 test-state:

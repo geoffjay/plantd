@@ -28,7 +28,7 @@ server:
 # Security configuration
 security:
   # JWT secret - MUST be changed in production!
-  jwt_secret: change-me-in-production
+  jwt_secret: test-secret-key
   jwt_expiration: 3600      # 1 hour in seconds
   refresh_expiration: 604800 # 7 days in seconds
   bcrypt_cost: 12           # bcrypt cost factor
