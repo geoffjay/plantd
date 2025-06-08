@@ -49,22 +49,22 @@ func TestLoadConfig(t *testing.T) {
 		name    string
 	}{
 		{
-			fixture: "fixtures/config/empty.yaml",
+			fixture: "../fixtures/config/empty.yaml",
 			want:    emptyConfig,
 			name:    "EmptyFixture",
 		},
 		{
-			fixture: "fixtures/config/valid.yaml",
+			fixture: "../fixtures/config/valid.yaml",
 			want:    validConfig,
 			name:    "ValidYAMLFixture",
 		},
 		{
-			fixture: "fixtures/config/valid.json",
+			fixture: "../fixtures/config/valid.json",
 			want:    validConfig,
 			name:    "ValidJSONFixture",
 		},
 		{
-			fixture: "fixtures/config/valid.toml",
+			fixture: "../fixtures/config/valid.toml",
 			want:    validConfig,
 			name:    "ValidTOMLFixture",
 		},
