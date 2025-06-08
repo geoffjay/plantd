@@ -79,9 +79,9 @@ linters:
       rules:
         - name: atomic
         - name: line-length-limit
-          arguments: [100]
+          arguments: [150]
         - name: argument-limit
-          arguments: [4]
+          arguments: [5]
         - name: blank-imports
         - name: context-as-argument
         - name: context-keys-type

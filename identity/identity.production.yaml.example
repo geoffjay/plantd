@@ -1,0 +1,45 @@
+# PlantD Identity Service Production Configuration
+# Copy this file to identity.yaml for production deployment
+
+env: production
+
+# Database configuration - PostgreSQL recommended for production
+database:
+  driver: postgres
+  host: localhost
+  port: 5432
+  database: identity_prod
+  username: identity_user
+  password: ${PLANTD_IDENTITY_DATABASE_PASSWORD}
+  ssl_mode: require
+
+# Server configuration
+server:
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+# Security configuration
+security:
+  # CRITICAL: Set a strong JWT secret via environment variable
+  jwt_secret: ${PLANTD_IDENTITY_SECURITY_JWT_SECRET}
+  jwt_expiration: 3600      # 1 hour
+  refresh_expiration: 604800 # 7 days
+  bcrypt_cost: 14           # Higher cost for production
+  rate_limit_rps: 100       # Higher limits for production
+  rate_limit_burst: 200
+
+# Logging configuration
+log:
+  formatter: json  # JSON for structured logging
+  level: warn      # Less verbose in production
+  loki:
+    address: ${PLANTD_IDENTITY_LOG_LOKI_ADDRESS}
+    labels:
+      app: identity
+      environment: production
+
+# Service configuration
+service:
+  id: org.plantd.Identity 

@@ -1,0 +1,50 @@
+# PlantD Identity Service Configuration
+# Copy this file to identity.yaml and modify as needed
+
+env: development
+
+# Database configuration
+database:
+  # Database driver: sqlite, postgres, postgresql
+  driver: sqlite
+  # For SQLite, use dsn for the database file path
+  dsn: identity.db
+  
+  # For PostgreSQL, configure these settings:
+  # host: localhost
+  # port: 5432
+  # database: identity
+  # username: identity
+  # password: your_password
+  # ssl_mode: disable
+
+# Server configuration
+server:
+  port: 8080
+  read_timeout: 30    # seconds
+  write_timeout: 30   # seconds
+  idle_timeout: 120   # seconds
+
+# Security configuration
+security:
+  # JWT secret - MUST be changed in production!
+  jwt_secret: change-me-in-production
+  jwt_expiration: 3600      # 1 hour in seconds
+  refresh_expiration: 604800 # 7 days in seconds
+  bcrypt_cost: 12           # bcrypt cost factor
+  rate_limit_rps: 10        # requests per second
+  rate_limit_burst: 20      # burst capacity
+
+# Logging configuration
+log:
+  formatter: text  # text or json
+  level: info      # trace, debug, info, warn, error, fatal, panic
+  loki:
+    address: http://localhost:3100
+    labels:
+      app: identity
+      environment: development
+
+# Service configuration
+service:
+  id: org.plantd.Identity 
