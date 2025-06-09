@@ -15,10 +15,6 @@ output:
 issues:
   uniq-by-line: true
 
-  exclusions:
-    paths:
-      - "identity/examples/.*\\.go$"
-
 linters:
   enable:
     - asciicheck
