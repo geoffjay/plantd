@@ -39,8 +39,9 @@ linters:
     dogsled:
       max-blank-identifiers: 2
 
-    dupl:
-      threshold: 100
+    # TODO: Enable dupl linter when the project is more mature, during development it's raising false positives
+    # dupl:
+    #   threshold: 100
 
     errcheck:
       check-type-assertions: false
