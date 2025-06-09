@@ -31,12 +31,33 @@ type ServerConfig struct {
 
 // SecurityConfig represents security configuration settings.
 type SecurityConfig struct {
+	// JWT Configuration
 	JWTSecret         string `mapstructure:"jwt_secret"`
+	JWTRefreshSecret  string `mapstructure:"jwt_refresh_secret"`
 	JWTExpiration     int    `mapstructure:"jwt_expiration"`
 	RefreshExpiration int    `mapstructure:"refresh_expiration"`
-	BcryptCost        int    `mapstructure:"bcrypt_cost"`
-	RateLimitRPS      int    `mapstructure:"rate_limit_rps"`
-	RateLimitBurst    int    `mapstructure:"rate_limit_burst"`
+	JWTIssuer         string `mapstructure:"jwt_issuer"`
+
+	// Password Configuration
+	BcryptCost          int  `mapstructure:"bcrypt_cost"`
+	PasswordMinLength   int  `mapstructure:"password_min_length"`
+	PasswordMaxLength   int  `mapstructure:"password_max_length"`
+	RequireUppercase    bool `mapstructure:"require_uppercase"`
+	RequireLowercase    bool `mapstructure:"require_lowercase"`
+	RequireNumbers      bool `mapstructure:"require_numbers"`
+	RequireSpecialChars bool `mapstructure:"require_special_chars"`
+
+	// Rate Limiting Configuration
+	RateLimitRPS           int `mapstructure:"rate_limit_rps"`
+	RateLimitBurst         int `mapstructure:"rate_limit_burst"`
+	MaxFailedAttempts      int `mapstructure:"max_failed_attempts"`
+	LockoutDurationMinutes int `mapstructure:"lockout_duration_minutes"`
+
+	// Registration Configuration
+	AllowSelfRegistration         bool `mapstructure:"allow_self_registration"`
+	RequireEmailVerification      bool `mapstructure:"require_email_verification"`
+	EmailVerificationExpireyHours int  `mapstructure:"email_verification_expiry_hours"`
+	PasswordResetExpiryHours      int  `mapstructure:"password_reset_expiry_hours"`
 }
 
 // Config represents the configuration for the identity service.
@@ -74,12 +95,26 @@ var defaults = map[string]interface{}{
 	"server.idle_timeout":  120,
 
 	// Security defaults
-	"security.jwt_secret":         "change-me-in-production",
-	"security.jwt_expiration":     3600,   // 1 hour
-	"security.refresh_expiration": 604800, // 7 days
-	"security.bcrypt_cost":        12,
-	"security.rate_limit_rps":     10,
-	"security.rate_limit_burst":   20,
+	"security.jwt_secret":                      "change-me-in-production",
+	"security.jwt_refresh_secret":              "change-me-in-production-too",
+	"security.jwt_expiration":                  900,    // 15 minutes
+	"security.refresh_expiration":              604800, // 7 days
+	"security.jwt_issuer":                      "plantd-identity",
+	"security.bcrypt_cost":                     12,
+	"security.password_min_length":             8,
+	"security.password_max_length":             128,
+	"security.require_uppercase":               true,
+	"security.require_lowercase":               true,
+	"security.require_numbers":                 true,
+	"security.require_special_chars":           true,
+	"security.rate_limit_rps":                  10,
+	"security.rate_limit_burst":                5,
+	"security.max_failed_attempts":             5,
+	"security.lockout_duration_minutes":        15,
+	"security.allow_self_registration":         true,
+	"security.require_email_verification":      true,
+	"security.email_verification_expiry_hours": 24,
+	"security.password_reset_expiry_hours":     2,
 
 	// Logging defaults
 	"log.formatter":    "text",
