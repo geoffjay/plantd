@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # Identity Service
+  identity:
+    build:
+      context: ..
+      dockerfile: identity/Dockerfile
+    image: geoffjay/plantd-identity:latest
+    container_name: plantd-identity
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Broker configuration
+      PLANTD_BROKER_ENDPOINT: tcp://broker:9797
+      
+      # Database configuration
+      PLANTD_IDENTITY_DATABASE_TYPE: postgres
+      PLANTD_IDENTITY_DATABASE_HOST: postgres
+      PLANTD_IDENTITY_DATABASE_PORT: 5432
+      PLANTD_IDENTITY_DATABASE_NAME: plantd_identity
+      PLANTD_IDENTITY_DATABASE_USER: identity_user
+      PLANTD_IDENTITY_DATABASE_PASSWORD: identity_pass
+      
+      # JWT configuration
+      PLANTD_IDENTITY_JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      PLANTD_IDENTITY_JWT_ACCESS_EXPIRY: 15m
+      PLANTD_IDENTITY_JWT_REFRESH_EXPIRY: 168h
+      
+      # Security configuration
+      PLANTD_IDENTITY_BCRYPT_COST: 12
+      PLANTD_IDENTITY_RATE_LIMIT_PER_IP: 100
+      PLANTD_IDENTITY_RATE_LIMIT_PER_USER: 50
+      
+      # Server configuration
+      PLANTD_IDENTITY_LOG_LEVEL: info
+      PLANTD_IDENTITY_LOG_FORMAT: json
+      PLANTD_IDENTITY_HTTP_PORT: 8080
+      PLANTD_IDENTITY_HTTP_TIMEOUT: 30s
+      
+      # Email configuration (optional)
+      PLANTD_IDENTITY_EMAIL_ENABLED: false
+      PLANTD_IDENTITY_EMAIL_SMTP_HOST: ${SMTP_HOST:-}
+      PLANTD_IDENTITY_EMAIL_SMTP_PORT: ${SMTP_PORT:-587}
+      PLANTD_IDENTITY_EMAIL_SMTP_USER: ${SMTP_USER:-}
+      PLANTD_IDENTITY_EMAIL_SMTP_PASS: ${SMTP_PASS:-}
+    
+    volumes:
+      - identity_data:/data
+      - ./identity.yaml:/app/config/identity.yaml:ro
+    
+    networks:
+      - plantd-network
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # PostgreSQL Database for Identity Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: plantd-identity-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"  # Different port to avoid conflicts
+    environment:
+      POSTGRES_DB: plantd_identity
+      POSTGRES_USER: identity_user
+      POSTGRES_PASSWORD: identity_pass
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d
+    
+    networks:
+      - plantd-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity_user -d plantd_identity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for session management and caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: plantd-identity-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_pass}
+    
+    volumes:
+      - redis_data:/data
+    
+    networks:
+      - plantd-network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # Broker service (placeholder - should be started separately)
+  broker:
+    image: registry.gitlab.com/plantd/broker:staging
+    container_name: plantd-broker
+    restart: unless-stopped
+    ports:
+      - "9797:9797"
+      - "11000:11000"
+      - "11001:11001"
+      - "12000:12000"
+      - "12001:12001"
+      - "13000:13000"
+      - "13001:13001"
+    environment:
+      PLANTD_BROKER_LOG_LEVEL: info
+      PLANTD_BROKER_LOG_FORMAT: json
+      PLANTD_BROKER_ENDPOINT: 'tcp://*:9797'
+    
+    networks:
+      - plantd-network
+    
+    healthcheck:
+      test: ["CMD", "sh", "-c", "echo 'ping' | nc localhost 9797 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  plantd-network:
+    driver: bridge
+    name: plantd-network
+
+volumes:
+  identity_data:
+    name: plantd-identity-data
+  postgres_data:
+    name: plantd-identity-postgres
+  redis_data:
+    name: plantd-identity-redis 

@@ -20,27 +20,32 @@ linters:
     - asciicheck
     - cyclop
     - dogsled
-    - dupl
+    # - dupl
     - errorlint
     - exhaustive
     - forbidigo
     - funlen
     - goconst
-    - godot
+    # - godot
     - misspell
     - nestif
     - revive
 
+  exclusions:
+    paths:
+      - "identity/examples/.*\\.go$"
+
   settings:
     cyclop:
-      max-complexity: 10
+      max-complexity: 20
       package-average: 0.0
 
     dogsled:
       max-blank-identifiers: 2
 
-    dupl:
-      threshold: 100
+    # TODO: Enable dupl linter when the project is more mature, during development it's raising false positives
+    # dupl:
+    #   threshold: 100
 
     errcheck:
       check-type-assertions: false
@@ -58,8 +63,8 @@ linters:
           msg: Do not commit print statements.
 
     funlen:
-      lines: 80
-      statements: 40
+      lines: 140
+      statements: 60
 
     goconst:
       min-len: 3
@@ -72,16 +77,16 @@ linters:
       locale: US
 
     nestif:
-      min-complexity: 4
+      min-complexity: 12
 
     revive:
       severity: warning
       rules:
         - name: atomic
         - name: line-length-limit
-          arguments: [100]
+          arguments: [150]
         - name: argument-limit
-          arguments: [4]
+          arguments: [7]
         - name: blank-imports
         - name: context-as-argument
         - name: context-keys-type

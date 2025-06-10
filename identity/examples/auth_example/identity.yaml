@@ -1,0 +1,40 @@
+env: development
+
+database:
+  driver: sqlite
+  dsn: ":memory:"
+
+server:
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+
+security:
+  jwt_secret: "example-jwt-secret-change-in-production"
+  jwt_refresh_secret: "example-refresh-secret-change-in-production"
+  jwt_expiration: 900  # 15 minutes
+  refresh_expiration: 604800  # 7 days
+  jwt_issuer: "plantd-identity-example"
+  bcrypt_cost: 12
+  password_min_length: 8
+  password_max_length: 128
+  require_uppercase: true
+  require_lowercase: true
+  require_numbers: true
+  require_special_chars: true
+  rate_limit_rps: 10
+  rate_limit_burst: 5
+  max_failed_attempts: 5
+  lockout_duration_minutes: 15
+  allow_self_registration: true
+  require_email_verification: false  # Disabled for example
+  email_verification_expiry_hours: 24
+  password_reset_expiry_hours: 2
+
+log:
+  formatter: text
+  level: info
+
+service:
+  id: org.plantd.Identity.Example 

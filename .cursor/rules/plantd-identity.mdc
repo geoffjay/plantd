@@ -1,0 +1,152 @@
+---
+description: 
+globs: identity/*
+alwaysApply: false
+---
+# Plantd Identity Service Development Rule
+
+## Description
+
+You are developing the **Identity Service** for the plantd distributed control system. This service is identified as a **critical security gap** that must be addressed at **high priority**. The identity service provides authentication, authorization, and user management capabilities for the entire plantd ecosystem.
+
+## Core Requirements
+
+### MUST Requirements (Non-negotiable)
+
+#### Language and Framework
+- **MUST** be built using Go
+- **MUST** follow plantd project conventions and patterns
+
+#### Database Management
+- **MUST** provide a method of executing database migrations
+- **MUST** seed initial data in development and test environments
+- **MUST** support database schema evolution and versioning
+
+#### Data Models
+- **MUST** define a User model with appropriate fields and relationships
+- **MUST** define an Organization model with appropriate fields and relationships  
+- **MUST** define a Role model with appropriate fields and relationships
+- **MUST** support many-to-many relationships between users and roles
+- **MUST** support many-to-many relationships between users and organizations
+
+#### Authentication and Authorization
+- **MUST** be able to authenticate users securely
+- **MUST** provide authorization policies and access control
+- **MUST** implement secure password handling and storage
+- **MUST** support token-based authentication (JWT or similar)
+
+#### Documentation
+- **MUST** provide comprehensive documentation on how to use the service with other plantd services
+- **MUST** include API documentation and usage examples
+- **MUST** document integration patterns with broker, state, and other services
+
+### SHOULD Requirements (Strongly Recommended)
+
+#### Database Technology
+- **SHOULD** use GORM for database models and operations
+- **SHOULD** use SQLite initially for the test environment
+- **SHOULD** be able to use either SQLite or PostgreSQL for database in development and production environments
+- **SHOULD** support database configuration through environment variables
+
+#### Architecture Patterns
+- **SHOULD** use the service repository pattern for business logic and data access
+- **SHOULD** **NEVER** use models directly in handlers or business logic
+- **SHOULD** **ALWAYS** access data through repository interfaces
+- **SHOULD** implement dependency injection for repositories and services
+
+#### Service Interface
+- **SHOULD** define a request and response interface for service calls
+- **SHOULD** initially utilize the plantd MDP protocol for communication
+- **SHOULD** design interfaces to be extensible for other protocols (HTTP, gRPC) in the future
+- **SHOULD** follow plantd messaging patterns and conventions
+
+## Architecture Guidelines
+
+### Project Structure
+```
+identity/
+├── cmd/
+│   └── main.go                 # Service entry point
+├── internal/
+│   ├── config/                 # Configuration management
+│   ├── models/                 # GORM models
+│   ├── repositories/           # Data access layer
+│   ├── services/              # Business logic layer
+│   ├── handlers/              # MDP message handlers
+│   ├── migrations/            # Database migrations
+│   └── auth/                  # Authentication utilities
+├── pkg/
+│   └── client/                # Client library for other services
+├── docs/                      # Service documentation
+├── docker/                    # Docker configuration
+└── scripts/                   # Utility scripts
+```
+
+### Repository Pattern Implementation
+- Create interfaces for all repositories (UserRepository, OrganizationRepository, RoleRepository)
+- Implement repository interfaces with GORM backing
+- Use dependency injection to provide repositories to services
+- Never call GORM methods directly from handlers or services
+
+### Security Considerations
+- Implement secure password hashing (bcrypt or argon2)
+- Use secure session management and token handling
+- Implement rate limiting for authentication attempts
+- Validate and sanitize all input data
+- Log security events for audit purposes
+
+### Integration with Plantd Ecosystem
+- Use plantd core libraries for logging, configuration, and messaging
+- Implement health checks and service discovery
+- Follow plantd error handling and response patterns
+- Integrate with broker service for distributed messaging
+- Provide metrics and monitoring endpoints
+
+## Development Priorities
+
+### Phase 1: Core Foundation
+1. Project structure and configuration setup
+2. Database models and migrations
+3. Repository pattern implementation
+4. Basic CRUD operations
+
+### Phase 2: Authentication
+1. User authentication implementation
+2. Password management and security
+3. Token generation and validation
+4. Session management
+
+### Phase 3: Authorization
+1. Role-based access control (RBAC)
+2. Organization-based permissions
+3. Policy evaluation engine
+4. Authorization middleware
+
+### Phase 4: Integration
+1. MDP protocol handlers
+2. Client library development
+3. Integration documentation
+4. Testing with other plantd services
+
+## Testing Requirements
+- Unit tests for all repositories and services
+- Integration tests with database
+- Authentication and authorization flow tests
+- Performance tests for concurrent access
+- Security tests for common vulnerabilities
+
+## Documentation Requirements
+- API reference documentation
+- Integration guide for other plantd services
+- Deployment and configuration guide
+- Security best practices guide
+- Troubleshooting and operations guide
+
+## Security Standards
+- Follow OWASP security guidelines
+- Implement proper input validation
+- Use secure communication protocols
+- Implement audit logging for security events
+- Regular security scanning and vulnerability assessment
+
+Remember: This is a **critical security component** that other services will depend on. Security, reliability, and comprehensive testing are paramount.
