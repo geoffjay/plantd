@@ -2,6 +2,8 @@
 package testhelpers
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -35,9 +37,11 @@ func CleanupTestDB(t *testing.T, db *gorm.DB) {
 
 // CreateTestUser creates a test user for testing purposes.
 func CreateTestUser(t *testing.T, db *gorm.DB, overrides ...func(*models.User)) *models.User {
+	// Generate unique values to avoid constraint violations
+	uniqueID := rand.Intn(100000)
 	user := &models.User{
-		Email:          "test@example.com",
-		Username:       "testuser",
+		Email:          fmt.Sprintf("test_%d@example.com", uniqueID),
+		Username:       fmt.Sprintf("testuser_%d", uniqueID),
 		HashedPassword: "hashedpassword123",
 		FirstName:      "Test",
 		LastName:       "User",
@@ -57,9 +61,11 @@ func CreateTestUser(t *testing.T, db *gorm.DB, overrides ...func(*models.User)) 
 
 // CreateTestOrganization creates a test organization for testing purposes.
 func CreateTestOrganization(t *testing.T, db *gorm.DB, overrides ...func(*models.Organization)) *models.Organization {
+	// Generate unique values to avoid constraint violations
+	uniqueID := rand.Intn(100000)
 	org := &models.Organization{
-		Name:        "Test Organization",
-		Slug:        "test-org",
+		Name:        fmt.Sprintf("Test Organization %d", uniqueID),
+		Slug:        fmt.Sprintf("test-org-%d", uniqueID),
 		Description: "A test organization",
 		IsActive:    true,
 	}
@@ -76,8 +82,10 @@ func CreateTestOrganization(t *testing.T, db *gorm.DB, overrides ...func(*models
 
 // CreateTestRole creates a test role for testing purposes.
 func CreateTestRole(t *testing.T, db *gorm.DB, overrides ...func(*models.Role)) *models.Role {
+	// Generate unique values to avoid constraint violations
+	uniqueID := rand.Intn(100000)
 	role := &models.Role{
-		Name:        "Test Role",
+		Name:        fmt.Sprintf("Test Role %d", uniqueID),
 		Description: "A test role",
 		Permissions: `["read", "write"]`,
 		Scope:       models.RoleScopeOrganization,

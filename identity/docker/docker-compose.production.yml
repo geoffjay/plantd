@@ -1,0 +1,241 @@
+version: '3.8'
+
+services:
+  # Identity Service - Production Configuration
+  identity:
+    image: geoffjay/plantd-identity:latest
+    container_name: plantd-identity-prod
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Broker configuration
+      PLANTD_BROKER_ENDPOINT: tcp://broker:9797
+      
+      # Database configuration
+      PLANTD_IDENTITY_DATABASE_TYPE: postgres
+      PLANTD_IDENTITY_DATABASE_HOST: postgres
+      PLANTD_IDENTITY_DATABASE_PORT: 5432
+      PLANTD_IDENTITY_DATABASE_NAME: ${POSTGRES_DB}
+      PLANTD_IDENTITY_DATABASE_USER: ${POSTGRES_USER}
+      PLANTD_IDENTITY_DATABASE_PASSWORD: ${POSTGRES_PASSWORD}
+      PLANTD_IDENTITY_DATABASE_SSL_MODE: require
+      PLANTD_IDENTITY_DATABASE_MAX_OPEN_CONNS: 25
+      PLANTD_IDENTITY_DATABASE_MAX_IDLE_CONNS: 10
+      PLANTD_IDENTITY_DATABASE_CONN_MAX_LIFETIME: 1h
+      
+      # JWT configuration
+      PLANTD_IDENTITY_JWT_SECRET: ${JWT_SECRET}
+      PLANTD_IDENTITY_JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
+      PLANTD_IDENTITY_JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-168h}
+      
+      # Security configuration
+      PLANTD_IDENTITY_BCRYPT_COST: ${BCRYPT_COST:-14}
+      PLANTD_IDENTITY_RATE_LIMIT_PER_IP: ${RATE_LIMIT_PER_IP:-50}
+      PLANTD_IDENTITY_RATE_LIMIT_PER_USER: ${RATE_LIMIT_PER_USER:-25}
+      PLANTD_IDENTITY_ACCOUNT_LOCKOUT_ATTEMPTS: ${LOCKOUT_ATTEMPTS:-5}
+      PLANTD_IDENTITY_ACCOUNT_LOCKOUT_DURATION: ${LOCKOUT_DURATION:-30m}
+      
+      # Server configuration
+      PLANTD_IDENTITY_LOG_LEVEL: ${LOG_LEVEL:-info}
+      PLANTD_IDENTITY_LOG_FORMAT: json
+      PLANTD_IDENTITY_HTTP_PORT: 8080
+      PLANTD_IDENTITY_HTTP_TIMEOUT: ${HTTP_TIMEOUT:-30s}
+      PLANTD_IDENTITY_HTTP_READ_TIMEOUT: ${READ_TIMEOUT:-10s}
+      PLANTD_IDENTITY_HTTP_WRITE_TIMEOUT: ${WRITE_TIMEOUT:-10s}
+      
+      # Email configuration
+      PLANTD_IDENTITY_EMAIL_ENABLED: ${EMAIL_ENABLED:-true}
+      PLANTD_IDENTITY_EMAIL_SMTP_HOST: ${SMTP_HOST}
+      PLANTD_IDENTITY_EMAIL_SMTP_PORT: ${SMTP_PORT:-587}
+      PLANTD_IDENTITY_EMAIL_SMTP_USER: ${SMTP_USER}
+      PLANTD_IDENTITY_EMAIL_SMTP_PASS: ${SMTP_PASS}
+      PLANTD_IDENTITY_EMAIL_FROM: ${EMAIL_FROM}
+      PLANTD_IDENTITY_EMAIL_TLS: true
+      
+      # Redis configuration
+      PLANTD_IDENTITY_REDIS_ENABLED: true
+      PLANTD_IDENTITY_REDIS_HOST: redis
+      PLANTD_IDENTITY_REDIS_PORT: 6379
+      PLANTD_IDENTITY_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      PLANTD_IDENTITY_REDIS_DB: 0
+      
+      # Monitoring configuration
+      PLANTD_IDENTITY_METRICS_ENABLED: true
+      PLANTD_IDENTITY_TRACING_ENABLED: true
+    
+    volumes:
+      - identity_data:/data
+      - /etc/ssl/certs:/etc/ssl/certs:ro  # SSL certificates
+    
+    networks:
+      - plantd-network
+      - monitoring
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      broker:
+        condition: service_started
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        labels: "service=identity,environment=production"
+    
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+
+  # PostgreSQL Database - Production Configuration
+  postgres:
+    image: postgres:15-alpine
+    container_name: plantd-identity-postgres-prod
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5433}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      # Performance tuning
+      POSTGRES_SHARED_BUFFERS: 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 1GB
+      POSTGRES_MAINTENANCE_WORK_MEM: 64MB
+      POSTGRES_CHECKPOINT_COMPLETION_TARGET: 0.9
+      POSTGRES_WAL_BUFFERS: 16MB
+      POSTGRES_DEFAULT_STATISTICS_TARGET: 100
+    
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+      - /var/backups/postgres:/backups  # Backup directory
+    
+    networks:
+      - plantd-network
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service=postgres,environment=production"
+    
+    security_opt:
+      - no-new-privileges:true
+
+  # Redis - Production Configuration
+  redis:
+    image: redis:7-alpine
+    container_name: plantd-identity-redis-prod
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    command: |
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    
+    volumes:
+      - redis_data:/data
+      - /var/backups/redis:/backups
+    
+    networks:
+      - plantd-network
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        labels: "service=redis,environment=production"
+    
+    security_opt:
+      - no-new-privileges:true
+
+  # Nginx Reverse Proxy (optional)
+  nginx:
+    image: nginx:alpine
+    container_name: plantd-identity-nginx
+    restart: unless-stopped
+    ports:
+      - "443:443"
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - nginx_logs:/var/log/nginx
+    networks:
+      - plantd-network
+    depends_on:
+      - identity
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "3"
+        labels: "service=nginx,environment=production"
+
+networks:
+  plantd-network:
+    driver: bridge
+    name: plantd-network-prod
+  monitoring:
+    external: true
+    name: monitoring
+
+volumes:
+  identity_data:
+    name: plantd-identity-data-prod
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/plantd/identity
+  postgres_data:
+    name: plantd-identity-postgres-prod
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/plantd/postgres
+  redis_data:
+    name: plantd-identity-redis-prod
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /var/lib/plantd/redis
+  nginx_logs:
+    name: plantd-nginx-logs 

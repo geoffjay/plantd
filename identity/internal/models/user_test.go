@@ -1,6 +1,9 @@
 package models
 
 import (
+	"fmt"
+	"math/rand"
+	"strings"
 	"testing"
 	"time"
 
@@ -34,9 +37,11 @@ func cleanupTestDB(t *testing.T, db *gorm.DB) {
 
 // createTestUser creates a test user for testing purposes.
 func createTestUser(t *testing.T, db *gorm.DB, overrides ...func(*User)) *User {
+	// Generate unique values to avoid constraint violations
+	uniqueID := rand.Intn(100000)
 	user := &User{
-		Email:          "test@example.com",
-		Username:       "testuser",
+		Email:          fmt.Sprintf("test_%d@example.com", uniqueID),
+		Username:       fmt.Sprintf("testuser_%d", uniqueID),
 		HashedPassword: "hashedpassword123",
 		FirstName:      "Test",
 		LastName:       "User",
@@ -56,9 +61,11 @@ func createTestUser(t *testing.T, db *gorm.DB, overrides ...func(*User)) *User {
 
 // createTestOrganization creates a test organization for testing purposes.
 func createTestOrganization(t *testing.T, db *gorm.DB, overrides ...func(*Organization)) *Organization {
+	// Generate unique values to avoid constraint violations
+	uniqueID := rand.Intn(100000)
 	org := &Organization{
-		Name:        "Test Organization",
-		Slug:        "test-org",
+		Name:        fmt.Sprintf("Test Organization %d", uniqueID),
+		Slug:        fmt.Sprintf("test-org-%d", uniqueID),
 		Description: "A test organization",
 		IsActive:    true,
 	}
@@ -75,8 +82,10 @@ func createTestOrganization(t *testing.T, db *gorm.DB, overrides ...func(*Organi
 
 // createTestRole creates a test role for testing purposes.
 func createTestRole(t *testing.T, db *gorm.DB, overrides ...func(*Role)) *Role {
+	// Generate unique values to avoid constraint violations
+	uniqueID := rand.Intn(100000)
 	role := &Role{
-		Name:        "Test Role",
+		Name:        fmt.Sprintf("Test Role %d", uniqueID),
 		Description: "A test role",
 		Permissions: `["read", "write"]`,
 		Scope:       RoleScopeOrganization,
@@ -148,18 +157,38 @@ func TestUser_BeforeCreate(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
+	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Use index to ensure unique usernames and emails
+			// But preserve the original email pattern for testing transformation
+			baseEmail := strings.Split(tt.email, "@")[0]
+			domain := "@example.com"
+			if strings.Contains(tt.email, "@") {
+				parts := strings.Split(tt.email, "@")
+				baseEmail = parts[0]
+				domain = "@" + parts[1]
+			}
+
+			uniqueEmail := fmt.Sprintf("%s_%d%s", baseEmail, i, domain)
+			expectedBaseEmail := strings.Split(tt.expectedEmail, "@")[0]
+			expectedDomain := "@example.com"
+			if strings.Contains(tt.expectedEmail, "@") {
+				parts := strings.Split(tt.expectedEmail, "@")
+				expectedBaseEmail = parts[0]
+				expectedDomain = "@" + parts[1]
+			}
+			expectedEmail := fmt.Sprintf("%s_%d%s", expectedBaseEmail, i, expectedDomain)
+
 			user := &User{
-				Email:          tt.email,
-				Username:       "testuser" + tt.name,
+				Email:          uniqueEmail,
+				Username:       fmt.Sprintf("testuser_%d_%s", i, strings.ReplaceAll(tt.name, " ", "_")),
 				HashedPassword: "password123",
 			}
 
 			err := db.Create(user).Error
 			require.NoError(t, err)
 
-			assert.Equal(t, tt.expectedEmail, user.Email)
+			assert.Equal(t, expectedEmail, user.Email)
 		})
 	}
 }

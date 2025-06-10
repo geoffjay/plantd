@@ -65,12 +65,54 @@ func (r *userRepositoryGorm) GetByUsername(ctx context.Context, username string)
 
 // Update updates a user.
 func (r *userRepositoryGorm) Update(ctx context.Context, user *models.User) error {
-	return r.db.WithContext(ctx).Save(user).Error
+	// Check if user exists first
+	var existingUser models.User
+	err := r.db.WithContext(ctx).First(&existingUser, user.ID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("user not found")
+		}
+		return err
+	}
+
+	// Update the user
+	result := r.db.WithContext(ctx).Save(user)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Check if any rows were affected
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
 }
 
 // Delete soft deletes a user.
 func (r *userRepositoryGorm) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&models.User{}, id).Error
+	// Check if user exists first
+	var user models.User
+	err := r.db.WithContext(ctx).First(&user, id).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("user not found")
+		}
+		return err
+	}
+
+	// Delete the user
+	result := r.db.WithContext(ctx).Delete(&models.User{}, id)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// Check if any rows were affected
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
 }
 
 // List retrieves users with pagination.

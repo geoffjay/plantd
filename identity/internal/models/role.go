@@ -70,7 +70,7 @@ func (r *Role) HasPermission(permission string) bool {
 
 // GetPermissions returns the list of permissions for the role.
 func (r *Role) GetPermissions() ([]string, error) {
-	if r.Permissions == "" {
+	if r.Permissions == "" || r.Permissions == "null" {
 		return []string{}, nil
 	}
 

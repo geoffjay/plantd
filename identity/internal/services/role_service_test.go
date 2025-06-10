@@ -233,10 +233,11 @@ func TestRoleService_CreateRole_NameExists(t *testing.T) {
 		Scope:       models.RoleScopeGlobal,
 	}
 
-	existingRole := &models.Role{ID: 1, Name: "Existing Role"}
+	existingRole := &models.Role{ID: 1, Name: "Existing Role", Scope: models.RoleScopeGlobal}
 
-	// Mock repository calls
-	mockRoleRepo.On("SearchByName", ctx, "Existing Role", 0, 1).Return([]*models.Role{existingRole}, nil)
+	// Mock repository calls - use limit 10 to match service implementation
+	// The service validates uniqueness first, so mock that call
+	mockRoleRepo.On("SearchByName", ctx, "Existing Role", 0, 10).Return([]*models.Role{existingRole}, nil)
 
 	// Execute
 	role, err := service.CreateRole(ctx, req)

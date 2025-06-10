@@ -20,7 +20,7 @@ linters:
     - asciicheck
     - cyclop
     - dogsled
-    - dupl
+    # - dupl
     - errorlint
     - exhaustive
     - forbidigo

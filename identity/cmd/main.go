@@ -11,6 +11,7 @@ import (
 
 	"github.com/geoffjay/plantd/core"
 	plog "github.com/geoffjay/plantd/core/log"
+	"github.com/geoffjay/plantd/identity/internal"
 	"github.com/geoffjay/plantd/identity/internal/config"
 	"github.com/geoffjay/plantd/identity/internal/models"
 
@@ -42,16 +43,24 @@ func main() {
 		log.Fatalf("failed to run auto-migration: %v", err)
 	}
 
-	// TODO: Initialize service
-	// service := NewService(cfg, db)
+	// Initialize service
+	service, err := internal.NewService(cfg, db)
+	if err != nil {
+		log.Fatalf("failed to initialize service: %v", err)
+	}
+
 	fields := log.Fields{"service": "identity", "context": "main"}
 
-	_, cancelFunc := context.WithCancel(context.Background())
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	wg := &sync.WaitGroup{}
 
-	// TODO: Start service
-	// wg.Add(1)
-	// go service.Run(ctx, wg)
+	// Start service
+	wg.Add(1)
+	go func() {
+		if err := service.Run(ctx, wg); err != nil {
+			log.WithError(err).Error("Service run failed")
+		}
+	}()
 
 	log.WithFields(fields).Info("PlantD Identity Service starting")
 	log.WithFields(fields).Infof("environment: %s", cfg.Env)
@@ -63,6 +72,8 @@ func main() {
 
 	log.WithFields(fields).Info("shutdown signal received")
 
+	// Graceful shutdown
+	service.Shutdown()
 	cancelFunc()
 	wg.Wait()
 

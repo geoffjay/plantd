@@ -43,7 +43,7 @@ type OrganizationService interface {
 // CreateOrganizationRequest represents the request to create a new organization.
 type CreateOrganizationRequest struct {
 	Name        string `json:"name" validate:"required,min=1,max=255"`
-	Slug        string `json:"slug" validate:"omitempty,min=1,max=100,alphanum"`
+	Slug        string `json:"slug" validate:"omitempty,min=1,max=100,slug"`
 	Description string `json:"description" validate:"max=1000"`
 	IsActive    *bool  `json:"is_active,omitempty"`
 }
@@ -51,7 +51,7 @@ type CreateOrganizationRequest struct {
 // UpdateOrganizationRequest represents the request to update an organization.
 type UpdateOrganizationRequest struct {
 	Name        *string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	Slug        *string `json:"slug,omitempty" validate:"omitempty,min=1,max=100,alphanum"`
+	Slug        *string `json:"slug,omitempty" validate:"omitempty,min=1,max=100,slug"`
 	Description *string `json:"description,omitempty" validate:"omitempty,max=1000"`
 	IsActive    *bool   `json:"is_active,omitempty"`
 }

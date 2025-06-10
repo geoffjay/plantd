@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"github.com/go-playground/validator/v10"
 	log "github.com/sirupsen/logrus"
@@ -26,11 +27,21 @@ func NewOrganizationService(
 	userRepo repositories.UserRepository,
 	roleRepo repositories.RoleRepository,
 ) OrganizationService {
+	v := validator.New()
+
+	// Register custom slug validator
+	_ = v.RegisterValidation("slug", func(fl validator.FieldLevel) bool {
+		slug := fl.Field().String()
+		// Allow alphanumeric characters and hyphens, must start and end with alphanumeric
+		slugRegex := regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$|^[a-zA-Z0-9]$`)
+		return slugRegex.MatchString(slug)
+	})
+
 	return &organizationServiceImpl{
 		orgRepo:   orgRepo,
 		userRepo:  userRepo,
 		roleRepo:  roleRepo,
-		validator: validator.New(),
+		validator: v,
 	}
 }
 
