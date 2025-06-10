@@ -156,6 +156,8 @@ func (am *AuthMiddleware) getRequiredPermission(msgType string) string {
 		return StateDataRead
 	case "delete":
 		return StateDataDelete
+	case "health":
+		return StateHealthRead
 	default:
 		// For unknown operations, require admin permission
 		return StateAdminFull

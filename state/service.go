@@ -106,6 +106,9 @@ func (s *Service) setupHandler() {
 		"set": &setCallback{
 			name: "set", store: s.store,
 		},
+		"health": &healthCallback{
+			name: "health", store: s.store,
+		},
 	}
 
 	// Wrap callbacks with authentication if auth middleware is available
