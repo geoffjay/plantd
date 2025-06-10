@@ -23,3 +23,12 @@ cert/*.pem
 # generated files
 /app/views/**/*_templ.go
 /app/views/**/*_templ.txt
+
+# default build files
+/app/app
+/broker/broker
+/client/client
+/identity/identity
+/logger/logger
+/proxy/proxy
+/state/state

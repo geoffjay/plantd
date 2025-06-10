@@ -88,30 +88,62 @@ func (s *Service) setupIdentityClient() {
 func (s *Service) setupHandler() {
 	var err error
 	s.handler = NewHandler()
-	err = s.RegisterCallback("create-scope", &createScopeCallback{
-		name: "create-scope", store: s.store, manager: s.manager,
-	})
-	if err != nil {
-		panic(err)
+
+	// Create original callbacks (without authentication)
+	originalCallbacks := map[string]interface{ Execute(string) ([]byte, error) }{
+		"create-scope": &createScopeCallback{
+			name: "create-scope", store: s.store, manager: s.manager,
+		},
+		"delete-scope": &deleteScopeCallback{
+			name: "delete-scope", store: s.store, manager: s.manager,
+		},
+		"delete": &deleteCallback{
+			name: "delete", store: s.store,
+		},
+		"get": &getCallback{
+			name: "get", store: s.store,
+		},
+		"set": &setCallback{
+			name: "set", store: s.store,
+		},
 	}
-	err = s.RegisterCallback("delete-scope", &deleteScopeCallback{
-		name: "delete-scope", store: s.store, manager: s.manager,
-	})
-	if err != nil {
-		panic(err)
-	}
-	err = s.RegisterCallback("delete", &deleteCallback{
-		name: "delete", store: s.store})
-	if err != nil {
-		panic(err)
-	}
-	err = s.RegisterCallback("get", &getCallback{name: "get", store: s.store})
-	if err != nil {
-		panic(err)
-	}
-	err = s.RegisterCallback("set", &setCallback{name: "set", store: s.store})
-	if err != nil {
-		panic(err)
+
+	// Wrap callbacks with authentication if auth middleware is available
+	if s.authMiddleware != nil {
+		authenticatedCallbacks := auth.CreateAuthenticatedCallbacks(
+			originalCallbacks,
+			s.authMiddleware,
+		)
+
+		// Register authenticated callbacks
+		for name, callback := range authenticatedCallbacks {
+			// Convert back to HandlerCallback for registration
+			handlerCallback := callback.(HandlerCallback)
+			err = s.RegisterCallback(name, handlerCallback)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"callback": name,
+					"error":    err,
+				}).Fatal("Failed to register authenticated callback")
+			}
+		}
+
+		log.Info("All callbacks registered with authentication middleware")
+	} else {
+		// Fallback: register original callbacks without authentication
+		log.Warn("Auth middleware not available, registering callbacks without authentication")
+
+		for name, callback := range originalCallbacks {
+			// Convert back to HandlerCallback for registration
+			handlerCallback := callback.(HandlerCallback)
+			err = s.RegisterCallback(name, handlerCallback)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"callback": name,
+					"error":    err,
+				}).Fatal("Failed to register callback")
+			}
+		}
 	}
 }
 

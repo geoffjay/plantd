@@ -30,7 +30,7 @@ type AuthMiddleware struct {
 	identityClient  *client.Client
 	permissionCache map[string]*CachedPermissions
 	cacheTTL        time.Duration
-	cacheLock       sync.RWMutex
+	cacheMutex      sync.RWMutex
 	logger          *log.Logger
 }
 
@@ -59,32 +59,38 @@ func NewAuthMiddleware(config *Config) *AuthMiddleware {
 	}
 }
 
-// ValidateRequest validates a request token and checks permissions.
+// ValidateRequest validates an authentication token and checks permissions.
 func (am *AuthMiddleware) ValidateRequest(msgType, token, scope string) (*UserContext, error) {
 	if token == "" {
 		return nil, fmt.Errorf("authentication token required")
 	}
 
 	// Check cache first
-	if userCtx := am.getCachedPermissions(token); userCtx != nil {
-		// Verify required permission
-		requiredPerm := getRequiredPermission(msgType)
-		if requiredPerm != "" && !am.hasPermission(userCtx, requiredPerm, scope) {
-			return nil, fmt.Errorf("insufficient permissions: %s", requiredPerm)
+	cacheKey := fmt.Sprintf("%s:%s", token, scope)
+	am.cacheMutex.RLock()
+	if cached, found := am.permissionCache[cacheKey]; found {
+		if time.Now().Before(cached.ExpiresAt) {
+			am.cacheMutex.RUnlock()
+			log.WithFields(log.Fields{
+				"user_email": cached.UserContext.UserEmail,
+				"scope":      scope,
+				"cache_hit":  true,
+			}).Debug("Permission cache hit")
+			return cached.UserContext, nil
 		}
-		return userCtx, nil
+		// Cache entry expired, remove it
+		delete(am.permissionCache, cacheKey)
 	}
+	am.cacheMutex.RUnlock()
 
 	// Validate token with identity service
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	validateResp, err := am.identityClient.ValidateToken(ctx, token)
+	validateResp, err := am.identityClient.ValidateToken(context.Background(), token)
 	if err != nil {
-		am.logger.WithFields(log.Fields{
-			"error": err,
-		}).Error("Token validation failed")
-		return nil, fmt.Errorf("authentication failed: %w", err)
+		return nil, fmt.Errorf("token validation failed: %w", err)
+	}
+
+	if !validateResp.Valid {
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	// Create user context
@@ -110,84 +116,35 @@ func (am *AuthMiddleware) ValidateRequest(msgType, token, scope string) (*UserCo
 		ValidUntil:  time.Unix(expiresAt, 0),
 	}
 
-	// Cache the permissions
-	am.cachePermissions(token, userCtx)
-
-	// Check required permissions
-	requiredPerm := getRequiredPermission(msgType)
-	if requiredPerm != "" && !am.hasPermission(userCtx, requiredPerm, scope) {
-		return nil, fmt.Errorf("insufficient permissions: required=%s scope=%s", requiredPerm, scope)
+	// Check specific permissions for the operation
+	requiredPermission := am.getRequiredPermission(msgType)
+	if !am.checkPermission(userCtx, requiredPermission, scope) {
+		return nil, fmt.Errorf("insufficient permissions: %s required for %s on scope %s",
+			requiredPermission, msgType, scope)
 	}
 
-	am.logger.WithFields(log.Fields{
+	// Cache the result
+	am.cacheMutex.Lock()
+	am.permissionCache[cacheKey] = &CachedPermissions{
+		UserContext: userCtx,
+		ExpiresAt:   time.Now().Add(am.cacheTTL),
+	}
+	am.cacheMutex.Unlock()
+
+	log.WithFields(log.Fields{
 		"user_email": userCtx.UserEmail,
 		"user_id":    userCtx.UserID,
-		"operation":  msgType,
 		"scope":      scope,
-	}).Debug("Request authenticated successfully")
+		"operation":  msgType,
+		"permission": requiredPermission,
+		"cache_miss": true,
+	}).Debug("Authentication and authorization successful")
 
 	return userCtx, nil
 }
 
-// getCachedPermissions retrieves cached permissions for a token.
-func (am *AuthMiddleware) getCachedPermissions(token string) *UserContext {
-	am.cacheLock.RLock()
-	defer am.cacheLock.RUnlock()
-
-	cached, exists := am.permissionCache[token]
-	if !exists || time.Now().After(cached.ExpiresAt) {
-		return nil
-	}
-
-	return cached.UserContext
-}
-
-// cachePermissions caches permissions for a token.
-func (am *AuthMiddleware) cachePermissions(token string, userCtx *UserContext) {
-	am.cacheLock.Lock()
-	defer am.cacheLock.Unlock()
-
-	am.permissionCache[token] = &CachedPermissions{
-		UserContext: userCtx,
-		ExpiresAt:   time.Now().Add(am.cacheTTL),
-	}
-}
-
-// hasPermission checks if a user has the required permission for a scope.
-func (am *AuthMiddleware) hasPermission(userCtx *UserContext, permission, scope string) bool {
-	for _, perm := range userCtx.Permissions {
-		// Check for exact permission match
-		if perm.Name == permission {
-			// Global permission (no scope restriction)
-			if perm.Scope == "" || perm.Scope == "*" {
-				return true
-			}
-			// Scoped permission
-			if perm.Scope == scope {
-				return true
-			}
-		}
-
-		// Check for wildcard permissions
-		if perm.Name == "state:*" || perm.Name == "*" {
-			if perm.Scope == "" || perm.Scope == "*" || perm.Scope == scope {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// ClearCache clears the permission cache.
-func (am *AuthMiddleware) ClearCache() {
-	am.cacheLock.Lock()
-	defer am.cacheLock.Unlock()
-	am.permissionCache = make(map[string]*CachedPermissions)
-}
-
-// getRequiredPermission maps message types to required permissions.
-func getRequiredPermission(msgType string) string {
+// getRequiredPermission maps operation types to required permissions.
+func (am *AuthMiddleware) getRequiredPermission(msgType string) string {
 	switch msgType {
 	case "create_scope":
 		return StateScopeCreate
@@ -199,9 +156,72 @@ func getRequiredPermission(msgType string) string {
 		return StateDataRead
 	case "delete":
 		return StateDataDelete
-	case "health":
-		return StateHealthRead
 	default:
-		return ""
+		// For unknown operations, require admin permission
+		return StateAdminFull
 	}
+}
+
+// checkPermission checks if a user has the required permission for a scope.
+func (am *AuthMiddleware) checkPermission(userCtx *UserContext, requiredPermission, scope string) bool {
+	// Check for admin permission (overrides all)
+	if am.hasPermission(userCtx, StateAdminFull) {
+		return true
+	}
+
+	// Check for global permission
+	if am.hasPermission(userCtx, requiredPermission) {
+		return true
+	}
+
+	// Check for scoped permission
+	scopedPermission := fmt.Sprintf("%s:scope:%s", requiredPermission, scope)
+	if am.hasPermission(userCtx, scopedPermission) {
+		return true
+	}
+
+	// Check for scope-specific permissions
+	switch requiredPermission {
+	case StateDataRead:
+		// Allow if user has any data permission on the scope
+		if am.hasPermission(userCtx, fmt.Sprintf("state:scope:%s:read", scope)) ||
+			am.hasPermission(userCtx, fmt.Sprintf("state:scope:%s:admin", scope)) {
+			return true
+		}
+	case StateDataWrite:
+		// Allow if user has write or admin permission on the scope
+		if am.hasPermission(userCtx, fmt.Sprintf("state:scope:%s:write", scope)) ||
+			am.hasPermission(userCtx, fmt.Sprintf("state:scope:%s:admin", scope)) {
+			return true
+		}
+	case StateDataDelete:
+		// Allow if user has delete or admin permission on the scope
+		if am.hasPermission(userCtx, fmt.Sprintf("state:scope:%s:delete", scope)) ||
+			am.hasPermission(userCtx, fmt.Sprintf("state:scope:%s:admin", scope)) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasPermission checks if a user has a specific permission.
+func (am *AuthMiddleware) hasPermission(userCtx *UserContext, permission string) bool {
+	for _, userPerm := range userCtx.Permissions {
+		if userPerm.Name == permission {
+			return true
+		}
+		// Check for wildcard permissions
+		if userPerm.Name == "state:*" {
+			return true
+		}
+	}
+	return false
+}
+
+// ClearCache clears the permission cache.
+func (am *AuthMiddleware) ClearCache() {
+	am.cacheMutex.Lock()
+	defer am.cacheMutex.Unlock()
+	am.permissionCache = make(map[string]*CachedPermissions)
 }
