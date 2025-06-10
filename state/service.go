@@ -6,9 +6,12 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/core/util"
+	"github.com/geoffjay/plantd/identity/pkg/client"
+	"github.com/geoffjay/plantd/state/auth"
 
 	"github.com/nelkinda/health-go"
 	log "github.com/sirupsen/logrus"
@@ -16,10 +19,12 @@ import (
 
 // Service defines the service type.
 type Service struct {
-	handler *Handler
-	manager *Manager
-	store   *Store
-	worker  *mdp.Worker
+	handler        *Handler
+	manager        *Manager
+	store          *Store
+	worker         *mdp.Worker
+	identityClient *client.Client
+	authMiddleware *auth.AuthMiddleware
 }
 
 // NewService creates an instance of the service.
@@ -35,6 +40,49 @@ func (s *Service) setupStore() {
 	if err := s.store.Load(path); err != nil {
 		log.WithFields(log.Fields{"err": err}).Panic("failed to setup KV store")
 	}
+}
+
+func (s *Service) setupIdentityClient() {
+	config := GetConfig()
+
+	// Create identity client configuration
+	clientConfig := &client.Config{
+		BrokerEndpoint: config.Identity.Endpoint,
+		Timeout:        30 * time.Second,
+		Logger:         log.StandardLogger(),
+	}
+
+	// Parse timeout if provided
+	if config.Identity.Timeout != "" {
+		if timeout, err := time.ParseDuration(config.Identity.Timeout); err == nil {
+			clientConfig.Timeout = timeout
+		}
+	}
+
+	// Create identity client
+	identityClient, err := client.NewClient(clientConfig)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"endpoint": config.Identity.Endpoint,
+			"error":    err,
+		}).Fatal("failed to setup identity client")
+	}
+
+	s.identityClient = identityClient
+
+	// Create authentication middleware
+	authConfig := &auth.Config{
+		IdentityClient: identityClient,
+		CacheTTL:       5 * time.Minute,
+		Logger:         log.StandardLogger(),
+	}
+
+	s.authMiddleware = auth.NewAuthMiddleware(authConfig)
+
+	log.WithFields(log.Fields{
+		"endpoint": config.Identity.Endpoint,
+		"timeout":  clientConfig.Timeout,
+	}).Info("Identity client initialized successfully")
 }
 
 func (s *Service) setupHandler() {
@@ -91,6 +139,7 @@ func (s *Service) setupConsumers() {
 // Run handles the service execution.
 func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	s.setupStore()
+	s.setupIdentityClient()
 	s.setupHandler()
 	s.setupConsumers()
 	s.setupWorker()
@@ -98,6 +147,11 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer s.store.Unload()
 	defer s.worker.Close()
 	defer s.manager.Shutdown()
+	defer func() {
+		if s.identityClient != nil {
+			s.identityClient.Close()
+		}
+	}()
 
 	defer wg.Done()
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("starting")
@@ -131,7 +185,11 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 				ReleaseID: "1.0.0-SNAPSHOT",
 			},
 		)
+
+		// Add custom health status endpoint that includes identity service
+		http.HandleFunc("/health", s.healthStatusHandler)
 		http.HandleFunc("/healthz", h.Handler)
+
 		if err := http.ListenAndServe(fmt.Sprintf(":%d", port),
 			nil); err != nil {
 			log.WithFields(log.Fields{"error": err}).Fatal(
@@ -142,6 +200,66 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 	<-ctx.Done()
 
 	log.WithFields(log.Fields{"context": "service.run-health"}).Debug("exiting")
+}
+
+func (s *Service) healthStatusHandler(w http.ResponseWriter, r *http.Request) {
+	status := s.getHealthStatus()
+
+	w.Header().Set("Content-Type", "application/json")
+
+	// Set HTTP status based on overall health
+	if status["status"] == "healthy" {
+		w.WriteHeader(http.StatusOK)
+	} else {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+
+	// Simple JSON response
+	if status["status"] == "healthy" {
+		fmt.Fprintf(w, `{
+			"status": "healthy",
+			"store": %t,
+			"identity": %t,
+			"timestamp": "%s"
+		}`, status["store"], status["identity"], status["timestamp"])
+	} else {
+		fmt.Fprintf(w, `{
+			"status": "unhealthy",
+			"store": %t,
+			"identity": %t,
+			"timestamp": "%s"
+		}`, status["store"], status["identity"], status["timestamp"])
+	}
+}
+
+func (s *Service) getHealthStatus() map[string]interface{} {
+	storeHealthy := s.store != nil
+	identityHealthy := s.isIdentityHealthy()
+
+	overallStatus := "healthy"
+	if !storeHealthy || !identityHealthy {
+		overallStatus = "unhealthy"
+	}
+
+	return map[string]interface{}{
+		"status":    overallStatus,
+		"store":     storeHealthy,
+		"identity":  identityHealthy,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+}
+
+func (s *Service) isIdentityHealthy() bool {
+	if s.identityClient == nil {
+		return false
+	}
+
+	// Try a quick health check with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := s.identityClient.HealthCheck(ctx)
+	return err == nil
 }
 
 func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
