@@ -1,14 +1,18 @@
 package cmd
 
 import (
+	"errors"
 	"log"
 
+	"github.com/geoffjay/plantd/client/auth"
 	plantd "github.com/geoffjay/plantd/core/service"
 
 	"github.com/spf13/cobra"
 )
 
 var (
+	serviceFlag string
+
 	stateCmd = &cobra.Command{
 		Use:   "state",
 		Short: "Perform state related tasks",
@@ -32,46 +36,200 @@ var (
 func init() {
 	stateCmd.AddCommand(stateGetCmd)
 	stateCmd.AddCommand(stateSetCmd)
+
+	// Add flags for service scope and authentication profile
+	stateCmd.PersistentFlags().StringVar(&serviceFlag, "service", "org.plantd.Client", "Service scope for state operations")
+	stateCmd.PersistentFlags().StringVar(&profileFlag, "profile", "default", "Authentication profile to use")
 }
 
 func get(_ *cobra.Command, args []string) {
 	log.Println(endpoint)
-	client, err := plantd.NewClient(endpoint)
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	key := args[0]
-	request := &plantd.RawRequest{
-		"service": "org.plantd.Client",
-		"key":     key,
-	}
-	response, err := client.SendRawRequest("org.plantd.State", "state-get", request)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
 
-	log.Printf("%+v\n", response)
+		key := args[0]
+		request := &plantd.RawRequest{
+			"token":   token,       // NEW: Include authentication token
+			"service": serviceFlag, // Use configurable service flag
+			"key":     key,
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "state-get", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
 }
 
 func set(_ *cobra.Command, args []string) {
 	log.Println(endpoint)
-	client, err := plantd.NewClient(endpoint)
+
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
+
+		key := args[0]
+		value := args[1]
+		request := &plantd.RawRequest{
+			"token":   token,       // NEW: Include authentication token
+			"service": serviceFlag, // Use configurable service flag
+			"key":     key,
+			"value":   value,
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "state-set", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
+}
+
+// executeWithAuth handles authentication for state operations with automatic token refresh
+func executeWithAuth(operation func(token string) error) {
+	tokenMgr := auth.NewTokenManager()
+
+	// Get valid token
+	token, err := tokenMgr.GetValidToken(profileFlag)
 	if err != nil {
+		if errors.Is(err, auth.ErrNotAuthenticated) {
+			log.Fatal("Authentication required. Please run 'plant auth login' first.")
+		}
+		if errors.Is(err, auth.ErrTokenExpired) {
+			log.Fatal("Token expired. Please run 'plant auth refresh' or 'plant auth login'.")
+		}
 		log.Fatal(err)
 	}
 
-	key := args[0]
-	value := args[1]
-	request := &plantd.RawRequest{
-		"service": "org.plantd.Client",
-		"key":     key,
-		"value":   value,
-	}
-	response, err := client.SendRawRequest("org.plantd.State", "state-set", request)
+	// Execute operation with current token
+	err = operation(token)
 	if err != nil {
-		log.Fatal(err)
+		if isAuthError(err) {
+			// Try token refresh once
+			log.Println("Token may be expired, attempting refresh...")
+
+			profile, profileErr := tokenMgr.GetProfile(profileFlag)
+			if profileErr != nil {
+				log.Fatal("Failed to get profile for refresh. Please login again with 'plant auth login'.")
+			}
+
+			// Attempt refresh using the identity client
+			ctx := getContext()
+			clientConfig := getIdentityClientConfig(profile.Endpoint)
+			client, clientErr := getIdentityClient(clientConfig)
+			if clientErr != nil {
+				log.Fatal("Failed to create identity client for refresh. Please login again with 'plant auth login'.")
+			}
+			defer client.Close()
+
+			response, refreshErr := client.RefreshToken(ctx, profile.RefreshToken)
+			if refreshErr != nil {
+				log.Fatal("Failed to refresh token. Please login again with 'plant auth login'.")
+			}
+
+			// Update stored tokens
+			profile.AccessToken = response.AccessToken
+			profile.RefreshToken = response.RefreshToken
+			profile.ExpiresAt = response.ExpiresAt
+
+			if storeErr := tokenMgr.StoreTokens(profileFlag, profile); storeErr != nil {
+				log.Printf("Warning: Failed to store refreshed token: %v\n", storeErr)
+			}
+
+			// Retry operation with new token
+			log.Println("Token refreshed, retrying operation...")
+			err = operation(response.AccessToken)
+		}
+
+		if err != nil {
+			log.Fatal(formatError(err))
+		}
+	}
+}
+
+// isAuthError checks if an error is related to authentication
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	log.Printf("%+v\n", response)
+	errStr := err.Error()
+	return containsAny(errStr, []string{
+		"authentication failed",
+		"invalid token",
+		"token expired",
+		"unauthorized",
+		"401",
+		"403",
+	})
+}
+
+// isPermissionError checks if an error is related to permissions
+func isPermissionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	return containsAny(errStr, []string{
+		"permission denied",
+		"insufficient permissions",
+		"forbidden",
+		"403",
+	})
+}
+
+// isNetworkError checks if an error is related to network connectivity
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errStr := err.Error()
+	return containsAny(errStr, []string{
+		"connection refused",
+		"network unreachable",
+		"timeout",
+		"no such host",
+		"connection failed",
+	})
+}
+
+// formatError provides user-friendly error messages
+func formatError(err error) string {
+	switch {
+	case isAuthError(err):
+		return "Authentication failed. Please run 'plant auth login' to reauthenticate."
+	case isPermissionError(err):
+		return "Permission denied. You don't have access to this resource."
+	case isNetworkError(err):
+		return "Unable to connect to plantd services. Please check your configuration and ensure services are running."
+	default:
+		return err.Error()
+	}
+}
+
+// containsAny checks if a string contains any of the given substrings
+func containsAny(str string, substrings []string) bool {
+	for _, substr := range substrings {
+		if len(str) >= len(substr) {
+			for i := 0; i <= len(str)-len(substr); i++ {
+				if str[i:i+len(substr)] == substr {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
