@@ -160,3 +160,46 @@ func (s *Store) Delete(scope, key string) (err error) {
 	})
 	return
 }
+
+// ListAllKeys returns a list of all keys in a specific scope.
+func (s *Store) ListAllKeys(scope string) (keys []string, err error) {
+	log.WithFields(log.Fields{
+		"scope": scope,
+	}).Trace("Listing all keys in scope")
+
+	err = s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(scope))
+		if bucket == nil {
+			return fmt.Errorf("scope `%s` doesn't exist", scope)
+		}
+
+		cursor := bucket.Cursor()
+		for k, _ := cursor.First(); k != nil; k, _ = cursor.Next() {
+			keys = append(keys, string(k))
+		}
+		return nil
+	})
+	return
+}
+
+// ListAllKeysWithValues returns a map of all key-value pairs in a specific scope.
+func (s *Store) ListAllKeysWithValues(scope string) (data map[string]string, err error) {
+	log.WithFields(log.Fields{
+		"scope": scope,
+	}).Trace("Listing all keys with values in scope")
+
+	data = make(map[string]string)
+	err = s.db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(scope))
+		if bucket == nil {
+			return fmt.Errorf("scope `%s` doesn't exist", scope)
+		}
+
+		cursor := bucket.Cursor()
+		for k, v := cursor.First(); k != nil; k, v = cursor.Next() {
+			data[string(k)] = string(v)
+		}
+		return nil
+	})
+	return
+}

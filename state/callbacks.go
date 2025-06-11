@@ -74,6 +74,16 @@ type healthCallback struct {
 	store *Store
 }
 
+type listScopesCallback struct {
+	name  string
+	store *Store
+}
+
+type listKeysCallback struct {
+	name  string
+	store *Store
+}
+
 // Execute callback function to handle `create-scope` requests.
 func (cb *createScopeCallback) Execute(msgBody string) ([]byte, error) {
 	var (
@@ -478,6 +488,105 @@ func (cb *healthCallback) Execute(msgBody string) ([]byte, error) {
 	}).Debug("Health check completed successfully")
 
 	return createSuccessResponse(healthData), nil
+}
+
+// Execute callback function to handle `list-scopes` requests.
+func (cb *listScopesCallback) Execute(msgBody string) ([]byte, error) {
+	var request service.RawRequest
+
+	log.WithFields(log.Fields{
+		"callback":  cb.name,
+		"operation": "list-scopes",
+	}).Debug("Processing list-scopes request")
+
+	if err := json.Unmarshal([]byte(msgBody), &request); err != nil {
+		log.WithFields(log.Fields{
+			"callback": cb.name,
+			"error":    err,
+		}).Error("Failed to parse list-scopes request JSON")
+		return createErrorResponse("Invalid request format: " + err.Error()), err
+	}
+
+	scopes := cb.store.ListAllScope()
+
+	log.WithFields(log.Fields{
+		"callback":    cb.name,
+		"scope_count": len(scopes),
+	}).Debug("Successfully listed scopes")
+
+	return createSuccessResponse(map[string]interface{}{
+		"scopes": scopes,
+		"count":  len(scopes),
+	}), nil
+}
+
+// Execute callback function to handle `list-keys` requests.
+func (cb *listKeysCallback) Execute(msgBody string) ([]byte, error) {
+	var (
+		scope   string
+		found   bool
+		request service.RawRequest
+	)
+
+	log.WithFields(log.Fields{
+		"callback":  cb.name,
+		"operation": "list-keys",
+	}).Debug("Processing list-keys request")
+
+	if err := json.Unmarshal([]byte(msgBody), &request); err != nil {
+		log.WithFields(log.Fields{
+			"callback": cb.name,
+			"error":    err,
+		}).Error("Failed to parse request JSON")
+		return createErrorResponse("Invalid request format: " + err.Error()), err
+	}
+
+	if scope, found = request["service"].(string); !found {
+		err := errors.New("service parameter missing")
+		log.WithFields(log.Fields{
+			"callback": cb.name,
+		}).Error("Service scope missing from request")
+		return createErrorResponse("Service scope required for list-keys request"), err
+	}
+
+	// Validate scope name
+	if scope == "" {
+		err := errors.New("empty service scope")
+		log.WithFields(log.Fields{
+			"callback": cb.name,
+		}).Error("Empty service scope provided")
+		return createErrorResponse("Service scope cannot be empty"), err
+	}
+
+	if !cb.store.HasScope(scope) {
+		log.WithFields(log.Fields{
+			"callback": cb.name,
+			"scope":    scope,
+		}).Warn("Attempted to list keys in non-existent scope")
+		return createErrorResponse(fmt.Sprintf("Scope '%s' does not exist", scope)), nil
+	}
+
+	keys, err := cb.store.ListAllKeys(scope)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"callback": cb.name,
+			"scope":    scope,
+			"error":    err,
+		}).Error("Failed to list keys from store")
+		return createErrorResponse("Failed to list keys: " + err.Error()), err
+	}
+
+	log.WithFields(log.Fields{
+		"callback":  cb.name,
+		"scope":     scope,
+		"key_count": len(keys),
+	}).Debug("Successfully listed keys")
+
+	return createSuccessResponse(map[string]interface{}{
+		"scope": scope,
+		"keys":  keys,
+		"count": len(keys),
+	}), nil
 }
 
 // min returns the minimum of two integers.

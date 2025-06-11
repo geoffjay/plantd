@@ -1,0 +1,18 @@
+# State service configuration
+log:
+  level: info
+  format: text
+
+broker:
+  endpoint: tcp://127.0.0.1:9797
+
+identity:
+  endpoint: tcp://127.0.0.1:9797
+  timeout: 30s
+  retries: 3
+
+database:
+  path: ./plantd-state.db
+
+health:
+  port: 8081 

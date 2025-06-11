@@ -40,12 +40,18 @@ func (ac *AuthenticatedCallback) Execute(msgBody string) ([]byte, error) {
 	}
 
 	// Get service scope for permission checking
+	// Some operations like list-scopes don't require a service scope
 	scope, found := authRequest.GetService()
-	if !found {
+	if !found && ac.requiresServiceScope() {
 		log.WithFields(log.Fields{
 			"callback": ac.name,
 		}).Error("Service scope missing from request")
 		return CreateErrorResponse(ErrServiceMissing), ErrServiceMissing
+	}
+
+	// Use empty scope for global operations
+	if !found {
+		scope = ""
 	}
 
 	// Validate authentication and permissions
@@ -91,6 +97,18 @@ func (ac *AuthenticatedCallback) Execute(msgBody string) ([]byte, error) {
 	}
 
 	return response, err
+}
+
+// requiresServiceScope checks if the operation requires a service scope.
+func (ac *AuthenticatedCallback) requiresServiceScope() bool {
+	switch ac.msgType {
+	case "list-scopes", "health":
+		// Global operations that don't require a specific service scope
+		return false
+	default:
+		// Most operations require a service scope
+		return true
+	}
 }
 
 // GetUserContext extracts user context from an authenticated request.
@@ -158,15 +176,19 @@ func CreateAuthenticatedCallbacks(
 func mapCallbackNameToMsgType(callbackName string) string {
 	switch callbackName {
 	case "create-scope":
-		return "create_scope"
+		return "create-scope"
 	case "delete-scope":
-		return "delete_scope"
+		return "delete-scope"
 	case "set":
 		return "set"
 	case "get":
 		return "get"
 	case "delete":
 		return "delete"
+	case "list-scopes":
+		return "list-scopes"
+	case "list-keys":
+		return "list-keys"
 	default:
 		return callbackName
 	}

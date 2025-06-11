@@ -29,6 +29,8 @@ type CachedPermissions struct {
 type AuthMiddleware struct {
 	identityClient  *client.Client
 	permissionCache map[string]*CachedPermissions
+	accessChecker   *AccessChecker
+	roleManager     *RoleManager
 	cacheTTL        time.Duration
 	cacheMutex      sync.RWMutex
 	logger          *log.Logger
@@ -37,6 +39,8 @@ type AuthMiddleware struct {
 // Config holds configuration for the authentication middleware.
 type Config struct {
 	IdentityClient *client.Client
+	AccessChecker  *AccessChecker
+	RoleManager    *RoleManager
 	CacheTTL       time.Duration
 	Logger         *log.Logger
 }
@@ -51,9 +55,30 @@ func NewAuthMiddleware(config *Config) *AuthMiddleware {
 		config.Logger = log.New()
 	}
 
+	// Create access checker if not provided
+	accessChecker := config.AccessChecker
+	if accessChecker == nil {
+		accessChecker = NewAccessChecker(&AccessCheckerConfig{
+			IdentityClient: config.IdentityClient,
+			CacheTTL:       config.CacheTTL,
+			Logger:         config.Logger,
+		})
+	}
+
+	// Create role manager if not provided
+	roleManager := config.RoleManager
+	if roleManager == nil {
+		roleManager = NewRoleManager(&RoleManagerConfig{
+			IdentityClient: config.IdentityClient,
+			Logger:         config.Logger,
+		})
+	}
+
 	return &AuthMiddleware{
 		identityClient:  config.IdentityClient,
 		permissionCache: make(map[string]*CachedPermissions),
+		accessChecker:   accessChecker,
+		roleManager:     roleManager,
 		cacheTTL:        config.CacheTTL,
 		logger:          config.Logger,
 	}
@@ -116,11 +141,10 @@ func (am *AuthMiddleware) ValidateRequest(msgType, token, scope string) (*UserCo
 		ValidUntil:  time.Unix(expiresAt, 0),
 	}
 
-	// Check specific permissions for the operation
+	// Check specific permissions for the operation using RBAC
 	requiredPermission := am.getRequiredPermission(msgType)
-	if !am.checkPermission(userCtx, requiredPermission, scope) {
-		return nil, fmt.Errorf("insufficient permissions: %s required for %s on scope %s",
-			requiredPermission, msgType, scope)
+	if err := am.accessChecker.CheckScopeAccess(userCtx, requiredPermission, scope); err != nil {
+		return nil, fmt.Errorf("access denied for %s on scope %s: %w", msgType, scope, err)
 	}
 
 	// Cache the result
@@ -146,9 +170,9 @@ func (am *AuthMiddleware) ValidateRequest(msgType, token, scope string) (*UserCo
 // getRequiredPermission maps operation types to required permissions.
 func (am *AuthMiddleware) getRequiredPermission(msgType string) string {
 	switch msgType {
-	case "create_scope":
+	case "create-scope":
 		return StateScopeCreate
-	case "delete_scope":
+	case "delete-scope":
 		return StateScopeDelete
 	case "set":
 		return StateDataWrite
@@ -156,6 +180,10 @@ func (am *AuthMiddleware) getRequiredPermission(msgType string) string {
 		return StateDataRead
 	case "delete":
 		return StateDataDelete
+	case "list-scopes":
+		return StateScopeList
+	case "list-keys":
+		return StateDataRead // Reading keys requires read permission
 	case "health":
 		return StateHealthRead
 	default:

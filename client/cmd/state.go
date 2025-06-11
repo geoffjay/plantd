@@ -31,11 +31,51 @@ var (
 		Args:  cobra.ExactArgs(2),
 		Run:   set,
 	}
+	stateListCmd = &cobra.Command{
+		Use:   "list",
+		Short: "List all keys in a service scope",
+		Long:  "List all keys available in the specified service scope",
+		Args:  cobra.NoArgs,
+		Run:   list,
+	}
+	stateDeleteCmd = &cobra.Command{
+		Use:   "delete",
+		Short: "Delete a state value by key",
+		Long:  "Delete a value by key from the state management service",
+		Args:  cobra.ExactArgs(1),
+		Run:   deleteKey,
+	}
+	stateCreateScopeCmd = &cobra.Command{
+		Use:   "create-scope",
+		Short: "Create a new service scope",
+		Long:  "Create a new service scope in the state management service",
+		Args:  cobra.NoArgs,
+		Run:   createScope,
+	}
+	stateDeleteScopeCmd = &cobra.Command{
+		Use:   "delete-scope",
+		Short: "Delete an entire service scope",
+		Long:  "Delete an entire service scope and all its data from the state management service",
+		Args:  cobra.NoArgs,
+		Run:   deleteScope,
+	}
+	stateListScopesCmd = &cobra.Command{
+		Use:   "list-scopes",
+		Short: "List all available service scopes",
+		Long:  "List all available service scopes in the state management service",
+		Args:  cobra.NoArgs,
+		Run:   listScopes,
+	}
 )
 
 func init() {
 	stateCmd.AddCommand(stateGetCmd)
 	stateCmd.AddCommand(stateSetCmd)
+	stateCmd.AddCommand(stateListCmd)
+	stateCmd.AddCommand(stateDeleteCmd)
+	stateCmd.AddCommand(stateCreateScopeCmd)
+	stateCmd.AddCommand(stateDeleteScopeCmd)
+	stateCmd.AddCommand(stateListScopesCmd)
 
 	// Add flags for service scope and authentication profile
 	stateCmd.PersistentFlags().StringVar(&serviceFlag, "service", "org.plantd.Client", "Service scope for state operations")
@@ -232,4 +272,125 @@ func containsAny(str string, substrings []string) bool {
 		}
 	}
 	return false
+}
+
+func list(_ *cobra.Command, args []string) {
+	log.Println(endpoint)
+
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
+
+		request := &plantd.RawRequest{
+			"token":   token,       // Include authentication token
+			"service": serviceFlag, // Use configurable service flag
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "list-keys", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
+}
+
+func deleteKey(_ *cobra.Command, args []string) {
+	log.Println(endpoint)
+
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
+
+		key := args[0]
+		request := &plantd.RawRequest{
+			"token":   token,       // Include authentication token
+			"service": serviceFlag, // Use configurable service flag
+			"key":     key,
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "delete", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
+}
+
+func createScope(_ *cobra.Command, args []string) {
+	log.Println(endpoint)
+
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
+
+		request := &plantd.RawRequest{
+			"token":   token,       // Include authentication token
+			"service": serviceFlag, // Use configurable service flag
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "create-scope", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
+}
+
+func deleteScope(_ *cobra.Command, args []string) {
+	log.Println(endpoint)
+
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
+
+		request := &plantd.RawRequest{
+			"token":   token,       // Include authentication token
+			"service": serviceFlag, // Use configurable service flag
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "delete-scope", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
+}
+
+func listScopes(_ *cobra.Command, args []string) {
+	log.Println(endpoint)
+
+	// Execute with authentication
+	executeWithAuth(func(token string) error {
+		client, err := plantd.NewClient(endpoint)
+		if err != nil {
+			return err
+		}
+
+		request := &plantd.RawRequest{
+			"token": token, // Include authentication token
+		}
+		response, err := client.SendRawRequest("org.plantd.State", "list-scopes", request)
+		if err != nil {
+			return err
+		}
+
+		log.Printf("%+v\n", response)
+		return nil
+	})
 }

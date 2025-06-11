@@ -114,6 +114,12 @@ func (s *Service) setupHandler() {
 		"health": &healthCallback{
 			name: "health", store: s.store,
 		},
+		"list-scopes": &listScopesCallback{
+			name: "list-scopes", store: s.store,
+		},
+		"list-keys": &listKeysCallback{
+			name: "list-keys", store: s.store,
+		},
 	}
 
 	// Wrap callbacks with authentication if auth middleware is available
@@ -380,7 +386,7 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 				}).Debug("processing message")
 				var data []byte
 				switch msgType {
-				case "create-scope", "delete-scope", "delete", "get", "set":
+				case "create-scope", "delete-scope", "delete", "get", "set", "list-scopes", "list-keys":
 					log.Tracef("part: %s", part)
 					if data, err = s.handler.callbacks[msgType].Execute(
 						part); err != nil {
