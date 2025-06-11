@@ -146,9 +146,10 @@ func (s *Service) runMessageLoop(ctx context.Context, wg *sync.WaitGroup) {
 		"context": "message_loop",
 	}).Info("Starting MDP message processing loop")
 
+	var reply []string
 	for !s.shutdown && !s.worker.Terminated() {
-		// Receive message from broker
-		message, err := s.worker.Recv([]string{})
+		// Receive message from broker and send reply from previous iteration
+		message, err := s.worker.Recv(reply)
 		if err != nil {
 			if !s.shutdown {
 				s.logger.WithError(err).Error("Failed to receive MDP message")
@@ -160,15 +161,8 @@ func (s *Service) runMessageLoop(ctx context.Context, wg *sync.WaitGroup) {
 			continue
 		}
 
-		// Process message
-		response := s.processMessage(ctx, message)
-
-		// Send response back
-		if len(response) > 0 {
-			if _, err := s.worker.Recv(response); err != nil {
-				s.logger.WithError(err).Error("Failed to send MDP response")
-			}
-		}
+		// Process message and prepare reply for next iteration
+		reply = s.processMessage(ctx, message)
 	}
 
 	s.logger.WithFields(logrus.Fields{

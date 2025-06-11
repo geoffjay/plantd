@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/geoffjay/plantd/client/auth"
 	identityClient "github.com/geoffjay/plantd/identity/pkg/client"
@@ -117,9 +118,7 @@ func loginHandler(cmd *cobra.Command, args []string) {
 	identityEndpoint := getIdentityEndpoint()
 
 	// Create identity client
-	clientConfig := &identityClient.Config{
-		BrokerEndpoint: identityEndpoint,
-	}
+	clientConfig := getIdentityClientConfig(identityEndpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
@@ -168,9 +167,7 @@ func logoutHandler(cmd *cobra.Command, args []string) {
 	identityEndpoint := getIdentityEndpoint()
 
 	// Create identity client and logout
-	clientConfig := &identityClient.Config{
-		BrokerEndpoint: identityEndpoint,
-	}
+	clientConfig := getIdentityClientConfig(identityEndpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
@@ -225,9 +222,7 @@ func refreshHandler(cmd *cobra.Command, args []string) {
 	}
 
 	// Create identity client
-	clientConfig := &identityClient.Config{
-		BrokerEndpoint: profile.Endpoint,
-	}
+	clientConfig := getIdentityClientConfig(profile.Endpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
@@ -275,9 +270,7 @@ func whoamiHandler(cmd *cobra.Command, args []string) {
 	}
 
 	// Create identity client
-	clientConfig := &identityClient.Config{
-		BrokerEndpoint: profile.Endpoint,
-	}
+	clientConfig := getIdentityClientConfig(profile.Endpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
@@ -324,6 +317,7 @@ func getContext() context.Context {
 func getIdentityClientConfig(identityEndpoint string) *identityClient.Config {
 	return &identityClient.Config{
 		BrokerEndpoint: identityEndpoint,
+		Timeout:        30 * time.Second, // Set explicit timeout
 	}
 }
 

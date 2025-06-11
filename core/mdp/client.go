@@ -23,7 +23,7 @@ type Client struct {
 func NewClient(broker string) (c *Client, err error) {
 	c = &Client{
 		broker:  broker,
-		timeout: 2500,
+		timeout: 2500 * time.Millisecond,
 	}
 
 	err = c.ConnectToBroker()
@@ -99,7 +99,7 @@ func (c *Client) Send(service string, request ...string) (err error) {
 // nolint: funlen, nestif
 func (c *Client) Recv() (msg []string, err error) {
 	// poll socket for a reply, with timeout
-	socket, perr := c.poller.Wait(int(c.timeout))
+	socket, perr := c.poller.Wait(int(c.timeout / time.Millisecond))
 	if perr != nil {
 		log.WithFields(log.Fields{
 			"err": perr,
@@ -109,7 +109,7 @@ func (c *Client) Recv() (msg []string, err error) {
 	if socket == nil {
 		// log in the client in warn and not trace because it expects a response
 		log.WithFields(log.Fields{
-			"timeout (ms)": int(c.timeout),
+			"timeout (ms)": int(c.timeout / time.Millisecond),
 		}).Warn("no messages received on client socket for the timeout duration")
 		return
 	}
