@@ -59,13 +59,18 @@ func (s *Service) setupIdentityClient() {
 		}
 	}
 
-	// Create identity client
+	// Create identity client with graceful degradation
 	identityClient, err := client.NewClient(clientConfig)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"endpoint": config.Identity.Endpoint,
 			"error":    err,
-		}).Fatal("failed to setup identity client")
+		}).Warn("Failed to setup identity client - authentication will be disabled")
+
+		// Set auth middleware to nil to trigger unauthenticated mode
+		s.identityClient = nil
+		s.authMiddleware = nil
+		return
 	}
 
 	s.identityClient = identityClient
@@ -82,7 +87,7 @@ func (s *Service) setupIdentityClient() {
 	log.WithFields(log.Fields{
 		"endpoint": config.Identity.Endpoint,
 		"timeout":  clientConfig.Timeout,
-	}).Info("Identity client initialized successfully")
+	}).Info("Identity client initialized successfully - authentication enabled")
 }
 
 func (s *Service) setupHandler() {
@@ -249,37 +254,43 @@ func (s *Service) healthStatusHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	// Simple JSON response
-	if status["status"] == "healthy" {
-		fmt.Fprintf(w, `{
-			"status": "healthy",
-			"store": %t,
-			"identity": %t,
-			"timestamp": "%s"
-		}`, status["store"], status["identity"], status["timestamp"])
-	} else {
-		fmt.Fprintf(w, `{
-			"status": "unhealthy",
-			"store": %t,
-			"identity": %t,
-			"timestamp": "%s"
-		}`, status["store"], status["identity"], status["timestamp"])
-	}
+	// Enhanced JSON response with detailed identity status
+	identityStatus := status["identity"].(map[string]interface{})
+	fmt.Fprintf(w, `{
+		"status": "%s",
+		"store": %t,
+		"identity": {
+			"status": "%s",
+			"connected": %t,
+			"message": "%s"
+		},
+		"auth_mode": "%s",
+		"timestamp": "%s"
+	}`,
+		status["status"],
+		status["store"],
+		identityStatus["status"],
+		identityStatus["connected"],
+		identityStatus["message"],
+		status["auth_mode"],
+		status["timestamp"])
 }
 
 func (s *Service) getHealthStatus() map[string]interface{} {
 	storeHealthy := s.store != nil
-	identityHealthy := s.isIdentityHealthy()
+	identityStatus := s.getIdentityStatus()
 
+	// Identity service is optional, so don't fail health check if unavailable
 	overallStatus := "healthy"
-	if !storeHealthy || !identityHealthy {
+	if !storeHealthy {
 		overallStatus = "unhealthy"
 	}
 
 	return map[string]interface{}{
 		"status":    overallStatus,
 		"store":     storeHealthy,
-		"identity":  identityHealthy,
+		"identity":  identityStatus,
+		"auth_mode": s.getAuthMode(),
 		"timestamp": time.Now().Format(time.RFC3339),
 	}
 }
@@ -295,6 +306,42 @@ func (s *Service) isIdentityHealthy() bool {
 
 	_, err := s.identityClient.HealthCheck(ctx)
 	return err == nil
+}
+
+func (s *Service) getIdentityStatus() map[string]interface{} {
+	if s.identityClient == nil {
+		return map[string]interface{}{
+			"status":    "disabled",
+			"connected": false,
+			"message":   "Identity service not configured or unavailable",
+		}
+	}
+
+	// Try a quick health check with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := s.identityClient.HealthCheck(ctx)
+	if err != nil {
+		return map[string]interface{}{
+			"status":    "unhealthy",
+			"connected": false,
+			"message":   "Identity service health check failed: " + err.Error(),
+		}
+	}
+
+	return map[string]interface{}{
+		"status":    "healthy",
+		"connected": true,
+		"message":   "Identity service is responsive",
+	}
+}
+
+func (s *Service) getAuthMode() string {
+	if s.authMiddleware == nil {
+		return "disabled"
+	}
+	return "enabled"
 }
 
 func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {

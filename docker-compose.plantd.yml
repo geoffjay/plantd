@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  # Broker service - central message broker for plantd services
+  broker:
+    image: registry.gitlab.com/plantd/broker:staging
+    environment:
+      PLANTD_BROKER_LOG_LEVEL: debug
+      PLANTD_BROKER_LOG_FORMAT: json
+      PLANTD_BROKER_ENDPOINT: 'tcp://*:9797'
+    ports:
+      - '9797:9797'
+      - '11000:11000'
+      - '11001:11001'
+      - '12000:12000'
+      - '12001:12001'
+      - '13000:13000'
+      - '13001:13001'
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9797"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Identity service - authentication and authorization
+  identity:
+    build:
+      context: ./identity
+      dockerfile: Dockerfile
+    environment:
+      PLANTD_IDENTITY_LOG_LEVEL: debug
+      PLANTD_IDENTITY_LOG_FORMAT: json
+      PLANTD_IDENTITY_BROKER_ENDPOINT: 'tcp://broker:9797'
+      PLANTD_IDENTITY_DB_PATH: '/data/identity.db'
+      PLANTD_IDENTITY_HEALTH_PORT: '8080'
+    ports:
+      - '8080:8080'  # Health check port
+    volumes:
+      - identity_data:/data
+    depends_on:
+      broker:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # State service - key-value storage with authentication
+  state:
+    build:
+      context: ./state
+      dockerfile: Dockerfile
+    environment:
+      PLANTD_STATE_LOG_LEVEL: debug
+      PLANTD_STATE_LOG_FORMAT: json
+      PLANTD_STATE_BROKER_ENDPOINT: 'tcp://broker:9797'
+      PLANTD_STATE_IDENTITY_ENDPOINT: 'tcp://broker:9797'
+      PLANTD_STATE_IDENTITY_TIMEOUT: '30s'
+      PLANTD_STATE_IDENTITY_RETRIES: 3
+      PLANTD_STATE_DB: '/data/plantd-state.db'
+      PLANTD_STATE_HEALTH_PORT: '8081'
+    ports:
+      - '8081:8081'  # Health check port
+    volumes:
+      - state_data:/data
+    depends_on:
+      broker:
+        condition: service_healthy
+      identity:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  identity_data:
+    driver: local
+  state_data:
+    driver: local
+
+networks:
+  default:
+    name: plantd_network 
