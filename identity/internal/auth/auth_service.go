@@ -388,10 +388,53 @@ func (as *AuthService) getUserOrganizations(_ context.Context, _ uint) ([]uint, 
 	return []uint{}, nil
 }
 
-func (as *AuthService) getUserRolesAndPermissions(_ context.Context, _ uint) ([]string, []string, error) {
-	// This would query the user_roles table and extract permissions from roles.
-	// For now, return empty slices.
-	return []string{}, []string{}, nil
+func (as *AuthService) getUserRolesAndPermissions(ctx context.Context, userID uint) ([]string, []string, error) {
+	// Retrieve roles assigned to the user via the injected user service
+	roles, err := as.userService.GetUserRoles(ctx, userID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch user roles: %w", err)
+	}
+
+	// If no roles are assigned, return empty slices (not nil) for downstream safety
+	if len(roles) == 0 {
+		return []string{}, []string{}, nil
+	}
+
+	// Collect role names and permissions, ensuring no duplicates
+	roleNames := make([]string, 0, len(roles))
+	permSet := make(map[string]struct{})
+
+	for _, role := range roles {
+		// Role might be nil if relationships are sparse – guard against it
+		if role == nil {
+			continue
+		}
+
+		roleNames = append(roleNames, role.Name)
+
+		// Extract permissions stored as JSON array in the role record
+		perms, err := role.GetPermissions()
+		if err != nil {
+			// Log and continue; a malformed permissions field should not abort the whole login
+			as.logger.WithField("role", role.Name).WithError(err).Warn("failed to parse permissions for role")
+			continue
+		}
+
+		for _, p := range perms {
+			if p == "" {
+				continue
+			}
+			permSet[p] = struct{}{}
+		}
+	}
+
+	// Flatten permission set into slice
+	permissions := make([]string, 0, len(permSet))
+	for p := range permSet {
+		permissions = append(permissions, p)
+	}
+
+	return roleNames, permissions, nil
 }
 
 func (as *AuthService) updateLastLogin(ctx context.Context, userID uint) error {

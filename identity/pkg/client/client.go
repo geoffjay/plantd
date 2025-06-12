@@ -92,28 +92,67 @@ func (c *Client) sendRequest(
 		"request_id": requestID,
 	}).Debug("Sending request to identity service")
 
-	// Send request via MDP
-	if err := c.mdpClient.Send("org.plantd.Identity", service, operation, string(requestData)); err != nil {
-		return nil, fmt.Errorf("failed to send MDP request: %w", err)
+	// Send request via MDP with retry logic for reconnections
+	maxRetries := 2
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			c.logger.WithFields(logrus.Fields{
+				"attempt":     attempt + 1,
+				"max_retries": maxRetries + 1,
+			}).Info("Retrying request after connection timeout")
+		}
+
+		// Send request via MDP
+		if err := c.mdpClient.Send("org.plantd.Identity", service, operation, string(requestData)); err != nil {
+			if attempt == maxRetries {
+				return nil, fmt.Errorf("failed to send MDP request after %d attempts: %w", maxRetries+1, err)
+			}
+			c.logger.WithFields(logrus.Fields{
+				"attempt": attempt + 1,
+				"error":   err,
+			}).Warn("Failed to send MDP request, will retry")
+			continue
+		}
+
+		// Receive response
+		response, err := c.mdpClient.Recv()
+		if err != nil {
+			// Check if this is a timeout/reconnection error that we should retry
+			if attempt < maxRetries && (err.Error() == "permanent failure" ||
+				len(response) > 0 && response[0] == "timeout error - connection refreshed, please retry") {
+				c.logger.WithFields(logrus.Fields{
+					"attempt": attempt + 1,
+					"error":   err,
+				}).Warn("Received timeout/reconnection error, will retry")
+				continue
+			}
+
+			if attempt == maxRetries {
+				return nil, fmt.Errorf("failed to receive MDP response after %d attempts: %w", maxRetries+1, err)
+			}
+			continue
+		}
+
+		if len(response) == 0 {
+			if attempt == maxRetries {
+				return nil, fmt.Errorf("received empty response after %d attempts", maxRetries+1)
+			}
+			c.logger.WithFields(logrus.Fields{
+				"attempt": attempt + 1,
+			}).Warn("Received empty response, will retry")
+			continue
+		}
+
+		c.logger.WithFields(logrus.Fields{
+			"service":    service,
+			"operation":  operation,
+			"request_id": requestID,
+		}).Debug("Received response from identity service")
+
+		return []byte(response[0]), nil
 	}
 
-	// Receive response
-	response, err := c.mdpClient.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive MDP response: %w", err)
-	}
-
-	if len(response) == 0 {
-		return nil, fmt.Errorf("received empty response")
-	}
-
-	c.logger.WithFields(logrus.Fields{
-		"service":    service,
-		"operation":  operation,
-		"request_id": requestID,
-	}).Debug("Received response from identity service")
-
-	return []byte(response[0]), nil
+	return nil, fmt.Errorf("failed to complete request after %d attempts", maxRetries+1)
 }
 
 // parseResponse parses a JSON response and checks for errors.

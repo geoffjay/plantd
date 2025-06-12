@@ -97,11 +97,17 @@ func (r *roleRepositoryGorm) GetOrganizationRoles(ctx context.Context, offset, l
 // GetByUser retrieves roles by user with pagination.
 func (r *roleRepositoryGorm) GetByUser(ctx context.Context, userID uint, offset, limit int) ([]*models.Role, error) {
 	var roles []*models.Role
-	err := r.db.WithContext(ctx).
+	query := r.db.WithContext(ctx).
 		Joins("JOIN user_roles ON roles.id = user_roles.role_id").
 		Where("user_roles.user_id = ?", userID).
-		Offset(offset).Limit(limit).
-		Find(&roles).Error
+		Offset(offset)
+
+	// Apply limit only when a positive value is provided; GORM treats -1/0 differently across drivers
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
+
+	err := query.Find(&roles).Error
 	return roles, err
 }
 
