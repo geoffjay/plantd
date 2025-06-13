@@ -182,7 +182,7 @@ func (ac *AccessChecker) CheckScopeAccess(userCtx *UserContext, operation, scope
 }
 
 // hasAdminAccess checks for administrative access patterns.
-func (ac *AccessChecker) hasAdminAccess(userCtx *UserContext, operation, scope string) bool {
+func (ac *AccessChecker) hasAdminAccess(userCtx *UserContext, operation, scope string) bool { //nolint:revive
 	// System admin has access to everything
 	if ac.hasPermissionWithInheritance(userCtx, StateSystemAdmin) {
 		return true
@@ -221,7 +221,7 @@ func (ac *AccessChecker) hasScopedPermission(userCtx *UserContext, operation, sc
 }
 
 // hasServiceOwnershipAccess checks service ownership access pattern.
-func (ac *AccessChecker) hasServiceOwnershipAccess(userCtx *UserContext, operation, scope string) bool {
+func (ac *AccessChecker) hasServiceOwnershipAccess(userCtx *UserContext, operation, scope string) bool { //nolint:revive
 	if scope == "" {
 		return false
 	}
@@ -263,7 +263,7 @@ func (ac *AccessChecker) hasPermissionWithInheritance(userCtx *UserContext, requ
 
 // getUserService extracts the service associated with a user.
 // This is a placeholder - in reality, this might come from JWT claims or user metadata.
-func (ac *AccessChecker) getUserService(userCtx *UserContext) string {
+func (ac *AccessChecker) getUserService(userCtx *UserContext) string { //nolint:revive
 	// This could be enhanced to extract service information from:
 	// 1. JWT token claims
 	// 2. User profile metadata
@@ -273,7 +273,7 @@ func (ac *AccessChecker) getUserService(userCtx *UserContext) string {
 }
 
 // GrantCrossServiceAccess grants explicit cross-service access.
-func (ac *AccessChecker) GrantCrossServiceAccess(ctx context.Context, userID uint, sourceService, targetScope, operation string) error {
+func (ac *AccessChecker) GrantCrossServiceAccess(ctx context.Context, userID uint, sourceService, targetScope, operation string) error { //nolint:revive
 	ac.logger.WithFields(log.Fields{
 		"user_id":        userID,
 		"source_service": sourceService,
@@ -296,7 +296,7 @@ func (ac *AccessChecker) GrantCrossServiceAccess(ctx context.Context, userID uin
 }
 
 // RevokeCrossServiceAccess revokes cross-service access.
-func (ac *AccessChecker) RevokeCrossServiceAccess(ctx context.Context, userID uint, sourceService, targetScope, operation string) error {
+func (ac *AccessChecker) RevokeCrossServiceAccess(ctx context.Context, userID uint, sourceService, targetScope, operation string) error { //nolint:revive
 	ac.logger.WithFields(log.Fields{
 		"user_id":        userID,
 		"source_service": sourceService,
@@ -339,7 +339,7 @@ func (ac *AccessChecker) GetScopeOwner(scope string) (string, bool) {
 }
 
 // ValidateAccessPattern validates that an access pattern is correctly configured.
-func (ac *AccessChecker) ValidateAccessPattern(pattern AccessPattern, userCtx *UserContext, operation, scope string) error {
+func (ac *AccessChecker) ValidateAccessPattern(pattern AccessPattern, userCtx *UserContext, operation, scope string) error { //nolint:revive
 	switch pattern {
 	case AccessPatternServiceOwner:
 		if scope == "" {

@@ -1,7 +1,19 @@
+// Package auth provides authentication and authorization functionality for the state service.
 package auth
 
 import (
 	log "github.com/sirupsen/logrus"
+)
+
+const (
+	listScopesMsgType  = "list-scopes"
+	healthMsgType      = "health"
+	createScopeMsgType = "create-scope"
+	deleteScopeMsgType = "delete-scope"
+	setMsgType         = "set"
+	getMsgType         = "get"
+	deleteMsgType      = "delete"
+	listKeysMsgType    = "list-keys"
 )
 
 // AuthenticatedCallback wraps existing callbacks with authentication.
@@ -102,7 +114,7 @@ func (ac *AuthenticatedCallback) Execute(msgBody string) ([]byte, error) {
 // requiresServiceScope checks if the operation requires a service scope.
 func (ac *AuthenticatedCallback) requiresServiceScope() bool {
 	switch ac.msgType {
-	case "list-scopes", "health":
+	case listScopesMsgType, healthMsgType:
 		// Global operations that don't require a specific service scope
 		return false
 	default:
@@ -175,20 +187,20 @@ func CreateAuthenticatedCallbacks(
 // mapCallbackNameToMsgType maps callback names to message types for permission checking.
 func mapCallbackNameToMsgType(callbackName string) string {
 	switch callbackName {
-	case "create-scope":
-		return "create-scope"
-	case "delete-scope":
-		return "delete-scope"
-	case "set":
-		return "set"
-	case "get":
-		return "get"
-	case "delete":
-		return "delete"
-	case "list-scopes":
-		return "list-scopes"
-	case "list-keys":
-		return "list-keys"
+	case createScopeMsgType:
+		return createScopeMsgType
+	case deleteScopeMsgType:
+		return deleteScopeMsgType
+	case setMsgType:
+		return setMsgType
+	case getMsgType:
+		return getMsgType
+	case deleteMsgType:
+		return deleteMsgType
+	case listScopesMsgType:
+		return listScopesMsgType
+	case listKeysMsgType:
+		return listKeysMsgType
 	default:
 		return callbackName
 	}

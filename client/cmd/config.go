@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v2"
@@ -91,7 +92,7 @@ func init() {
 	configCmd.AddCommand(profilesCmd)
 }
 
-func configInitHandler(cmd *cobra.Command, args []string) {
+func configInitHandler(_ *cobra.Command, _ []string) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
@@ -103,14 +104,14 @@ func configInitHandler(cmd *cobra.Command, args []string) {
 
 	// Check if config already exists
 	if _, err := os.Stat(configFile); err == nil {
-		fmt.Printf("Configuration file already exists at: %s\n", configFile)
-		fmt.Println("Use 'plant config show' to view current configuration")
+		log.Infof("Configuration file already exists at: %s\n", configFile)
+		log.Info("Use 'plant config show' to view current configuration")
 		return
 	}
 
 	// Create config directory
 	if err := os.MkdirAll(configDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create config directory: %v\n", err)
+		log.WithError(err).Fatal("Failed to create config directory")
 		os.Exit(1)
 	}
 
@@ -141,38 +142,36 @@ func configInitHandler(cmd *cobra.Command, args []string) {
 	// Write configuration file
 	data, err := yaml.Marshal(defaultConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to marshal configuration: %v\n", err)
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to marshal configuration")
 	}
 
 	if err := os.WriteFile(configFile, data, 0644); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to write configuration file: %v\n", err)
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to write configuration file")
 	}
 
-	fmt.Printf("Configuration initialized at: %s\n", configFile)
+	log.Infof("Configuration initialized at: %s\n", configFile)
 }
 
-func configShowHandler(cmd *cobra.Command, args []string) {
-	fmt.Printf("Configuration file: %s\n", viper.ConfigFileUsed())
-	fmt.Println("\nCurrent configuration:")
-	fmt.Printf("Server endpoint: %s\n", config.Server.Endpoint)
-	fmt.Printf("Server timeout: %s\n", config.Server.Timeout)
-	fmt.Printf("Server retries: %d\n", config.Server.Retries)
-	fmt.Printf("Identity endpoint: %s\n", config.Identity.Endpoint)
-	fmt.Printf("Default profile: %s\n", config.Identity.DefaultProfile)
-	fmt.Printf("Auto refresh: %t\n", config.Identity.AutoRefresh)
-	fmt.Printf("Cache duration: %s\n", config.Identity.CacheDuration)
-	fmt.Printf("Default service: %s\n", config.Defaults.Service)
-	fmt.Printf("Output format: %s\n", config.Defaults.OutputFormat)
+func configShowHandler(_ *cobra.Command, _ []string) {
+	log.Printf("Configuration file: %s\n", viper.ConfigFileUsed())
+	log.Println("Current configuration:")
+	log.Printf("Server endpoint: %s\n", config.Server.Endpoint)
+	log.Printf("Server timeout: %s\n", config.Server.Timeout)
+	log.Printf("Server retries: %d\n", config.Server.Retries)
+	log.Printf("Identity endpoint: %s\n", config.Identity.Endpoint)
+	log.Printf("Default profile: %s\n", config.Identity.DefaultProfile)
+	log.Printf("Auto refresh: %t\n", config.Identity.AutoRefresh)
+	log.Printf("Cache duration: %s\n", config.Identity.CacheDuration)
+	log.Printf("Default service: %s\n", config.Defaults.Service)
+	log.Printf("Output format: %s\n", config.Defaults.OutputFormat)
 
-	fmt.Println("\nProfiles:")
+	log.Println("Profiles:")
 	for name, profile := range config.Profiles {
-		fmt.Printf("  %s: %s\n", name, profile.IdentityEndpoint)
+		log.Printf("  %s: %s\n", name, profile.IdentityEndpoint)
 	}
 }
 
-func configSetHandler(cmd *cobra.Command, args []string) {
+func configSetHandler(_ *cobra.Command, args []string) {
 	key := args[0]
 	value := args[1]
 
@@ -188,16 +187,15 @@ func configSetHandler(cmd *cobra.Command, args []string) {
 			configFile = filepath.Join(homeDir, ".config", "plantd", "client.yaml")
 		}
 		if err := viper.WriteConfigAs(configFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write configuration: %v\n", err)
-			os.Exit(1)
+			log.WithError(err).Fatal("Failed to write configuration")
 		}
 	}
 
-	fmt.Printf("Configuration updated: %s = %s\n", key, value)
+	log.Infof("Configuration updated: %s = %s\n", key, value)
 }
 
-func configValidateHandler(cmd *cobra.Command, args []string) {
-	fmt.Println("Validating configuration...")
+func configValidateHandler(_ *cobra.Command, _ []string) {
+	log.Info("Validating configuration...")
 
 	errors := []string{}
 
@@ -239,20 +237,20 @@ func configValidateHandler(cmd *cobra.Command, args []string) {
 
 	// Report validation results
 	if len(errors) == 0 {
-		fmt.Println("✓ Configuration is valid")
+		log.Info("✓ Configuration is valid")
 	} else {
-		fmt.Println("✗ Configuration has errors:")
+		log.Info("✗ Configuration has errors:")
 		for _, err := range errors {
-			fmt.Printf("  - %s\n", err)
+			log.Infof("  - %s\n", err)
 		}
-		os.Exit(1)
+		log.Fatal("Configuration is invalid")
 	}
 }
 
-func profilesListHandler(cmd *cobra.Command, args []string) {
-	fmt.Println("Available profiles:")
+func profilesListHandler(_ *cobra.Command, _ []string) {
+	log.Info("Available profiles:")
 	if len(config.Profiles) == 0 {
-		fmt.Println("  No profiles configured")
+		log.Info("  No profiles configured")
 		return
 	}
 
@@ -261,24 +259,22 @@ func profilesListHandler(cmd *cobra.Command, args []string) {
 		if name == config.Identity.DefaultProfile {
 			indicator = " (default)"
 		}
-		fmt.Printf("  %s: %s%s\n", name, profile.IdentityEndpoint, indicator)
+		log.Infof("  %s: %s%s\n", name, profile.IdentityEndpoint, indicator)
 	}
 }
 
-func profilesCreateHandler(cmd *cobra.Command, args []string) {
+func profilesCreateHandler(_ *cobra.Command, args []string) {
 	profileName := args[0]
 	endpoint := args[1]
 
 	// Validate endpoint format
 	if !strings.HasPrefix(endpoint, "tcp://") {
-		fmt.Fprintf(os.Stderr, "Endpoint must start with 'tcp://'\n")
-		os.Exit(1)
+		log.Fatal("Endpoint must start with 'tcp://'")
 	}
 
 	// Check if profile already exists
 	if _, exists := config.Profiles[profileName]; exists {
-		fmt.Fprintf(os.Stderr, "Profile '%s' already exists\n", profileName)
-		os.Exit(1)
+		log.Fatalf("Profile '%s' already exists\n", profileName)
 	}
 
 	// Set the new profile
@@ -293,27 +289,24 @@ func profilesCreateHandler(cmd *cobra.Command, args []string) {
 			configFile = filepath.Join(homeDir, ".config", "plantd", "client.yaml")
 		}
 		if err := viper.WriteConfigAs(configFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write configuration: %v\n", err)
-			os.Exit(1)
+			log.WithError(err).Fatal("Failed to write configuration")
 		}
 	}
 
-	fmt.Printf("Profile '%s' created with endpoint: %s\n", profileName, endpoint)
+	log.Infof("Profile '%s' created with endpoint: %s\n", profileName, endpoint)
 }
 
-func profilesDeleteHandler(cmd *cobra.Command, args []string) {
+func profilesDeleteHandler(_ *cobra.Command, args []string) {
 	profileName := args[0]
 
 	// Check if profile exists
 	if _, exists := config.Profiles[profileName]; !exists {
-		fmt.Fprintf(os.Stderr, "Profile '%s' does not exist\n", profileName)
-		os.Exit(1)
+		log.Fatalf("Profile '%s' does not exist\n", profileName)
 	}
 
 	// Don't allow deleting the default profile
 	if profileName == config.Identity.DefaultProfile {
-		fmt.Fprintf(os.Stderr, "Cannot delete default profile '%s'. Change the default profile first.\n", profileName)
-		os.Exit(1)
+		log.Fatalf("Cannot delete default profile '%s'. Change the default profile first.\n", profileName)
 	}
 
 	// Remove the profile from viper
@@ -329,10 +322,9 @@ func profilesDeleteHandler(cmd *cobra.Command, args []string) {
 			configFile = filepath.Join(homeDir, ".config", "plantd", "client.yaml")
 		}
 		if err := viper.WriteConfigAs(configFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write configuration: %v\n", err)
-			os.Exit(1)
+			log.WithError(err).Fatal("Failed to write configuration")
 		}
 	}
 
-	fmt.Printf("Profile '%s' deleted\n", profileName)
+	log.Infof("Profile '%s' deleted\n", profileName)
 }

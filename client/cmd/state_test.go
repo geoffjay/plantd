@@ -136,8 +136,7 @@ func TestHelperFunctions(t *testing.T) {
 		}
 
 		for _, errMsg := range authErrors {
-			err := assert.AnError
-			err = &mockError{errMsg}
+			err := &mockError{errMsg}
 			assert.True(t, isAuthError(err), "Error '%s' should be detected as auth error", errMsg)
 		}
 

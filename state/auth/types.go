@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/geoffjay/plantd/core/service"
 )
@@ -105,10 +106,8 @@ var (
 func CreateErrorResponse(err error) []byte {
 	var authErr *AuthenticationError
 
-	// Check if it's already an AuthenticationError
-	if e, ok := err.(*AuthenticationError); ok {
-		authErr = e
-	} else {
+	// Check if it's already an AuthenticationError using errors.As
+	if !errors.As(err, &authErr) {
 		// Wrap generic errors
 		authErr = &AuthenticationError{
 			Code:    "REQUEST_FAILED",

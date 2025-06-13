@@ -26,7 +26,7 @@ type CachedPermissions struct {
 }
 
 // AuthMiddleware handles authentication and authorization for state service requests.
-type AuthMiddleware struct {
+type AuthMiddleware struct { //nolint:revive
 	identityClient  *client.Client
 	permissionCache map[string]*CachedPermissions
 	accessChecker   *AccessChecker
@@ -193,7 +193,7 @@ func (am *AuthMiddleware) getRequiredPermission(msgType string) string {
 }
 
 // checkPermission checks if a user has the required permission for a scope.
-func (am *AuthMiddleware) checkPermission(userCtx *UserContext, requiredPermission, scope string) bool {
+func (am *AuthMiddleware) checkPermission(userCtx *UserContext, requiredPermission, scope string) bool { //nolint:unused
 	// Check for admin permission (overrides all)
 	if am.hasPermission(userCtx, StateAdminFull) {
 		return true
@@ -236,7 +236,7 @@ func (am *AuthMiddleware) checkPermission(userCtx *UserContext, requiredPermissi
 }
 
 // hasPermission checks if a user has a specific permission.
-func (am *AuthMiddleware) hasPermission(userCtx *UserContext, permission string) bool {
+func (am *AuthMiddleware) hasPermission(userCtx *UserContext, permission string) bool { //nolint:unused
 	for _, userPerm := range userCtx.Permissions {
 		if userPerm.Name == permission {
 			return true

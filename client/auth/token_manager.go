@@ -236,7 +236,7 @@ func FormatUnixTimestamp(timestamp int64) string {
 // Future encryption implementation placeholder
 // These functions are prepared for future implementation of token encryption
 
-func encrypt(data []byte, key []byte) ([]byte, error) {
+func encrypt(data []byte, key []byte) ([]byte, error) { //nolint:unused
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -256,7 +256,7 @@ func encrypt(data []byte, key []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func decrypt(encryptedData []byte, key []byte) ([]byte, error) {
+func decrypt(encryptedData []byte, key []byte) ([]byte, error) { //nolint:unused
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err

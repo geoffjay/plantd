@@ -66,7 +66,7 @@ func (rm *RoleManager) SetupStandardRoles(ctx context.Context) error {
 }
 
 // CreateRole creates a new role in the identity service.
-func (rm *RoleManager) CreateRole(ctx context.Context, roleDef *RoleDefinition) error {
+func (rm *RoleManager) CreateRole(ctx context.Context, roleDef *RoleDefinition) error { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"role_name":   roleDef.Name,
 		"scope":       roleDef.Scope,
@@ -100,7 +100,7 @@ func (rm *RoleManager) CreateRole(ctx context.Context, roleDef *RoleDefinition) 
 }
 
 // AssignRoleToUser assigns a role to a user.
-func (rm *RoleManager) AssignRoleToUser(ctx context.Context, userEmail, roleName string, orgID *uint) error {
+func (rm *RoleManager) AssignRoleToUser(ctx context.Context, userEmail, roleName string, orgID *uint) error { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"user_email": userEmail,
 		"role_name":  roleName,
@@ -126,7 +126,7 @@ func (rm *RoleManager) AssignRoleToUser(ctx context.Context, userEmail, roleName
 }
 
 // RemoveRoleFromUser removes a role from a user.
-func (rm *RoleManager) RemoveRoleFromUser(ctx context.Context, userEmail, roleName string, orgID *uint) error {
+func (rm *RoleManager) RemoveRoleFromUser(ctx context.Context, userEmail, roleName string, orgID *uint) error { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"user_email": userEmail,
 		"role_name":  roleName,
@@ -152,7 +152,7 @@ func (rm *RoleManager) RemoveRoleFromUser(ctx context.Context, userEmail, roleNa
 }
 
 // ValidateRoleDefinition validates a role definition.
-func (rm *RoleManager) ValidateRoleDefinition(roleDef *RoleDefinition) error {
+func (rm *RoleManager) ValidateRoleDefinition(roleDef *RoleDefinition) error { //nolint:revive
 	if roleDef.Name == "" {
 		return fmt.Errorf("role name cannot be empty")
 	}
@@ -194,7 +194,7 @@ func (rm *RoleManager) ValidateRoleDefinition(roleDef *RoleDefinition) error {
 }
 
 // GetRolePermissions returns the permissions for a role.
-func (rm *RoleManager) GetRolePermissions(ctx context.Context, roleName string) ([]string, error) {
+func (rm *RoleManager) GetRolePermissions(ctx context.Context, roleName string) ([]string, error) { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"role_name": roleName,
 	}).Debug("Getting role permissions")
@@ -216,7 +216,7 @@ func (rm *RoleManager) GetRolePermissions(ctx context.Context, roleName string) 
 }
 
 // ListRoles returns a list of all state service roles.
-func (rm *RoleManager) ListRoles(ctx context.Context) ([]Role, error) {
+func (rm *RoleManager) ListRoles(ctx context.Context) ([]Role, error) { //nolint:revive
 	rm.logger.Debug("Listing state service roles")
 
 	// Start with standard roles
@@ -231,7 +231,7 @@ func (rm *RoleManager) ListRoles(ctx context.Context) ([]Role, error) {
 }
 
 // GetUserRoles returns the roles assigned to a user.
-func (rm *RoleManager) GetUserRoles(ctx context.Context, userEmail string, orgID *uint) ([]Role, error) {
+func (rm *RoleManager) GetUserRoles(ctx context.Context, userEmail string, orgID *uint) ([]Role, error) { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"user_email": userEmail,
 		"org_id":     orgID,
@@ -248,7 +248,7 @@ func (rm *RoleManager) GetUserRoles(ctx context.Context, userEmail string, orgID
 }
 
 // MigrateExistingUsers applies default roles to existing users.
-func (rm *RoleManager) MigrateExistingUsers(ctx context.Context) error {
+func (rm *RoleManager) MigrateExistingUsers(ctx context.Context) error { //nolint:revive
 	rm.logger.Info("Starting migration of existing users to role-based system")
 
 	// This would involve:
@@ -262,7 +262,7 @@ func (rm *RoleManager) MigrateExistingUsers(ctx context.Context) error {
 }
 
 // CreateCustomRole creates a custom role for specific needs.
-func (rm *RoleManager) CreateCustomRole(ctx context.Context, roleDef *RoleDefinition) error {
+func (rm *RoleManager) CreateCustomRole(ctx context.Context, roleDef *RoleDefinition) error { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"role_name": roleDef.Name,
 	}).Info("Creating custom role")
@@ -278,7 +278,7 @@ func (rm *RoleManager) CreateCustomRole(ctx context.Context, roleDef *RoleDefini
 }
 
 // GetEffectiveRolePermissions returns all effective permissions for a role including inheritance.
-func (rm *RoleManager) GetEffectiveRolePermissions(ctx context.Context, roleName string) ([]string, error) {
+func (rm *RoleManager) GetEffectiveRolePermissions(ctx context.Context, roleName string) ([]string, error) { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"role_name": roleName,
 	}).Debug("Getting effective role permissions")
@@ -301,7 +301,7 @@ func (rm *RoleManager) GetEffectiveRolePermissions(ctx context.Context, roleName
 }
 
 // ValidateRoleAssignment validates that a role can be assigned to a user.
-func (rm *RoleManager) ValidateRoleAssignment(ctx context.Context, userEmail, roleName string, orgID *uint) error {
+func (rm *RoleManager) ValidateRoleAssignment(ctx context.Context, userEmail, roleName string, orgID *uint) error { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"user_email": userEmail,
 		"role_name":  roleName,
@@ -349,7 +349,7 @@ type RoleAssignmentRequest struct {
 }
 
 // ProcessRoleAssignmentRequest processes a role assignment request with validation.
-func (rm *RoleManager) ProcessRoleAssignmentRequest(ctx context.Context, request *RoleAssignmentRequest) error {
+func (rm *RoleManager) ProcessRoleAssignmentRequest(ctx context.Context, request *RoleAssignmentRequest) error { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"user_email":      request.UserEmail,
 		"role_name":       request.RoleName,
@@ -388,7 +388,7 @@ func (rm *RoleManager) ProcessRoleAssignmentRequest(ctx context.Context, request
 }
 
 // GenerateRoleReport generates a comprehensive report of role assignments.
-func (rm *RoleManager) GenerateRoleReport(ctx context.Context, orgID *uint) (map[string]interface{}, error) {
+func (rm *RoleManager) GenerateRoleReport(ctx context.Context, orgID *uint) (map[string]interface{}, error) { //nolint:revive
 	rm.logger.WithFields(log.Fields{
 		"org_id": orgID,
 	}).Info("Generating role report")

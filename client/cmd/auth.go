@@ -10,6 +10,7 @@ import (
 	"github.com/geoffjay/plantd/client/auth"
 	identityClient "github.com/geoffjay/plantd/identity/pkg/client"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -80,38 +81,36 @@ func init() {
 	authCmd.PersistentFlags().StringVar(&profileFlag, "profile", "default", "Authentication profile to use")
 }
 
-func loginHandler(cmd *cobra.Command, args []string) {
+func loginHandler(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
 	// Check if already authenticated unless force flag is set
 	if !forceFlag {
 		if token, err := tokenMgr.GetValidToken(profileFlag); err == nil && token != "" {
-			fmt.Println("Already authenticated. Use --force to reauthenticate.")
+			log.Info("Already authenticated. Use --force to reauthenticate.")
 			return
 		}
 	}
 
 	// Get email if not provided
 	if emailFlag == "" {
-		fmt.Print("Email: ")
+		log.Info("Email: ")
 		if _, err := fmt.Scanln(&emailFlag); err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading email: %v\n", err)
-			os.Exit(1)
+			log.WithError(err).Fatal("Error reading email")
 		}
 	}
 
 	// Get password if not provided
 	password := passwordFlag
 	if password == "" {
-		fmt.Print("Password: ")
+		log.Info("Password: ")
 		passwordBytes, err := term.ReadPassword(int(syscall.Stdin))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading password: %v\n", err)
-			os.Exit(1)
+			log.WithError(err).Fatal("Error reading password")
 		}
 		password = string(passwordBytes)
-		fmt.Println() // Add newline after password input
+		log.Info("") // Add newline after password input
 	}
 
 	// Get identity service endpoint from config
@@ -121,17 +120,19 @@ func loginHandler(cmd *cobra.Command, args []string) {
 	clientConfig := getIdentityClientConfig(identityEndpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to create identity client")
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			log.WithError(closeErr).Warn("Failed to close identity client")
+		}
+	}()
 
 	// Attempt login
-	fmt.Println("Authenticating...")
+	log.Info("Authenticating...")
 	response, err := client.LoginWithEmail(ctx, emailFlag, password)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Authentication failed: %v\n", err)
-		os.Exit(1)
+		log.WithError(err).Fatal("Authentication failed")
 	}
 
 	// Store tokens
@@ -144,22 +145,21 @@ func loginHandler(cmd *cobra.Command, args []string) {
 	}
 
 	if err := tokenMgr.StoreTokens(profileFlag, profile); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to store authentication tokens: %v\n", err)
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to store authentication tokens")
 	}
 
-	fmt.Printf("Successfully authenticated as %s\n", response.User.Email)
-	fmt.Printf("Access token expires at: %s\n", profile.ExpiresAtFormatted())
+	log.Infof("Successfully authenticated as %s", response.User.Email)
+	log.Infof("Access token expires at: %s", profile.ExpiresAtFormatted())
 }
 
-func logoutHandler(cmd *cobra.Command, args []string) {
+func logoutHandler(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
 	// Get current token if it exists
 	token, err := tokenMgr.GetValidToken(profileFlag)
 	if err != nil {
-		fmt.Printf("No active session found for profile '%s'\n", profileFlag)
+		log.Infof("No active session found for profile '%s'", profileFlag)
 		return
 	}
 
@@ -170,54 +170,57 @@ func logoutHandler(cmd *cobra.Command, args []string) {
 	clientConfig := getIdentityClientConfig(identityEndpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
+		log.WithError(err).Error("Failed to create identity client")
 	} else {
-		defer client.Close()
+		defer func() {
+			if closeErr := client.Close(); closeErr != nil {
+				log.WithError(closeErr).Warn("Failed to close identity client")
+			}
+		}()
 		// Attempt to logout from server (invalidate token)
 		if err := client.Logout(ctx, token); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Failed to logout from server: %v\n", err)
+			log.WithError(err).Warn("Failed to logout from server")
 		}
 	}
 
 	// Clear local tokens regardless of server logout result
 	if err := tokenMgr.ClearTokens(profileFlag); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to clear local tokens: %v\n", err)
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to clear local tokens")
 	}
 
-	fmt.Printf("Logged out from profile '%s'\n", profileFlag)
+	log.Infof("Logged out from profile '%s'", profileFlag)
 }
 
-func statusHandler(cmd *cobra.Command, args []string) {
+func statusHandler(_ *cobra.Command, _ []string) {
 	tokenMgr := auth.NewTokenManager()
 
 	profile, err := tokenMgr.GetProfile(profileFlag)
 	if err != nil {
-		fmt.Printf("Profile '%s': Not authenticated\n", profileFlag)
+		log.Infof("Profile '%s': Not authenticated", profileFlag)
 		return
 	}
 
-	fmt.Printf("Profile: %s\n", profileFlag)
-	fmt.Printf("User: %s\n", profile.UserEmail)
-	fmt.Printf("Identity Endpoint: %s\n", profile.Endpoint)
-	fmt.Printf("Token Status: %s\n", profile.TokenStatus())
-	fmt.Printf("Expires At: %s\n", profile.ExpiresAtFormatted())
+	log.Infof("Profile: %s", profileFlag)
+	log.Infof("User: %s", profile.UserEmail)
+	log.Infof("Identity Endpoint: %s", profile.Endpoint)
+	log.Infof("Token Status: %s", profile.TokenStatus())
+	log.Infof("Expires At: %s", profile.ExpiresAtFormatted())
 
 	// Check if token is actually valid by testing it
 	if token, err := tokenMgr.GetValidToken(profileFlag); err == nil && token != "" {
-		fmt.Printf("Authentication: ✓ Valid\n")
+		log.Infof("Authentication: ✓ Valid")
 	} else {
-		fmt.Printf("Authentication: ✗ Invalid or expired\n")
+		log.Infof("Authentication: ✗ Invalid or expired")
 	}
 }
 
-func refreshHandler(cmd *cobra.Command, args []string) {
+func refreshHandler(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
 	profile, err := tokenMgr.GetProfile(profileFlag)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "No authentication found for profile '%s'. Please login first.\n", profileFlag)
+		log.Errorf("No authentication found for profile '%s'. Please login first.", profileFlag)
 		os.Exit(1)
 	}
 
@@ -225,17 +228,21 @@ func refreshHandler(cmd *cobra.Command, args []string) {
 	clientConfig := getIdentityClientConfig(profile.Endpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
+		log.WithError(err).Fatal("Failed to create identity client")
 		os.Exit(1)
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			log.WithError(closeErr).Warn("Failed to close identity client")
+		}
+	}()
 
 	// Refresh token
-	fmt.Println("Refreshing authentication token...")
+	log.Info("Refreshing authentication token...")
 	response, err := client.RefreshToken(ctx, profile.RefreshToken)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to refresh token: %v\n", err)
-		fmt.Println("Please login again with 'plant auth login'")
+		log.WithError(err).Fatal("Failed to refresh token")
+		log.Info("Please login again with 'plant auth login'")
 		os.Exit(1)
 	}
 
@@ -245,27 +252,27 @@ func refreshHandler(cmd *cobra.Command, args []string) {
 	profile.ExpiresAt = response.ExpiresAt
 
 	if err := tokenMgr.StoreTokens(profileFlag, profile); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to store refreshed tokens: %v\n", err)
+		log.WithError(err).Fatal("Failed to store refreshed tokens")
 		os.Exit(1)
 	}
 
-	fmt.Printf("Token refreshed successfully\n")
-	fmt.Printf("New expiry: %s\n", profile.ExpiresAtFormatted())
+	log.Info("Token refreshed successfully")
+	log.Infof("New expiry: %s", profile.ExpiresAtFormatted())
 }
 
-func whoamiHandler(cmd *cobra.Command, args []string) {
+func whoamiHandler(_ *cobra.Command, _ []string) {
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
 	token, err := tokenMgr.GetValidToken(profileFlag)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Not authenticated. Please login first with 'plant auth login'\n")
+		log.Error("Not authenticated. Please login first with 'plant auth login'")
 		os.Exit(1)
 	}
 
 	profile, err := tokenMgr.GetProfile(profileFlag)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get profile information: %v\n", err)
+		log.WithError(err).Fatal("Failed to get profile information")
 		os.Exit(1)
 	}
 
@@ -273,30 +280,34 @@ func whoamiHandler(cmd *cobra.Command, args []string) {
 	clientConfig := getIdentityClientConfig(profile.Endpoint)
 	client, err := identityClient.NewClient(clientConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create identity client: %v\n", err)
+		log.WithError(err).Fatal("Failed to create identity client")
 		os.Exit(1)
 	}
-	defer client.Close()
+	defer func() {
+		if closeErr := client.Close(); closeErr != nil {
+			log.WithError(closeErr).Warn("Failed to close identity client")
+		}
+	}()
 
 	// Validate token to get current user information
 	response, err := client.ValidateToken(ctx, token)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to validate token: %v\n", err)
-		fmt.Println("Please login again with 'plant auth login'")
+		log.WithError(err).Fatal("Failed to validate token")
+		log.Info("Please login again with 'plant auth login'")
 		os.Exit(1)
 	}
 
 	if !response.Valid {
-		fmt.Fprintf(os.Stderr, "Token is not valid. Please login again.\n")
+		log.Error("Token is not valid. Please login again.")
 		os.Exit(1)
 	}
 
-	fmt.Printf("User ID: %d\n", *response.UserID)
-	fmt.Printf("Email: %s\n", response.Email)
-	fmt.Printf("Roles: %v\n", response.Roles)
-	fmt.Printf("Permissions: %v\n", response.Permissions)
+	log.Infof("User ID: %d", *response.UserID)
+	log.Infof("Email: %s", response.Email)
+	log.Infof("Roles: %v", response.Roles)
+	log.Infof("Permissions: %v", response.Permissions)
 	if response.ExpiresAt != nil {
-		fmt.Printf("Token Expires: %s\n", auth.FormatUnixTimestamp(*response.ExpiresAt))
+		log.Infof("Token Expires: %s", auth.FormatUnixTimestamp(*response.ExpiresAt))
 	}
 }
 

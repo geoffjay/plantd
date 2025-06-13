@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"errors"
-	"log"
 
 	"github.com/geoffjay/plantd/client/auth"
 	plantd "github.com/geoffjay/plantd/core/service"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -171,7 +171,11 @@ func executeWithAuth(operation func(token string) error) {
 			if clientErr != nil {
 				log.Fatal("Failed to create identity client for refresh. Please login again with 'plant auth login'.")
 			}
-			defer client.Close()
+			defer func() {
+				if closeErr := client.Close(); closeErr != nil {
+					log.WithError(closeErr).Warn("Failed to close identity client")
+				}
+			}()
 
 			response, refreshErr := client.RefreshToken(ctx, profile.RefreshToken)
 			if refreshErr != nil {
@@ -274,7 +278,7 @@ func containsAny(str string, substrings []string) bool {
 	return false
 }
 
-func list(_ *cobra.Command, args []string) {
+func list(_ *cobra.Command, _ []string) {
 	log.Println(endpoint)
 
 	// Execute with authentication
@@ -324,7 +328,7 @@ func deleteKey(_ *cobra.Command, args []string) {
 	})
 }
 
-func createScope(_ *cobra.Command, args []string) {
+func createScope(_ *cobra.Command, _ []string) {
 	log.Println(endpoint)
 
 	// Execute with authentication
@@ -348,7 +352,7 @@ func createScope(_ *cobra.Command, args []string) {
 	})
 }
 
-func deleteScope(_ *cobra.Command, args []string) {
+func deleteScope(_ *cobra.Command, _ []string) {
 	log.Println(endpoint)
 
 	// Execute with authentication
@@ -372,7 +376,7 @@ func deleteScope(_ *cobra.Command, args []string) {
 	})
 }
 
-func listScopes(_ *cobra.Command, args []string) {
+func listScopes(_ *cobra.Command, _ []string) {
 	log.Println(endpoint)
 
 	// Execute with authentication

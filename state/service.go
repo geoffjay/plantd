@@ -195,7 +195,10 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer s.manager.Shutdown()
 	defer func() {
 		if s.identityClient != nil {
-			s.identityClient.Close()
+			err := s.identityClient.Close()
+			if err != nil {
+				log.WithError(err).Error("failed to close identity client")
+			}
 		}
 	}()
 
@@ -248,7 +251,7 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 	log.WithFields(log.Fields{"context": "service.run-health"}).Debug("exiting")
 }
 
-func (s *Service) healthStatusHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Service) healthStatusHandler(w http.ResponseWriter, _ *http.Request) {
 	status := s.getHealthStatus()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -262,7 +265,7 @@ func (s *Service) healthStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Enhanced JSON response with detailed identity status
 	identityStatus := status["identity"].(map[string]interface{})
-	fmt.Fprintf(w, `{
+	_, err := fmt.Fprintf(w, `{
 		"status": "%s",
 		"store": %t,
 		"identity": {
@@ -280,6 +283,9 @@ func (s *Service) healthStatusHandler(w http.ResponseWriter, r *http.Request) {
 		identityStatus["message"],
 		status["auth_mode"],
 		status["timestamp"])
+	if err != nil {
+		log.WithError(err).Error("failed to write health status")
+	}
 }
 
 func (s *Service) getHealthStatus() map[string]interface{} {
@@ -301,7 +307,7 @@ func (s *Service) getHealthStatus() map[string]interface{} {
 	}
 }
 
-func (s *Service) isIdentityHealthy() bool {
+func (s *Service) isIdentityHealthy() bool { //nolint:unused
 	if s.identityClient == nil {
 		return false
 	}
