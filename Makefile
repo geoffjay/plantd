@@ -71,7 +71,7 @@ build-module-echo:
 	go build -o ../../build/plantd-module-echo $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-test: test-pre test-core test-broker test-state
+test: test-pre test-core test-broker test-identity test-state
 
 test-pre: ; $(info $(M) Testing projects...)
 	@mkdir -p coverage/
