@@ -528,9 +528,27 @@ func (s *userServiceImpl) RemoveUserFromRole(_ context.Context, _, _ uint) error
 }
 
 // GetUserRoles returns the roles assigned to a user.
-func (s *userServiceImpl) GetUserRoles(_ context.Context, _ uint) ([]*models.Role, error) { //nolint:revive
-	// TODO: Implement when role assignment methods are added to repositories
-	return nil, errors.New("not implemented yet")
+func (s *userServiceImpl) GetUserRoles(ctx context.Context, userID uint) ([]*models.Role, error) { //nolint:revive
+	logger := log.WithFields(log.Fields{
+		"service": "user_service",
+		"method":  "GetUserRoles",
+		"user_id": userID,
+	})
+
+	if userID == 0 {
+		logger.Error("userID must be provided")
+		return nil, errors.New("userID must be provided")
+	}
+
+	// Use limit -1 to disable LIMIT clause and return all roles for the user
+	roles, err := s.roleRepo.GetByUser(ctx, userID, 0, -1)
+	if err != nil {
+		logger.WithError(err).Error("failed to get user roles")
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	logger.WithField("count", len(roles)).Debug("user roles retrieved successfully")
+	return roles, nil
 }
 
 // AssignUserToOrganization assigns a user to an organization.

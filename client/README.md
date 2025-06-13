@@ -81,8 +81,8 @@ plant state set --service="org.plantd.MyService" mykey myvalue
 # Get a value by key
 plant state get --service="org.plantd.MyService" mykey
 
-# List all keys for a service
-plant state list --service="org.plantd.MyService"
+# List all keys in a service scope
+plant list --service="org.plantd.MyService"
 
 # Delete a key
 plant state delete --service="org.plantd.MyService" mykey
@@ -90,8 +90,101 @@ plant state delete --service="org.plantd.MyService" mykey
 # Create a new service scope
 plant state create-scope --service="org.plantd.NewService"
 
-# Delete an entire service scope
+# Delete an entire service scope and all its data
 plant state delete-scope --service="org.plantd.OldService"
+
+# List all available service scopes
+plant state list-scopes
+```
+
+#### State Command Options
+
+All state commands support the following flags:
+
+- `--service`: Specify the service scope for operations (default: "org.plantd.Client")
+- `--profile`: Choose authentication profile to use (default: "default")
+
+#### State Operations Examples
+
+**Basic Key-Value Operations:**
+```bash
+# Store configuration data
+plant state set --service="org.plantd.TempSensor01" config '{"interval": 1000, "unit": "celsius"}'
+
+# Retrieve configuration
+plant state get --service="org.plantd.TempSensor01" config
+
+# Update a value
+plant state set --service="org.plantd.TempSensor01" current_temp "23.5"
+
+# Delete a specific key
+plant state delete --service="org.plantd.TempSensor01" current_temp
+```
+
+**Service Discovery and Management:**
+```bash
+# See all available services/scopes
+plant state list-scopes
+
+# Explore keys in a specific service
+plant state list --service="org.plantd.TempSensor01"
+
+# Set up a new service scope
+plant state create-scope --service="org.plantd.TempSensor02"
+
+# Remove an entire service and its data
+plant state delete-scope --service="org.plantd.OldService"
+```
+
+**Working with Different Profiles:**
+```bash
+# Use production environment
+plant state list-scopes --profile production
+
+# Get data from staging environment  
+plant state get --service="org.plantd.MyService" config --profile staging
+```
+
+#### State Service Authentication
+
+All state operations require authentication. If you haven't logged in, you'll see:
+
+```bash
+$ plant state list-scopes
+Authentication required. Please run 'plant auth login' first.
+```
+
+To authenticate:
+```bash
+# Login to the system
+plant auth login
+
+# Then use state commands
+plant state list-scopes
+```
+
+#### Response Format
+
+State operations return JSON responses with a consistent format:
+
+**Success Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "scope": "org.plantd.MyService",
+    "keys": ["config", "status", "metrics"],
+    "count": 3
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "success": false,
+  "error": "Scope 'org.plantd.NonExistent' does not exist"
+}
 ```
 
 ### Echo Testing

@@ -107,3 +107,64 @@ func (suite *StoreTestSuite) TestStore_ListAllScope() {
 	err = suite.store.DeleteScope("test2")
 	suite.NoError(err, err)
 }
+
+func (suite *StoreTestSuite) TestStore_ListAllKeys() {
+	var err error
+
+	// Create a scope and add some keys
+	err = suite.store.CreateScope("testscope")
+	suite.NoError(err, err)
+
+	// Add some test data
+	err = suite.store.Set("testscope", "key1", "value1")
+	suite.NoError(err, err)
+	err = suite.store.Set("testscope", "key2", "value2")
+	suite.NoError(err, err)
+	err = suite.store.Set("testscope", "key3", "value3")
+	suite.NoError(err, err)
+
+	// List all keys
+	keys, err := suite.store.ListAllKeys("testscope")
+	suite.NoError(err, err)
+	suite.Equal(len(keys), 3)
+	suite.Contains(keys, "key1")
+	suite.Contains(keys, "key2")
+	suite.Contains(keys, "key3")
+
+	// Test non-existent scope
+	_, err = suite.store.ListAllKeys("nonexistent")
+	suite.Error(err, "should error for non-existent scope")
+
+	// Cleanup
+	err = suite.store.DeleteScope("testscope")
+	suite.NoError(err, err)
+}
+
+func (suite *StoreTestSuite) TestStore_ListAllKeysWithValues() {
+	var err error
+
+	// Create a scope and add some keys
+	err = suite.store.CreateScope("testscope")
+	suite.NoError(err, err)
+
+	// Add some test data
+	err = suite.store.Set("testscope", "key1", "value1")
+	suite.NoError(err, err)
+	err = suite.store.Set("testscope", "key2", "value2")
+	suite.NoError(err, err)
+
+	// List all keys with values
+	data, err := suite.store.ListAllKeysWithValues("testscope")
+	suite.NoError(err, err)
+	suite.Equal(len(data), 2)
+	suite.Equal(data["key1"], "value1")
+	suite.Equal(data["key2"], "value2")
+
+	// Test non-existent scope
+	_, err = suite.store.ListAllKeysWithValues("nonexistent")
+	suite.Error(err, "should error for non-existent scope")
+
+	// Cleanup
+	err = suite.store.DeleteScope("testscope")
+	suite.NoError(err, err)
+}

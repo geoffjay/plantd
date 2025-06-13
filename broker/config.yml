@@ -1,0 +1,10 @@
+# Broker configuration
+log:
+  level: info
+  format: text
+
+network:
+  bind: tcp://*:9797
+
+health:
+  port: 11000 

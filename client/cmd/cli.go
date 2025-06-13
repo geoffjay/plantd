@@ -12,10 +12,31 @@ import (
 
 type server struct {
 	Endpoint string `mapstructure:"endpoint"`
+	Timeout  string `mapstructure:"timeout"`
+	Retries  int    `mapstructure:"retries"`
+}
+
+type identity struct {
+	Endpoint       string `mapstructure:"endpoint"`
+	DefaultProfile string `mapstructure:"default_profile"`
+	AutoRefresh    bool   `mapstructure:"auto_refresh"`
+	CacheDuration  string `mapstructure:"cache_duration"`
+}
+
+type defaults struct {
+	Service      string `mapstructure:"service"`
+	OutputFormat string `mapstructure:"output_format"`
+}
+
+type profile struct {
+	IdentityEndpoint string `mapstructure:"identity_endpoint"`
 }
 
 type clientConfig struct {
-	Server server `mapstructure:"server"`
+	Server   server             `mapstructure:"server"`
+	Identity identity           `mapstructure:"identity"`
+	Defaults defaults           `mapstructure:"defaults"`
+	Profiles map[string]profile `mapstructure:"profiles"`
 }
 
 var (
@@ -59,6 +80,8 @@ func init() {
 }
 
 func addCommands() {
+	cliCmd.AddCommand(authCmd)
+	cliCmd.AddCommand(configCmd)
 	cliCmd.AddCommand(echoCmd)
 	// cliCmd.AddCommand(jobCmd)
 	cliCmd.AddCommand(stateCmd)
@@ -74,4 +97,29 @@ func initConfig() {
 	}
 
 	endpoint = config.Server.Endpoint
+}
+
+// GetIdentityEndpoint returns the identity endpoint for the given profile
+func GetIdentityEndpoint(profileName string) string {
+	if profile, exists := config.Profiles[profileName]; exists {
+		return profile.IdentityEndpoint
+	}
+	// Fallback to default identity endpoint
+	return config.Identity.Endpoint
+}
+
+// GetDefaultService returns the default service scope
+func GetDefaultService() string {
+	if config.Defaults.Service != "" {
+		return config.Defaults.Service
+	}
+	return "org.plantd.Client"
+}
+
+// GetDefaultProfile returns the default authentication profile
+func GetDefaultProfile() string {
+	if config.Identity.DefaultProfile != "" {
+		return config.Identity.DefaultProfile
+	}
+	return "default"
 }

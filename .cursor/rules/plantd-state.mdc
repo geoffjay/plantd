@@ -1,0 +1,374 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Plantd State Service Authentication Integration Rule
+
+## Description
+
+You are implementing **authentication and authorization integration** for the plantd State Service using the completed Identity Service. This is the **first service integration** that will establish the authentication pattern template for all other plantd services. The integration must maintain the familiar `plant` CLI developer workflow while adding comprehensive security.
+
+## Core Requirements
+
+### MUST Requirements (Non-negotiable)
+
+#### Identity Service Integration
+- **MUST** integrate with the completed plantd Identity Service
+- **MUST** use the Identity Service client library from `identity/pkg/client/`
+- **MUST** validate JWT tokens for all state operations
+- **MUST** implement proper error handling for authentication failures
+- **MUST** support token refresh and expiry handling
+
+#### Permission Model
+- **MUST** define state-specific permissions for all operations
+- **MUST** implement scope-based authorization (per-service namespace)
+- **MUST** support both global and scoped permission checking
+- **MUST** provide role-based access control integration
+- **MUST** implement permission caching for performance
+
+#### Plant CLI Integration
+- **MUST** maintain existing `plant` command interface and workflows
+- **MUST** add authentication commands (`plant auth login/logout/status`)
+- **MUST** implement secure token storage and management
+- **MUST** provide automatic token refresh on expiry
+- **MUST** support multiple environment profiles
+
+#### Message Protocol
+- **MUST** extend existing MDP message format to include authentication tokens
+- **MUST** maintain backward compatibility during transition
+- **MUST** implement proper error responses for authentication failures
+- **MUST** support audit logging for all authenticated operations
+
+### SHOULD Requirements (Strongly Recommended)
+
+#### Authentication Middleware
+- **SHOULD** implement authentication middleware pattern for request processing
+- **SHOULD** use dependency injection for identity client and auth services
+- **SHOULD** cache permission checks with configurable TTL (5-minute default)
+- **SHOULD** implement graceful degradation when identity service unavailable
+
+#### Performance and Security
+- **SHOULD** maintain <10ms authentication overhead per request
+- **SHOULD** implement rate limiting for authentication attempts
+- **SHOULD** use secure file permissions (0600) for token storage
+- **SHOULD** support environment variables for CI/CD scenarios
+
+#### Developer Experience
+- **SHOULD** provide clear error messages for authentication failures
+- **SHOULD** support `--force-login` flag for reauthentication
+- **SHOULD** implement automatic retry with token refresh on auth errors
+- **SHOULD** maintain familiar command structure and help text
+
+## Architecture Guidelines
+
+### Project Structure
+```
+state/
+├── auth/                       # NEW: Authentication integration
+│   ├── middleware.go          # Authentication middleware
+│   ├── permissions.go         # State-specific permissions
+│   └── rbac.go               # Role-based access checking
+├── callbacks.go              # MODIFIED: Add auth to all callbacks
+├── service.go                # MODIFIED: Add identity client setup
+├── config.go                 # MODIFIED: Add identity configuration
+└── go.mod                    # MODIFIED: Add identity client dependency
+
+client/
+├── auth/                     # NEW: Token management
+│   ├── token_manager.go      # Secure token storage and refresh
+│   └── profiles.go           # Multi-environment support
+├── cmd/
+│   ├── auth.go              # NEW: Authentication commands
+│   └── state.go             # MODIFIED: Add token to requests
+└── config/                  # MODIFIED: Add identity settings
+```
+
+### Authentication Middleware Pattern
+- Create `AuthMiddleware` struct with identity client and permission cache
+- Implement `ValidateRequest(msgType, token, scope)` method
+- Use middleware in all callback implementations
+- Provide user context throughout request processing
+
+### Permission Model Design
+```go
+// State service specific permissions
+const (
+    // Scope Management (Global)
+    StateScopeCreate = "state:scope:create"
+    StateScopeDelete = "state:scope:delete"
+    StateScopeList   = "state:scope:list"
+    
+    // Data Operations (Scoped)
+    StateDataRead   = "state:data:read"
+    StateDataWrite  = "state:data:write"
+    StateDataDelete = "state:data:delete"
+    
+    // Administrative
+    StateAdminFull = "state:admin:full"
+    StateHealth    = "state:health:read"
+)
+```
+
+### Message Format Evolution
+```json
+// Current format
+{
+  "service": "org.plantd.MyService",
+  "key": "mykey",
+  "value": "myvalue"
+}
+
+// New authenticated format
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...",
+  "service": "org.plantd.MyService", 
+  "key": "mykey",
+  "value": "myvalue"
+}
+```
+
+### Token Management Architecture
+- Store tokens in `~/.config/plantd/tokens.json` with 0600 permissions
+- Support multiple profiles (default, production, staging)
+- Implement automatic refresh with fallback to login prompt
+- Use environment variables for CI/CD scenarios
+
+## Development Priorities
+
+### Phase 1: State Service Core Integration (2-3 weeks)
+1. **Identity Client Setup**: Add dependency and configuration
+2. **Permission Definition**: Define state-specific permission constants
+3. **Authentication Middleware**: Implement request validation pipeline
+4. **Callback Updates**: Add authentication to all existing callbacks
+5. **Service Integration**: Update startup and health checks
+
+### Phase 2: Plant CLI Enhancement (1-2 weeks)
+1. **Authentication Commands**: Add `plant auth` command suite
+2. **Token Management**: Implement secure storage and refresh
+3. **State Command Updates**: Add tokens to existing state commands
+4. **Configuration Extension**: Support identity settings and profiles
+
+### Phase 3: Authorization and RBAC (1-2 weeks)
+1. **Permission Model**: Complete state-specific permission hierarchy
+2. **Access Patterns**: Implement service owner, cross-service, and admin patterns
+3. **Standard Roles**: Create common role templates for state service
+4. **Role Management**: Integration with identity service RBAC
+
+### Phase 4: Testing and Documentation (1 week)
+1. **Integration Tests**: Authentication and authorization workflows
+2. **Performance Tests**: Validate <10ms overhead target
+3. **CLI Tests**: Complete authentication workflow testing
+4. **Documentation**: User guides, integration patterns, troubleshooting
+
+## Implementation Patterns
+
+### Authentication Middleware Implementation
+```go
+type AuthMiddleware struct {
+    identityClient  *identity.Client
+    permissionCache map[string]*CachedPermissions
+    cacheTTL        time.Duration
+}
+
+func (am *AuthMiddleware) ValidateRequest(msgType, token, scope string) (*UserContext, error) {
+    // 1. Validate JWT token with identity service
+    userInfo, err := am.identityClient.ValidateToken(token)
+    if err != nil {
+        return nil, fmt.Errorf("authentication failed: %w", err)
+    }
+    
+    // 2. Check required permissions for operation
+    requiredPerm := getRequiredPermission(msgType)
+    if !am.hasPermission(userInfo, requiredPerm, scope) {
+        return nil, fmt.Errorf("insufficient permissions: %s", requiredPerm)
+    }
+    
+    // 3. Return user context
+    return &UserContext{
+        UserID:      userInfo.UserID,
+        UserEmail:   userInfo.Email,
+        Permissions: userInfo.Permissions,
+    }, nil
+}
+```
+
+### Callback Authentication Pattern
+```go
+func (cb *setCallback) Execute(msgBody string) ([]byte, error) {
+    // Parse authenticated request
+    var request AuthenticatedRequest
+    if err := json.Unmarshal([]byte(msgBody), &request); err != nil {
+        return errorResponse("Invalid request format"), err
+    }
+    
+    // Validate authentication and permissions
+    userCtx, err := cb.auth.ValidateRequest("set", request.Token, request.Service)
+    if err != nil {
+        return errorResponse(err.Error()), err
+    }
+    
+    // Execute original logic with audit logging
+    log.WithFields(log.Fields{
+        "user": userCtx.UserEmail,
+        "operation": "set",
+        "scope": request.Service,
+        "key": request.Key,
+    }).Info("State operation")
+    
+    return cb.store.Set(request.Service, request.Key, request.Value)
+}
+```
+
+### CLI Token Management Pattern
+```go
+func executeWithAuth(operation func(token string) error) error {
+    tokenMgr := auth.NewTokenManager()
+    token, err := tokenMgr.GetValidToken("default")
+    if err != nil {
+        if errors.Is(err, auth.ErrNotAuthenticated) {
+            return fmt.Errorf("authentication required. Please run 'plant auth login' first")
+        }
+        return err
+    }
+    
+    err = operation(token)
+    if isAuthError(err) {
+        // Try token refresh once
+        if newToken, refreshErr := tokenMgr.RefreshToken("default"); refreshErr == nil {
+            err = operation(newToken)
+        }
+    }
+    
+    return err
+}
+```
+
+## Testing Requirements
+
+### Integration Testing
+- **Authentication workflow**: Login, token usage, logout, refresh
+- **Authorization scenarios**: Permission checking, role-based access, scope isolation
+- **CLI integration**: All auth commands, state command integration, error handling
+- **Error conditions**: Invalid tokens, expired tokens, insufficient permissions
+- **Performance testing**: <10ms overhead validation, concurrent access testing
+
+### Unit Testing
+- Authentication middleware with mocked identity client
+- Permission checking logic with various user contexts
+- Token management with storage and refresh scenarios
+- Callback modifications with authentication validation
+- CLI command handlers with token integration
+
+### Security Testing
+- Token storage security and file permissions
+- JWT token validation and expiry handling
+- Permission bypass attempts and authorization checks
+- Rate limiting and brute force protection
+- Audit logging completeness and integrity
+
+## Security Considerations
+
+### Token Security
+- Store tokens with secure file permissions (0600)
+- Implement token rotation and expiry handling
+- Clear tokens on logout and service errors
+- Support secure transport for token transmission
+
+### Permission Model Security
+- Implement principle of least privilege
+- Provide scope-based isolation between services
+- Audit all permission grants and access attempts
+- Support administrative override with audit trail
+
+### Integration Security
+- Validate all inputs from identity service
+- Implement proper error handling without information leakage
+- Use secure communication with identity service
+- Log security events for monitoring and alerting
+
+## Performance Requirements
+
+### Authentication Performance
+- **Token validation**: <5ms per request
+- **Permission checking**: <3ms per check
+- **Total auth overhead**: <10ms per request
+- **Cache hit rate**: >90% for permission checks
+- **Memory overhead**: <50MB additional usage
+
+### CLI Performance
+- **Token retrieval**: <50ms from storage
+- **Token refresh**: <100ms end-to-end
+- **Login workflow**: <2 seconds user experience
+- **Command response**: Maintain existing performance
+
+## Error Handling Standards
+
+### Authentication Errors
+```json
+{
+  "error": "AUTHENTICATION_FAILED",
+  "message": "Invalid or expired token",
+  "code": 401
+}
+```
+
+### Authorization Errors
+```json
+{
+  "error": "PERMISSION_DENIED",
+  "message": "Insufficient permissions for state:data:write on org.plantd.MyService",
+  "code": 403
+}
+```
+
+### CLI Error Messages
+- "Authentication required. Please run 'plant auth login' first."
+- "Permission denied. You don't have access to this resource."
+- "Unable to connect to plantd services. Please check your configuration."
+
+## Integration Testing Strategy
+
+### Test Environment Setup
+```bash
+# Start test services
+docker-compose -f tests/docker-compose.test.yml up -d
+
+# Test complete workflow
+plant auth login --email=test@example.com --password=testpass
+plant state set testkey testvalue --service=org.plantd.Test
+plant state get testkey --service=org.plantd.Test
+plant auth logout
+```
+
+### Automated Test Scenarios
+- Valid authentication and operation success
+- Invalid token rejection and error handling
+- Permission-based access control validation
+- Token refresh and expiry handling
+- Multi-profile environment switching
+
+## Success Metrics
+
+### Technical Success
+- All state operations require valid authentication
+- Permission checks work for all callback types
+- <10ms authentication overhead achieved
+- Token management works seamlessly
+- Integration tests pass consistently
+
+### User Experience Success
+- Familiar plant CLI workflow maintained
+- Clear error messages guide user actions
+- Authentication setup is straightforward
+- Multiple environments supported
+- Documentation enables self-service
+
+### Security Success
+- All data access is authenticated and authorized
+- Audit trail captures security events
+- Token security follows best practices
+- Permission model provides appropriate isolation
+- Security review validates implementation
+
+Remember: This is the **template integration** that will establish patterns for all other plantd services. Focus on creating clean, reusable patterns while maintaining the developer experience that makes plantd effective for daily use.

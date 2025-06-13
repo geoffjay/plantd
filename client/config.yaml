@@ -1,3 +1,23 @@
 ---
 server:
   endpoint: "tcp://127.0.0.1:9797"
+  timeout: 30s
+  retries: 3
+
+identity:
+  endpoint: "tcp://127.0.0.1:9797"
+  default_profile: "default"
+  auto_refresh: true
+  cache_duration: "5m"
+
+defaults:
+  service: "org.plantd.Client"
+  output_format: "json"  # json, yaml, table
+
+profiles:
+  default:
+    identity_endpoint: "tcp://127.0.0.1:9797"
+  production:
+    identity_endpoint: "tcp://production:9797"
+  staging:
+    identity_endpoint: "tcp://staging:9797"

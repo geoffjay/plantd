@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 # Plantd
 
@@ -12,3 +12,16 @@ You are an expert at Golang, distributed systems, and messaging using ZeroMQ. Th
 ## Maintenance
 
 After completing tasks you should review the [current-state.md](mdc:docs/analysis/current-state.md) document that's kept in `/docs/analysis/current-state.md`, specifically the "Service Maturity Matrix". If work has been done that is related to the service state in this matrix its value should be updated according to the options available in the legend.
+
+## Troubleshooting
+
+When troubleshooting issues with the plantd project, follow these guidelines:
+
+- **Process Control**: Use `overmind` for controlling running processes. This is the preferred method for managing services.
+- **Service Status**: Services may already be running in a terminal. If so, they would be started with the command `overmind start`.
+- **Service Restarts**: Any running services **should** be restarted using `overmind`, for example `overmind restart identity`.
+- **Log Viewing**: When you need to view logs, use `overmind echo` in a new terminal instead of attempting to terminate and start the process again.
+- **Compilation**: Services and client **must** be compiled from the root of the project using their corresponding tasks from the `Makefile`, for example `make build-broker` to build the broker service which outputs the binary to `build/plantd-broker`.
+- **Binary Locations**: Everything that's compiled is output to the `build/` path. These binaries **should** always be used and **never** the individual service paths.
+- **Environment Variables**: The `.env` file should always contain the up-to-date environment variable overrides that **should** be used by the services for execution.
+- **Configuration Files**: The configuration files for the services and the client are `config.yml` in each of the service paths, or `config.yaml` in the client path. These **must** always be used and new configuration files should **never** be created or used. If there are settings that need to be overridden, environment variables **should** be used instead.
