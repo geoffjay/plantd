@@ -9,7 +9,7 @@ The plantd project is currently in a **pre-alpha state** with core infrastructur
 
 | Service | Implementation | Testing | Documentation | Production Ready |
 |---------|---------------|---------|---------------|------------------|
-| **Core Libraries** | ✅ Complete | 🟡 Partial | 🟡 Minimal | 🔴 No |
+| **Core Libraries** | 🟡 Partial (MDP v0.1) | 🟡 Partial | 🟡 Minimal | 🔴 No |
 | **Broker** | ✅ Complete | 🟡 Basic | 🟡 Basic | 🟡 Partial |
 | **State** | ✅ Complete + Auth | ✅ Good | ✅ Complete | 🟡 Partial |
 | **Client** | ✅ Functional + Auth | 🟡 Basic | 🟡 Basic | 🔴 No |
@@ -30,19 +30,22 @@ The plantd project is currently in a **pre-alpha state** with core infrastructur
 
 #### 1. Core Libraries (`core/`)
 **Strengths**:
-- Complete MDP/2 protocol implementation
+- MDP v0.1 protocol implementation (functional but incomplete)
 - Robust message bus abstraction
 - Comprehensive configuration management
 - Structured logging infrastructure
 - Well-designed interfaces and patterns
 
 **Gaps**:
+- **MDP v0.1 implementation with protocol deviations** (needs upgrade to v0.2)
+- Missing MMI (Majordomo Management Interface) support
 - Limited test coverage (~40% estimated)
 - Missing integration tests
 - No performance benchmarks
 - Security features not implemented
+- Frame validation inconsistencies
 
-**Assessment**: **Production-capable foundation** with security and testing gaps
+**Assessment**: **Functional foundation requiring MDP v0.2 upgrade** - protocol compliance and security improvements needed for production
 
 #### 2. Broker Service (`broker/`)
 **Strengths**:
