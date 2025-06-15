@@ -189,30 +189,10 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 			if len(recvMsg) > 0 {
 				w.liveness = HeartbeatLiveness
 
-				// FIXME: I can't remember why this was changed to just index,
-				// should do this instead:
-				//  header, request := Unwrap(recvMsg)
-				//  command, msg := PopStr(request)
-
-				// Don't try to handle errors, just assert noisily
-				if len(recvMsg) < 3 {
-					log.WithFields(log.Fields{
-						"expected": 3,
-						"received": len(recvMsg),
-					}).Warn("message received had less than the required number of frames")
-				}
-
-				if recvMsg[0] != "" {
-					log.WithFields(log.Fields{
-						"received": recvMsg[0],
-					}).Warn("message frame didn't contain expected value (empty)")
-				}
-
-				if recvMsg[1] != MdpwWorker {
-					log.WithFields(log.Fields{
-						"expected": MdpwWorker,
-						"received": recvMsg[1],
-					}).Warn("message frame didn't contain expected value")
+				// Validate message format using robust validation
+				if err := ValidateWorkerMessage(recvMsg); err != nil {
+					log.WithError(err).Error("received invalid worker message")
+					continue // Skip invalid messages and continue processing
 				}
 
 				command := recvMsg[2]
@@ -241,6 +221,7 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 					}
 					log.Debug("worker received a disconnection command")
 				default:
+					log.WithField("command", command).Warn("received unknown command")
 				}
 			} else { // len(RecvMsg) == 0
 				log.WithFields(log.Fields{

@@ -4,6 +4,7 @@ package mdp
 // Implements the MDP/Worker spec at http://rfc.zeromq.org/spec:7.
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -171,41 +172,17 @@ func (c *Client) Recv() (msg []string, err error) {
 
 	// if we got a reply, process it
 	if len(recvMsg) > 0 {
-		// don't try to handle errors, just assert noisily
-		if len(recvMsg) < 4 {
-			log.WithFields(log.Fields{
-				"expected": 4,
-				"received": len(recvMsg),
-			}).Warn("message received had less than the required number of frames")
-		} else {
-			// var empty string
-			// empty, msg = util.PopStr(msg)
-			// if empty != "" {
-			if recvMsg[0] != "" {
-				log.WithFields(log.Fields{
-					"received": recvMsg[0],
-				}).Warn("message frame didn't contain expected value (empty)")
-			}
-
-			// var header string
-			// header, msg = util.PopStr(msg)
-			// if header != MDPC_CLIENT {
-			if recvMsg[1] != MdpcClient {
-				log.WithFields(log.Fields{
-					"expected": MdpcClient,
-					"received": recvMsg[1],
-				}).Warn("message frame didn't contain expected value")
-			}
-
-			// FIXME: this fails when len(msg) < 4
-			service := recvMsg[2]
-			msg = recvMsg[3:]
-			// service, msg = util.PopStr(msg)
-			log.WithFields(log.Fields{"service": service, "msg": msg}).Debug("received message")
+		// Validate message format using robust validation
+		if err := ValidateClientMessage(recvMsg); err != nil {
+			log.WithError(err).Error("received invalid client message")
+			return nil, fmt.Errorf("invalid message format: %w", err)
 		}
 
-		// if this was reached the request was successful
-		return
+		service := recvMsg[2]
+		msg = recvMsg[3:]
+
+		log.WithFields(log.Fields{"service": service, "msg": msg}).Debug("received message")
+		return msg, nil
 	}
 
 	// FIXME: why freak out on timeout?
