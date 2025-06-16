@@ -96,7 +96,7 @@ overmind status
 
 ### Testing
 ```bash
-# Run tests
+# Run Go tests
 go test ./...
 
 # Run with coverage
@@ -104,6 +104,24 @@ go test -cover ./...
 
 # Run integration tests
 go test -tags=integration ./...
+
+# Run Playwright end-to-end tests
+bun run test:e2e
+
+# Run Playwright tests in headed mode (for debugging)
+bun run test:e2e:headed
+
+# Debug Playwright tests
+bun run test:e2e:debug
+
+# Open Playwright test UI
+bun run test:e2e:ui
+
+# View Playwright test reports
+bun run test:e2e:report
+
+# Install Playwright browsers
+bun run test:install
 ```
 
 ## Code Patterns
@@ -302,11 +320,45 @@ type APIResponse struct {
 - Test authentication flows
 - Test error handling scenarios
 
-### End-to-End Tests
-- Test complete user workflows
-- Test across different browsers
-- Test responsive design
-- Test accessibility features
+### End-to-End Tests with Playwright
+- **Framework**: Use Playwright exclusively for end-to-end testing
+- **Browser Coverage**: Test across Chrome, Firefox, Safari, and mobile devices
+- **Test Structure**: Organize tests by feature area (auth, dashboard, services, etc.)
+- **Visual Testing**: Implement visual regression testing with Playwright
+- **Performance Testing**: Test page load times and API response times
+- **Accessibility Testing**: Validate WCAG compliance and keyboard navigation
+- **Security Testing**: Test CSRF protection, XSS prevention, and authorization
+- **Real-time Testing**: Test SSE updates and real-time dashboard functionality
+- **Cross-Platform**: Test responsive design across different screen sizes
+- **Test Data**: Use fixtures and test helpers for consistent test data
+- **CI Integration**: Automated Playwright tests in CI/CD pipeline
+
+### Playwright Test Patterns
+```typescript
+// Use data-testid attributes for reliable element selection
+await page.locator('[data-testid="user-menu"]').click();
+
+// Test authentication flows with helper functions
+await loginAsAdmin(page);
+await loginAsUser(page, 'user@example.com');
+
+// Test real-time updates
+const initialValue = await page.locator('[data-testid="metric-value"]').textContent();
+await page.waitForTimeout(5000); // Wait for SSE update
+const updatedValue = await page.locator('[data-testid="metric-value"]').textContent();
+expect(updatedValue).not.toBe(initialValue);
+
+// Test responsive design
+await page.setViewportSize({ width: 375, height: 667 }); // Mobile
+await expect(page.locator('[data-testid="mobile-menu"]')).toBeVisible();
+```
+
+### Test Requirements
+- All critical user workflows must have Playwright tests
+- Cross-browser compatibility testing required
+- Visual regression tests for UI components
+- Performance benchmarks validated with Playwright
+- Accessibility standards verified with automated testing
 
 ## Error Handling
 
