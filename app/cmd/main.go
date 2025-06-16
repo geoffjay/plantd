@@ -1,0 +1,66 @@
+// Package main provides the main entry point for the PlantD web application.
+package main
+
+import (
+	"context"
+	"os"
+	"os/signal"
+	"regexp"
+	"sync"
+	"syscall"
+
+	cfg "github.com/geoffjay/plantd/app/config"
+	"github.com/geoffjay/plantd/core"
+	plog "github.com/geoffjay/plantd/core/log"
+
+	log "github.com/sirupsen/logrus"
+)
+
+//	@title			Plantd App Service API
+//	@version		1.0
+//	@description	App Service for the Plantd distributed control system
+//	@contact.name	API Support
+//	@contact.url	https://github.com/geoffjay/plantd/issues
+//	@host			localhost:8443
+//	@BasePath		/api/v1
+
+func main() {
+	config := cfg.GetConfig()
+
+	processArgs()
+	plog.Initialize(config.Log)
+
+	service := service{}
+	service.init()
+
+	fields := log.Fields{"service": "app", "context": "main"}
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
+	go service.run(ctx, wg)
+
+	log.WithFields(fields).Debug("starting")
+
+	termChan := make(chan os.Signal, 1)
+	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)
+	<-termChan
+
+	log.WithFields(fields).Debug("terminated")
+
+	cancelFunc()
+	wg.Wait()
+
+	log.WithFields(fields).Debug("exiting")
+}
+
+func processArgs() {
+	if len(os.Args) > 1 {
+		r := regexp.MustCompile("^-V$|(-{2})?version$")
+		if r.Match([]byte(os.Args[1])) {
+			log.Info(core.VERSION)
+		}
+		os.Exit(0)
+	}
+}

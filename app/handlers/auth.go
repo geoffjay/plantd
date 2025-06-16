@@ -4,7 +4,6 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/geoffjay/plantd/app/repository"
 	"github.com/geoffjay/plantd/app/types"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/app/views/pages"
@@ -15,13 +14,10 @@ import (
 )
 
 // Register handles user registration requests.
-// TODO: add registration page.
+// TODO: redirect to Identity Service registration endpoint.
 func Register(c *fiber.Ctx) error {
-	// Validate user input (username, email, password)
-	// Hash the password
-	// Store user data in the database
-	// Return a success message or error response
-	return c.Send([]byte("Register"))
+	// Redirect to Identity Service for user registration
+	return c.Redirect("/identity/register", fiber.StatusTemporaryRedirect)
 }
 
 // LoginPage renders the login page for users.
@@ -51,6 +47,7 @@ func LoginPage(c *fiber.Ctx) error {
 }
 
 // Login handles user authentication requests.
+// TODO: integrate with Identity Service for authentication.
 func Login(c *fiber.Ctx) error {
 	fields := log.Fields{
 		"service": "app",
@@ -66,38 +63,20 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	log.WithFields(fields).Debugf("email: %s", loginRequest.Email)
-	_, err := repository.FindUserByCredentials(loginRequest.Email, loginRequest.Password)
-	if err != nil {
-		log.WithFields(fields).Error(err)
-		csrfToken, ok := c.Locals("csrf").(string)
-		if !ok {
-			return c.SendStatus(fiber.StatusInternalServerError)
-		}
 
-		c.Locals("title", "Login")
-		c.Locals("csrf", csrfToken)
-		c.Locals("error", "Invalid credentials")
-
-		return views.Render(c, pages.Login(), templ.WithStatus(http.StatusUnauthorized))
-	}
-
-	log.WithFields(fields).Debugf("logging in: %s", loginRequest.Email)
-
-	session, err := SessionStore.Get(c)
-	if err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-	if err := session.Reset(); err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
-	}
-	session.Set("loggedIn", true)
-	if err := session.Save(); err != nil {
+	// TODO: Replace with Identity Service authentication
+	// For now, return error to indicate Identity Service integration needed
+	log.WithFields(fields).Error("Identity Service integration required")
+	csrfToken, ok := c.Locals("csrf").(string)
+	if !ok {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	c.Set("HX-Redirect", "/")
+	c.Locals("title", "Login")
+	c.Locals("csrf", csrfToken)
+	c.Locals("error", "Authentication requires Identity Service integration")
 
-	return c.SendStatus(fiber.StatusOK)
+	return views.Render(c, pages.Login(), templ.WithStatus(http.StatusUnauthorized))
 }
 
 // Logout handles user logout requests.

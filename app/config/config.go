@@ -21,6 +21,36 @@ type Config struct {
 	Log            cfg.LogConfig `mapstructure:"log"`
 	Cors           corsConfig    `mapstructure:"cors"`
 	Session        sessionConfig `mapstructure:"session"`
+
+	// Identity Service integration
+	Identity struct {
+		Endpoint string `yaml:"endpoint" env:"PLANTD_APP_IDENTITY_ENDPOINT"`
+		Timeout  string `yaml:"timeout" env:"PLANTD_APP_IDENTITY_TIMEOUT"`
+		ClientID string `yaml:"client_id" env:"PLANTD_APP_IDENTITY_CLIENT_ID"`
+	} `yaml:"identity" mapstructure:"identity"`
+
+	// Services endpoints
+	Services struct {
+		BrokerEndpoint string `yaml:"broker_endpoint" env:"PLANTD_APP_BROKER_ENDPOINT"`
+		StateEndpoint  string `yaml:"state_endpoint" env:"PLANTD_APP_STATE_ENDPOINT"`
+		Timeout        string `yaml:"timeout" env:"PLANTD_APP_SERVICES_TIMEOUT"`
+	} `yaml:"services" mapstructure:"services"`
+
+	// Enhanced session configuration
+	EnhancedSession struct {
+		SecretKey  string `yaml:"secret_key" env:"PLANTD_APP_SESSION_SECRET"`
+		CookieName string `yaml:"cookie_name" env:"PLANTD_APP_SESSION_COOKIE"`
+		MaxAge     int    `yaml:"max_age" env:"PLANTD_APP_SESSION_MAX_AGE"`
+		Secure     bool   `yaml:"secure" env:"PLANTD_APP_SESSION_SECURE"`
+		HttpOnly   bool   `yaml:"http_only" env:"PLANTD_APP_SESSION_HTTP_ONLY"`
+	} `yaml:"enhanced_session" mapstructure:"enhanced_session"`
+
+	// Feature flags
+	Features struct {
+		EnableMetrics bool `yaml:"enable_metrics" env:"PLANTD_APP_ENABLE_METRICS"`
+		EnableConfig  bool `yaml:"enable_config" env:"PLANTD_APP_ENABLE_CONFIG"`
+		EnableHealth  bool `yaml:"enable_health" env:"PLANTD_APP_ENABLE_HEALTH"`
+	} `yaml:"features" mapstructure:"features"`
 }
 
 var lock = &sync.Mutex{}
@@ -44,6 +74,28 @@ var defaults = map[string]interface{}{
 	"session.cookie-secure":    true,
 	"session.cookie-http-only": true,
 	"session.cookie-same-site": "Lax",
+
+	// Identity Service defaults
+	"identity.endpoint":  "tcp://127.0.0.1:7200",
+	"identity.timeout":   "30s",
+	"identity.client_id": "plantd-app",
+
+	// Services defaults
+	"services.broker_endpoint": "tcp://127.0.0.1:7100",
+	"services.state_endpoint":  "tcp://127.0.0.1:7300",
+	"services.timeout":         "30s",
+
+	// Enhanced session defaults
+	"enhanced_session.secret_key":  "", // Must be set via environment variable
+	"enhanced_session.cookie_name": "__Host-plantd-session",
+	"enhanced_session.max_age":     7200, // 2 hours
+	"enhanced_session.secure":      true,
+	"enhanced_session.http_only":   true,
+
+	// Feature flags defaults
+	"features.enable_metrics": true,
+	"features.enable_config":  true,
+	"features.enable_health":  true,
 }
 
 // GetConfig returns the application configuration singleton.

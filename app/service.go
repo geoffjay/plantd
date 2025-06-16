@@ -17,7 +17,6 @@ import (
 
 	conf "github.com/geoffjay/plantd/app/config"
 	"github.com/geoffjay/plantd/app/handlers"
-	"github.com/geoffjay/plantd/app/repository"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/core/util"
 
@@ -42,8 +41,8 @@ func (s *service) init() {
 		"context": "service.init",
 	}).Debug("initializing")
 
-	// TODO: remove this once there's a database.
-	repository.Initialize()
+	// TODO: Initialize Identity Service client and other service integrations
+	// Repository initialization removed - using Identity Service for user management
 }
 
 func (s *service) run(ctx context.Context, wg *sync.WaitGroup) {
