@@ -127,7 +127,7 @@ func (cm *ClusterManager) GetActiveNodes() []*BrokerNode {
 
 	var activeNodes []*BrokerNode
 	for _, node := range cm.nodes {
-		if node.Status == "active" {
+		if node.Status == StatusActive {
 			nodeCopy := *node
 			activeNodes = append(activeNodes, &nodeCopy)
 		}
@@ -298,8 +298,8 @@ func (cm *ClusterManager) checkNodeHealth() {
 		}
 
 		if now.Sub(node.LastSeen) > failureThreshold {
-			if node.Status == "active" {
-				node.Status = "failed"
+			if node.Status == StatusActive {
+				node.Status = StatusFailed
 				node.FailureCount++
 
 				log.WithFields(log.Fields{
@@ -355,10 +355,14 @@ type LoadBalancer struct {
 type LoadBalancingStrategy string
 
 const (
-	RoundRobin   LoadBalancingStrategy = "round_robin"
-	LeastLoad    LoadBalancingStrategy = "least_load"
+	// RoundRobin distributes requests evenly across available nodes
+	RoundRobin LoadBalancingStrategy = "round_robin"
+	// LeastLoad routes requests to the node with the lowest current load
+	LeastLoad LoadBalancingStrategy = "least_load"
+	// ServiceAware considers service-specific routing and capabilities
 	ServiceAware LoadBalancingStrategy = "service_aware"
-	Locality     LoadBalancingStrategy = "locality"
+	// Locality considers geographic or network proximity when routing
+	Locality LoadBalancingStrategy = "locality"
 )
 
 // NewLoadBalancer creates a new load balancer
@@ -376,6 +380,8 @@ func (lb *LoadBalancer) SelectBroker(serviceName string) *BrokerNode {
 		return lb.cluster.GetBestBroker()
 	case ServiceAware:
 		return lb.cluster.GetBrokerForService(serviceName)
+	case Locality, RoundRobin:
+		return lb.cluster.GetBestBroker()
 	default:
 		return lb.cluster.GetBestBroker()
 	}
@@ -400,7 +406,7 @@ func (cm *ClusterManager) AddNode(node *BrokerNode) {
 
 	node.LastSeen = time.Now()
 	if node.Status == "" {
-		node.Status = "active"
+		node.Status = StatusActive
 	}
 	cm.nodes[node.ID] = node
 
@@ -416,7 +422,7 @@ func (cm *ClusterManager) RemoveNode(nodeID string) {
 	defer cm.mu.Unlock()
 
 	if node, exists := cm.nodes[nodeID]; exists {
-		node.Status = "inactive"
+		node.Status = StatusInactive
 		delete(cm.nodes, nodeID)
 
 		log.WithFields(log.Fields{

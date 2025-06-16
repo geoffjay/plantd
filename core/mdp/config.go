@@ -125,7 +125,7 @@ func LoadConfig(filename string) (*Config, error) {
 }
 
 // applyEnvironmentOverrides applies environment variable overrides
-func (c *Config) applyEnvironmentOverrides() {
+func (c *Config) applyEnvironmentOverrides() { //nolint:cyclop
 	// Connection settings
 	if val := os.Getenv("MDP_HEARTBEAT_INTERVAL"); val != "" {
 		if duration, err := time.ParseDuration(val); err == nil {
@@ -169,7 +169,7 @@ func (c *Config) applyEnvironmentOverrides() {
 		}
 	}
 	if val := os.Getenv("MDP_ENABLE_COMPRESSION"); val != "" {
-		c.EnableCompression = strings.ToLower(val) == "true"
+		c.EnableCompression = strings.ToLower(val) == BoolTrue
 	}
 
 	// Logging and monitoring
@@ -177,20 +177,20 @@ func (c *Config) applyEnvironmentOverrides() {
 		c.LogLevel = val
 	}
 	if val := os.Getenv("MDP_ENABLE_METRICS"); val != "" {
-		c.EnableMetrics = strings.ToLower(val) == "true"
+		c.EnableMetrics = strings.ToLower(val) == BoolTrue
 	}
 
 	// MMI settings
 	if val := os.Getenv("MDP_ENABLE_MMI"); val != "" {
-		c.EnableMMI = strings.ToLower(val) == "true"
+		c.EnableMMI = strings.ToLower(val) == BoolTrue
 	}
 
 	// Security settings
 	if val := os.Getenv("MDP_ENABLE_AUTH"); val != "" {
-		c.EnableAuth = strings.ToLower(val) == "true"
+		c.EnableAuth = strings.ToLower(val) == BoolTrue
 	}
 	if val := os.Getenv("MDP_ENABLE_ENCRYPTION"); val != "" {
-		c.EnableEncryption = strings.ToLower(val) == "true"
+		c.EnableEncryption = strings.ToLower(val) == BoolTrue
 	}
 	if val := os.Getenv("MDP_CERT_PATH"); val != "" {
 		c.CertPath = val
@@ -208,18 +208,18 @@ func (c *Config) applyEnvironmentOverrides() {
 
 	// Broker settings
 	if val := os.Getenv("MDP_PERSIST_REQUESTS"); val != "" {
-		c.PersistRequests = strings.ToLower(val) == "true"
+		c.PersistRequests = strings.ToLower(val) == BoolTrue
 	}
 	if val := os.Getenv("MDP_PERSIST_PATH"); val != "" {
 		c.PersistPath = val
 	}
 	if val := os.Getenv("MDP_CLUSTER_MODE"); val != "" {
-		c.ClusterMode = strings.ToLower(val) == "true"
+		c.ClusterMode = strings.ToLower(val) == BoolTrue
 	}
 }
 
 // Validate validates the configuration parameters
-func (c *Config) Validate() error {
+func (c *Config) Validate() error { //nolint:cyclop
 	// Validate timing parameters
 	if c.HeartbeatInterval <= 0 {
 		return fmt.Errorf("heartbeat_interval must be positive")

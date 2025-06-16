@@ -213,7 +213,7 @@ func (w *Worker) GetResponseStream() *WorkerResponseStream {
 
 // Recv sends a reply, if any, to broker and waits for the next request.
 // Updated for MDP v0.2 protocol with PARTIAL/FINAL support
-func (w *Worker) Recv(reply []string) (msg []string, err error) {
+func (w *Worker) Recv(reply []string) (msg []string, err error) { //nolint:cyclop
 	// format and send the reply if we were provided one
 	if len(reply) == 0 && w.expectReply {
 		log.Trace("received reply, unhandled")
@@ -243,7 +243,7 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 			break
 		}
 
-		if socket == nil {
+		if socket == nil { //nolint:nestif
 			log.WithFields(log.Fields{
 				"timeout (ms)": int(HeartbeatInterval) / 1e6,
 			}).Tracef("no messages received on worker socket for the timeout duration")

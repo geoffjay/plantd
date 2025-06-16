@@ -19,7 +19,7 @@ func TestConnectionPool(t *testing.T) {
 	}
 
 	pool := NewConnectionPool(config)
-	defer pool.Close()
+	defer pool.Close() //nolint:errcheck
 
 	t.Run("GetConnection", func(t *testing.T) {
 		// Skip this test if we can't create sockets (CI environment)
@@ -100,7 +100,7 @@ func TestConnectionPool(t *testing.T) {
 		}
 
 		shortPool := NewConnectionPool(shortConfig)
-		defer shortPool.Close()
+		defer shortPool.Close() //nolint:errcheck
 
 		// Create and release a connection
 		_, err := shortPool.GetConnection("inproc://idle", goczmq.Dealer)
@@ -122,7 +122,7 @@ func TestConnectionPool(t *testing.T) {
 	})
 }
 
-func TestMessageBatcher(t *testing.T) {
+func TestMessageBatcher(t *testing.T) { //nolint:funlen
 	config := MessageBatcherConfig{
 		MaxBatchSize:  3,
 		FlushInterval: 100 * time.Millisecond,
@@ -143,7 +143,7 @@ func TestMessageBatcher(t *testing.T) {
 		}
 
 		batcher := NewMessageBatcher(config, flushFunc)
-		defer batcher.Close()
+		defer batcher.Close() //nolint:errcheck
 
 		err := batcher.AddMessage("dest1", []string{"msg1", "data1"})
 		assert.NoError(t, err)
@@ -174,7 +174,7 @@ func TestMessageBatcher(t *testing.T) {
 		}
 
 		batcher := NewMessageBatcher(config, flushFunc)
-		defer batcher.Close()
+		defer batcher.Close() //nolint:errcheck
 
 		// Add messages to trigger batch size flush
 		for i := 0; i < config.MaxBatchSize; i++ {
@@ -208,7 +208,7 @@ func TestMessageBatcher(t *testing.T) {
 		}
 
 		batcher := NewMessageBatcher(config, flushFunc)
-		defer batcher.Close()
+		defer batcher.Close() //nolint:errcheck
 
 		// Add a single message
 		err := batcher.AddMessage("dest3", []string{"single", "message"})
@@ -242,7 +242,7 @@ func TestMessageBatcher(t *testing.T) {
 		}
 
 		batcher := NewMessageBatcher(config, flushFunc)
-		defer batcher.Close()
+		defer batcher.Close() //nolint:errcheck
 
 		// Add messages to multiple destinations
 		err := batcher.AddMessage("dest4", []string{"msg1"})
@@ -260,16 +260,16 @@ func TestMessageBatcher(t *testing.T) {
 	})
 
 	t.Run("GetStats", func(t *testing.T) {
-		flushFunc := func(destination string, messages [][]string) error {
+		flushFunc := func(_ string, _ [][]string) error {
 			return nil
 		}
 
 		batcher := NewMessageBatcher(config, flushFunc)
-		defer batcher.Close()
+		defer batcher.Close() //nolint:errcheck
 
 		// Add some messages
-		batcher.AddMessage("stats1", []string{"msg1"})
-		batcher.AddMessage("stats2", []string{"msg2"})
+		_ = batcher.AddMessage("stats1", []string{"msg1"})
+		_ = batcher.AddMessage("stats2", []string{"msg2"})
 
 		stats := batcher.GetStats()
 		assert.Contains(t, stats, "total_batches")
@@ -367,7 +367,7 @@ func TestPerformanceMetrics(t *testing.T) {
 }
 
 func TestPerformanceOptimizer(t *testing.T) {
-	flushFunc := func(destination string, messages [][]string) error {
+	flushFunc := func(_ string, _ [][]string) error {
 		return nil
 	}
 
@@ -385,7 +385,7 @@ func TestPerformanceOptimizer(t *testing.T) {
 	}
 
 	optimizer := NewPerformanceOptimizer(config, flushFunc)
-	defer optimizer.Close()
+	defer optimizer.Close() //nolint:errcheck
 
 	t.Run("Initialization", func(t *testing.T) {
 		assert.NotNil(t, optimizer.ConnectionPool)
@@ -419,7 +419,7 @@ func TestPerformanceOptimizer(t *testing.T) {
 		configNoMetrics.EnableMetrics = false
 
 		optimizerNoMetrics := NewPerformanceOptimizer(configNoMetrics, flushFunc)
-		defer optimizerNoMetrics.Close()
+		defer optimizerNoMetrics.Close() //nolint:errcheck
 
 		assert.Nil(t, optimizerNoMetrics.Metrics)
 
@@ -437,7 +437,7 @@ func BenchmarkPerformanceComponents(b *testing.B) {
 		}
 
 		pool := NewConnectionPool(config)
-		defer pool.Close()
+		defer pool.Close() //nolint:errcheck
 
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
@@ -454,7 +454,7 @@ func BenchmarkPerformanceComponents(b *testing.B) {
 	})
 
 	b.Run("MessageBatcher", func(b *testing.B) {
-		flushFunc := func(destination string, messages [][]string) error {
+		flushFunc := func(_ string, _ [][]string) error {
 			return nil
 		}
 
@@ -464,7 +464,7 @@ func BenchmarkPerformanceComponents(b *testing.B) {
 		}
 
 		batcher := NewMessageBatcher(config, flushFunc)
-		defer batcher.Close()
+		defer batcher.Close() //nolint:errcheck
 
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {
@@ -492,7 +492,7 @@ func BenchmarkPerformanceComponents(b *testing.B) {
 	})
 
 	b.Run("CombinedOptimizer", func(b *testing.B) {
-		flushFunc := func(destination string, messages [][]string) error {
+		flushFunc := func(_ string, _ [][]string) error {
 			return nil
 		}
 
@@ -510,7 +510,7 @@ func BenchmarkPerformanceComponents(b *testing.B) {
 		}
 
 		optimizer := NewPerformanceOptimizer(config, flushFunc)
-		defer optimizer.Close()
+		defer optimizer.Close() //nolint:errcheck
 
 		b.ResetTimer()
 		b.RunParallel(func(pb *testing.PB) {

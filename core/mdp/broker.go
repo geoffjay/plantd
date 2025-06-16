@@ -360,7 +360,7 @@ func (b *Broker) WorkerMsg(sender string, msg []string) {
 		case workerReady:
 			// not first command in session
 			worker.Delete(true)
-		case len(sender) >= 4 /* reserved service name */ && sender[:4] == "mmi.":
+		case len(sender) >= 4 /* reserved service name */ && sender[:4] == MMINamespace:
 			worker.Delete(true)
 		default:
 			// attach worker to service and mark as idle
@@ -436,9 +436,9 @@ func (b *Broker) ClientMsg(sender string, msg []string) {
 	msg = append(m, msg...)
 
 	// If we got a MMI service request, process that internally
-	if len(serviceFrame) >= 4 && serviceFrame[:4] == "mmi." {
+	if len(serviceFrame) >= 4 && serviceFrame[:4] == MMINamespace {
 		var returnCode string
-		if serviceFrame == "mmi.service" {
+		if serviceFrame == MMIService {
 			name := msg[len(msg)-1]
 			service, ok := b.services[name]
 			if ok && len(service.waiting) > 0 {

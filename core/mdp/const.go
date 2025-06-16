@@ -12,8 +12,9 @@ const (
 	// MdpwWorker is the version of MDP/Worker we implement - upgraded to v0.2
 	MdpwWorker = "MDPW02"
 
-	// Backward compatibility constants for v0.1 (if needed)
+	// MdpcClientV1 and MdpwWorkerV1 are the legacy v0.1 commands (for backward compatibility)
 	MdpcClientV1 = "MDPC01"
+	// MdpwWorkerV1 is the version of MDP/Worker v0.1 for backward compatibility
 	MdpwWorkerV1 = "MDPW01"
 
 	// HeartbeatLiveness is the number of heartbeat cycles a worker is deemed to
@@ -76,6 +77,28 @@ const (
 	MMICodeNotFound       = "404" // Service not found/not available
 	MMICodeNotImplemented = "501" // MMI service not implemented
 	MMICodeError          = "500" // Internal error
+)
+
+// Node and request status constants
+const (
+	// StatusActive indicates a node or request is active
+	StatusActive = "active"
+	// StatusInactive indicates a node or request is inactive
+	StatusInactive = "inactive"
+	// StatusFailed indicates a node or request has failed
+	StatusFailed = "failed"
+	// StatusPending indicates a request is pending
+	StatusPending = "pending"
+	// StatusProcessing indicates a request is being processed
+	StatusProcessing = "processing"
+)
+
+// Configuration string constants
+const (
+	// BoolTrue represents the string "true" used in configuration
+	BoolTrue = "true"
+	// ServiceEcho represents the echo service name
+	ServiceEcho = "echo"
 )
 
 var (

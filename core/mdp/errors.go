@@ -28,8 +28,8 @@ var (
 	ErrAuthorizationFailed  = errors.New("authorization failed")
 )
 
-// MDPError represents a structured MDP protocol error with context
-type MDPError struct {
+// Error represents a structured MDP protocol error with context
+type Error struct {
 	Code    string
 	Message string
 	Cause   error
@@ -37,7 +37,7 @@ type MDPError struct {
 }
 
 // Error implements the error interface
-func (e *MDPError) Error() string {
+func (e *Error) Error() string {
 	if e.Cause != nil {
 		return fmt.Sprintf("MDP %s: %s: %v", e.Code, e.Message, e.Cause)
 	}
@@ -45,17 +45,17 @@ func (e *MDPError) Error() string {
 }
 
 // Unwrap implements error unwrapping for Go 1.13+ error handling
-func (e *MDPError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.Cause
 }
 
 // Is implements error comparison for Go 1.13+ error handling
-func (e *MDPError) Is(target error) bool {
+func (e *Error) Is(target error) bool {
 	if target == nil {
 		return false
 	}
 
-	if mdpErr, ok := target.(*MDPError); ok {
+	if mdpErr, ok := target.(*Error); ok {
 		return e.Code == mdpErr.Code
 	}
 
@@ -63,7 +63,7 @@ func (e *MDPError) Is(target error) bool {
 }
 
 // WithContext adds context information to the error
-func (e *MDPError) WithContext(key string, value interface{}) *MDPError {
+func (e *Error) WithContext(key string, value interface{}) *Error {
 	if e.Context == nil {
 		e.Context = make(map[string]interface{})
 	}
@@ -92,8 +92,8 @@ const (
 )
 
 // NewMDPError creates a new structured MDP error
-func NewMDPError(code, message string, cause error) *MDPError {
-	return &MDPError{
+func NewMDPError(code, message string, cause error) *Error {
+	return &Error{
 		Code:    code,
 		Message: message,
 		Cause:   cause,
@@ -101,39 +101,46 @@ func NewMDPError(code, message string, cause error) *MDPError {
 	}
 }
 
-// Error factory functions for common error scenarios
-func NewInvalidMessageError(message string, cause error) *MDPError {
+// NewInvalidMessageError creates a new invalid message error
+func NewInvalidMessageError(message string, cause error) *Error {
 	return NewMDPError(ErrCodeInvalidMessage, message, cause)
 }
 
-func NewProtocolViolationError(message string, cause error) *MDPError {
+// NewProtocolViolationError creates a new protocol violation error
+func NewProtocolViolationError(message string, cause error) *Error {
 	return NewMDPError(ErrCodeProtocolViolation, message, cause)
 }
 
-func NewTimeoutError(message string, cause error) *MDPError {
+// NewTimeoutError creates a new timeout error
+func NewTimeoutError(message string, cause error) *Error {
 	return NewMDPError(ErrCodeTimeout, message, cause)
 }
 
-func NewBrokerUnavailableError(message string, cause error) *MDPError {
+// NewBrokerUnavailableError creates a new broker unavailable error
+func NewBrokerUnavailableError(message string, cause error) *Error {
 	return NewMDPError(ErrCodeBrokerUnavailable, message, cause)
 }
 
-func NewServiceNotFoundError(service string, cause error) *MDPError {
+// NewServiceNotFoundError creates a new service not found error
+func NewServiceNotFoundError(service string, cause error) *Error {
 	return NewMDPError(ErrCodeServiceNotFound, fmt.Sprintf("service '%s' not found", service), cause).
 		WithContext("service", service)
 }
 
-func NewWorkerDisconnectedError(worker string, cause error) *MDPError {
+// NewWorkerDisconnectedError creates a new worker disconnected error
+func NewWorkerDisconnectedError(worker string, cause error) *Error {
 	return NewMDPError(ErrCodeWorkerDisconnected, fmt.Sprintf("worker '%s' disconnected", worker), cause).
 		WithContext("worker", worker)
 }
 
-func NewConnectionFailedError(endpoint string, cause error) *MDPError {
+// NewConnectionFailedError creates a new connection failed error
+func NewConnectionFailedError(endpoint string, cause error) *Error {
 	return NewMDPError(ErrCodeConnectionFailed, fmt.Sprintf("failed to connect to '%s'", endpoint), cause).
 		WithContext("endpoint", endpoint)
 }
 
-func NewInvalidServiceError(service string, cause error) *MDPError {
+// NewInvalidServiceError creates a new invalid service error
+func NewInvalidServiceError(service string, cause error) *Error {
 	return NewMDPError(ErrCodeInvalidService, fmt.Sprintf("invalid service: %s", service), cause).
 		WithContext("service", service)
 }
@@ -144,7 +151,7 @@ func IsRetryableError(err error) bool {
 		return false
 	}
 
-	var mdpErr *MDPError
+	var mdpErr *Error
 	if errors.As(err, &mdpErr) {
 		switch mdpErr.Code {
 		case ErrCodeTimeout, ErrCodeBrokerUnavailable, ErrCodeConnectionFailed, ErrCodeSocketError, ErrCodeWorkerDisconnected:
@@ -168,7 +175,7 @@ func IsPermanentError(err error) bool {
 		return false
 	}
 
-	var mdpErr *MDPError
+	var mdpErr *Error
 	if errors.As(err, &mdpErr) {
 		switch mdpErr.Code {
 		case ErrCodeProtocolViolation, ErrCodeInvalidMessage, ErrCodeInvalidService,

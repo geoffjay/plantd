@@ -60,7 +60,7 @@ func (m *MemoryPersistenceStore) StoreRequest(id string, request *Request) error
 		request.Timestamp = time.Now()
 	}
 	if request.Status == "" {
-		request.Status = "pending"
+		request.Status = StatusPending
 	}
 	if request.MaxRetries == 0 {
 		request.MaxRetries = 3
@@ -136,7 +136,7 @@ func (m *MemoryPersistenceStore) ListPendingRequests() ([]string, error) {
 			continue
 		}
 
-		if request.Status == "pending" || request.Status == "processing" {
+		if request.Status == StatusPending || request.Status == StatusProcessing {
 			pendingIDs = append(pendingIDs, id)
 		}
 	}
@@ -228,7 +228,7 @@ func (rm *RequestManager) CreateRequest(client, service string, data []string) (
 		Retries:    0,
 		MaxRetries: 3,
 		TTL:        5 * time.Minute,
-		Status:     "pending",
+		Status:     StatusPending,
 	}
 
 	err := rm.store.StoreRequest(id, request)
@@ -255,7 +255,7 @@ func (rm *RequestManager) MarkRequestProcessing(id string) error {
 		return fmt.Errorf("failed to retrieve request: %w", err)
 	}
 
-	request.Status = "processing"
+	request.Status = StatusProcessing
 
 	err = rm.store.StoreRequest(id, request)
 	if err != nil {
@@ -367,7 +367,7 @@ func generateRequestID() string {
 	return fmt.Sprintf("req_%d_%d", time.Now().UnixNano(), randomInt(1000, 9999))
 }
 
-// randomInt generates a random integer between min and max
-func randomInt(min, max int) int {
-	return min + int(time.Now().UnixNano()%int64(max-min))
+// randomInt generates a random integer between minVal and maxVal
+func randomInt(minVal, maxVal int) int {
+	return minVal + int(time.Now().UnixNano()%int64(maxVal-minVal))
 }

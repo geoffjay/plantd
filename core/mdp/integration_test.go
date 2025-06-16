@@ -16,7 +16,7 @@ func TestBasicClientWorkerInteraction(t *testing.T) {
 	// This is a mock integration test - in practice would need a real broker
 	t.Run("mock client-worker interaction", func(t *testing.T) {
 		// Test the message format creation and validation
-		service := "echo"
+		service := ServiceEcho
 		request := []string{"hello", "world"}
 
 		// Simulate client sending request
@@ -158,7 +158,7 @@ func TestConcurrentClients(t *testing.T) {
 
 	t.Run("concurrent client message validation", func(t *testing.T) {
 		numClients := 10
-		service := "echo"
+		service := ServiceEcho
 
 		var wg sync.WaitGroup
 		errors := make(chan error, numClients)
@@ -191,7 +191,7 @@ func TestConcurrentClients(t *testing.T) {
 // BenchmarkIntegrationScenarios benchmarks integration scenarios
 func BenchmarkIntegrationScenarios(b *testing.B) {
 	b.Run("MessageRoundTrip", func(b *testing.B) {
-		service := "echo"
+		service := ServiceEcho
 		request := []string{"hello", "world"}
 
 		for i := 0; i < b.N; i++ {

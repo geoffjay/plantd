@@ -28,7 +28,7 @@ func TestBrokerNode(t *testing.T) {
 	assert.Equal(t, 0, node.FailureCount)
 }
 
-func TestClusterManager(t *testing.T) {
+func TestClusterManager(t *testing.T) { //nolint:funlen
 	config := ClusterConfig{
 		LocalID:           "test-broker-001",
 		LocalEndpoint:     "tcp://localhost:9797",
@@ -39,7 +39,7 @@ func TestClusterManager(t *testing.T) {
 
 	cm, err := NewClusterManager(config)
 	require.NoError(t, err)
-	defer cm.Stop()
+	defer cm.Stop() //nolint:errcheck
 
 	t.Run("InitialState", func(t *testing.T) {
 		assert.Equal(t, config.LocalID, cm.localNode.ID)
@@ -123,7 +123,7 @@ func TestClusterManager(t *testing.T) {
 
 	t.Run("GetBestBroker", func(t *testing.T) {
 		// Clear nodes and add test nodes with different loads
-		cm.Stop()
+		cm.Stop() //nolint:errcheck
 		cm, _ = NewClusterManager(config)
 
 		cm.AddNode(&BrokerNode{
@@ -154,7 +154,7 @@ func TestClusterManager(t *testing.T) {
 
 	t.Run("GetBrokerForService", func(t *testing.T) {
 		// Clear and setup test scenario
-		cm.Stop()
+		cm.Stop() //nolint:errcheck
 		cm, _ = NewClusterManager(config)
 
 		// Node with calculator service
@@ -217,7 +217,7 @@ func TestClusterManager(t *testing.T) {
 	t.Run("NodeCallbacks", func(t *testing.T) {
 		callbackExecuted := false
 
-		cm.OnNodeUpdate(func(node *BrokerNode) {
+		cm.OnNodeUpdate(func(_ *BrokerNode) {
 			callbackExecuted = true
 		})
 
@@ -250,7 +250,7 @@ func TestClusterFailureDetection(t *testing.T) {
 
 	cm, err := NewClusterManager(config)
 	require.NoError(t, err)
-	defer cm.Stop()
+	defer cm.Stop() //nolint:errcheck
 
 	// Add a node with old timestamp to simulate failure
 	oldNode := &BrokerNode{
@@ -281,7 +281,7 @@ func TestLoadBalancer(t *testing.T) {
 
 	cm, err := NewClusterManager(config)
 	require.NoError(t, err)
-	defer cm.Stop()
+	defer cm.Stop() //nolint:errcheck
 
 	// Setup test nodes
 	cm.AddNode(&BrokerNode{
@@ -372,11 +372,11 @@ func TestClusterIntegration(t *testing.T) {
 
 	cm1, err := NewClusterManager(config1)
 	require.NoError(t, err)
-	defer cm1.Stop()
+	defer cm1.Stop() //nolint:errcheck
 
 	cm2, err := NewClusterManager(config2)
 	require.NoError(t, err)
-	defer cm2.Stop()
+	defer cm2.Stop() //nolint:errcheck
 
 	// Simulate cross-cluster awareness (in real implementation, this would be automatic)
 	cm1.AddNode(&BrokerNode{
@@ -432,7 +432,7 @@ func BenchmarkClusterOperations(b *testing.B) {
 	}
 
 	cm, _ := NewClusterManager(config)
-	defer cm.Stop()
+	defer cm.Stop() //nolint:errcheck
 
 	// Add some nodes for realistic benchmarking
 	for i := 0; i < 10; i++ {

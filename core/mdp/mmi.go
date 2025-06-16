@@ -125,7 +125,7 @@ func (m *MMIHandler) handleHeartbeatQuery(request []string) ([]string, error) {
 }
 
 // handleBrokerQuery implements mmi.broker - returns broker information
-func (m *MMIHandler) handleBrokerQuery(request []string) ([]string, error) {
+func (m *MMIHandler) handleBrokerQuery(_ []string) ([]string, error) {
 	response := []string{MMICodeOK}
 
 	// Add broker information

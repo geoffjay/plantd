@@ -446,23 +446,23 @@ func (pm *PerformanceMetrics) GetStats() map[string]interface{} {
 	// Calculate latency statistics
 	if len(pm.RequestLatencies) > 0 {
 		var total time.Duration
-		min := pm.RequestLatencies[0]
-		max := pm.RequestLatencies[0]
+		minLatency := pm.RequestLatencies[0]
+		maxLatency := pm.RequestLatencies[0]
 
 		for _, latency := range pm.RequestLatencies {
 			total += latency
-			if latency < min {
-				min = latency
+			if latency < minLatency {
+				minLatency = latency
 			}
-			if latency > max {
-				max = latency
+			if latency > maxLatency {
+				maxLatency = latency
 			}
 		}
 
 		avg := total / time.Duration(len(pm.RequestLatencies))
 		stats["avg_latency_ms"] = float64(avg.Nanoseconds()) / 1e6
-		stats["min_latency_ms"] = float64(min.Nanoseconds()) / 1e6
-		stats["max_latency_ms"] = float64(max.Nanoseconds()) / 1e6
+		stats["min_latency_ms"] = float64(minLatency.Nanoseconds()) / 1e6
+		stats["max_latency_ms"] = float64(maxLatency.Nanoseconds()) / 1e6
 		stats["latency_samples"] = len(pm.RequestLatencies)
 	}
 

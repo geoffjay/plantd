@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMemoryPersistenceStore(t *testing.T) {
+func TestMemoryPersistenceStore(t *testing.T) { //nolint:funlen
 	store := NewMemoryPersistenceStore()
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	t.Run("StoreAndRetrieveRequest", func(t *testing.T) {
 		request := &Request{
@@ -65,7 +65,7 @@ func TestMemoryPersistenceStore(t *testing.T) {
 
 	t.Run("ListPendingRequests", func(t *testing.T) {
 		// Clear store first
-		store.Close()
+		store.Close() //nolint:errcheck
 		store = NewMemoryPersistenceStore()
 
 		requests := []*Request{
@@ -88,7 +88,7 @@ func TestMemoryPersistenceStore(t *testing.T) {
 	})
 
 	t.Run("ExpiredRequests", func(t *testing.T) {
-		store.Close()
+		store.Close() //nolint:errcheck
 		store = NewMemoryPersistenceStore()
 
 		// Create an expired request
@@ -130,7 +130,7 @@ func TestMemoryPersistenceStore(t *testing.T) {
 	})
 
 	t.Run("CleanupExpiredRequests", func(t *testing.T) {
-		store.Close()
+		_ = store.Close()
 		memStore := NewMemoryPersistenceStore().(*MemoryPersistenceStore)
 
 		// Add some requests with different timestamps
@@ -162,7 +162,7 @@ func TestMemoryPersistenceStore(t *testing.T) {
 	})
 
 	t.Run("GetStats", func(t *testing.T) {
-		store.Close()
+		store.Close() //nolint:errcheck
 		memStore := NewMemoryPersistenceStore().(*MemoryPersistenceStore)
 
 		requests := []*Request{
@@ -191,7 +191,7 @@ func TestMemoryPersistenceStore(t *testing.T) {
 func TestRequestManager(t *testing.T) {
 	store := NewMemoryPersistenceStore()
 	manager := NewRequestManager(store)
-	defer manager.Close()
+	defer manager.Close() //nolint:errcheck
 
 	t.Run("CreateRequest", func(t *testing.T) {
 		request, err := manager.CreateRequest("client-001", "echo", []string{"hello", "world"})
@@ -254,7 +254,7 @@ func TestRequestManager(t *testing.T) {
 
 	t.Run("GetPendingRequests", func(t *testing.T) {
 		// Clear previous requests
-		store.Close()
+		store.Close() //nolint:errcheck
 		store = NewMemoryPersistenceStore()
 		manager = NewRequestManager(store)
 
@@ -302,7 +302,7 @@ func TestRequestManager(t *testing.T) {
 func TestRequestLifecycle(t *testing.T) {
 	store := NewMemoryPersistenceStore()
 	manager := NewRequestManager(store)
-	defer manager.Close()
+	defer manager.Close() //nolint:errcheck
 
 	// Create request
 	request, err := manager.CreateRequest("client-001", "calculator", []string{"add", "2", "3"})
@@ -329,7 +329,7 @@ func TestRequestLifecycle(t *testing.T) {
 func TestRequestRetryScenario(t *testing.T) {
 	store := NewMemoryPersistenceStore()
 	manager := NewRequestManager(store)
-	defer manager.Close()
+	defer manager.Close() //nolint:errcheck
 
 	// Create request
 	request, err := manager.CreateRequest("client-retry", "flaky-service", []string{"operation"})
@@ -359,7 +359,7 @@ func TestRequestRetryScenario(t *testing.T) {
 func TestConcurrentAccess(t *testing.T) {
 	store := NewMemoryPersistenceStore()
 	manager := NewRequestManager(store)
-	defer manager.Close()
+	defer manager.Close() //nolint:errcheck
 
 	// Test concurrent creation and retrieval
 	const numGoroutines = 10
@@ -398,7 +398,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 func BenchmarkMemoryPersistenceStore(b *testing.B) {
 	store := NewMemoryPersistenceStore()
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	requests := make([]*Request, b.N)
 	for i := 0; i < b.N; i++ {
@@ -435,7 +435,7 @@ func BenchmarkMemoryPersistenceStore(b *testing.B) {
 func BenchmarkRequestManager(b *testing.B) {
 	store := NewMemoryPersistenceStore()
 	manager := NewRequestManager(store)
-	defer manager.Close()
+	defer manager.Close() //nolint:errcheck
 
 	b.ResetTimer()
 

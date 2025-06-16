@@ -110,13 +110,13 @@ func TestMDPErrorStructure(t *testing.T) {
 		cause := errors.New("underlying error")
 		err := NewMDPError("TEST002", "wrapper error", cause)
 
-		if err.Cause != cause {
+		if !errors.Is(err, cause) {
 			t.Errorf("expected cause to be set")
 		}
 		if !errors.Is(err, cause) {
 			t.Errorf("error should wrap the cause")
 		}
-		if errors.Unwrap(err) != cause {
+		if !errors.Is(errors.Unwrap(err), cause) {
 			t.Errorf("unwrap should return the cause")
 		}
 	})
