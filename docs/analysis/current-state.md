@@ -213,14 +213,16 @@ During the MDP v0.2 upgrade, several breaking changes were introduced that requi
 - Raw byte commands (`\x01`, `\x05`) instead of human-readable strings
 - Incorrect validation function usage in worker-to-broker messages
 - Memory issues and socket cleanup problems
+- **Critical Post-Upgrade Issue**: Client-to-broker communication completely failed due to ZeroMQ frame structure mismatch
 
 **Fixes Implemented:**
 - ✅ **Command Constants**: Converted from `string(rune(0x01))` to `"READY"` format
 - ✅ **Validation Functions**: Fixed worker to use `ValidateWorkerMessage` instead of `ValidateBrokerToWorkerMessage`
 - ✅ **Protocol Compatibility**: Updated all services to use MDP v0.2 message format
 - ✅ **Integration Testing**: Verified broker ↔ identity service connectivity
+- ✅ **Frame Structure Fix**: Resolved critical client communication failure by adding empty delimiter frame to client messages (see `docs/reports/mdp-upgrade-issue-resolution.md`)
 
-**Result**: All services now successfully connect and communicate using MDP v0.2 protocol with human-readable commands and proper frame validation.
+**Result**: All services now successfully connect and communicate using MDP v0.2 protocol with human-readable commands, proper frame validation, and complete client-broker communication functionality.
 
 ### 3. Reliability & Performance Enhancements Complete (Phase 3 Complete)
 

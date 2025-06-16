@@ -183,22 +183,25 @@ func (c *Client) SetTimeout(timeout time.Duration) {
 	c.timeout = timeout
 }
 
-// Send sends a request message using MDP v0.2 protocol format (no empty frames)
+// Send sends a request message using MDP v0.2 protocol format with empty delimiter frame
 func (c *Client) Send(service string, request ...string) (err error) {
-	// MDP v0.2 format - no empty frame needed
-	// Frame 0: "MDPC02" (six bytes, MDP/Client v0.2)
-	// Frame 1: REQUEST command (0x01)
-	// Frame 2: Service name (printable string)
-	// Frame 3+: Request body
+	// MDP v0.2 format with empty delimiter frame (consistent with worker format)
+	// Frame 0: "" (empty delimiter frame for DEALER socket routing)
+	// Frame 1: "MDPC02" (six bytes, MDP/Client v0.2)
+	// Frame 2: REQUEST command
+	// Frame 3: Service name (printable string)
+	// Frame 4+: Request body
 
-	req := make([]string, 3, len(request)+3)
+	req := make([]string, 4, len(request)+4)
 	req = append(req, request...)
-	req[2] = service
-	req[1] = MdpcRequest
-	req[0] = MdpcClient
+	req[3] = service
+	req[2] = MdpcRequest
+	req[1] = MdpcClient
+	req[0] = "" // Empty delimiter frame for DEALER socket routing
 
-	// Validate request message format
-	if err := ValidateClientRequestMessage(req); err != nil {
+	// Note: ValidateClientRequestMessage expects the format without empty delimiter
+	// so we validate frames 1-3 (skipping the empty delimiter at frame 0)
+	if err := ValidateClientRequestMessage(req[1:]); err != nil {
 		log.WithError(err).Error("invalid client request message format")
 		return fmt.Errorf("invalid request format: %w", err)
 	}
