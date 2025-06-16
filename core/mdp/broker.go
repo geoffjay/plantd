@@ -243,16 +243,54 @@ func (b *Broker) Run(done chan bool) {
 				// 	break // Interrupted
 				// }
 				log.WithFields(log.Fields{"data": msg}).Trace("received message")
+
+				// Enhanced debugging: log the raw message structure
+				log.WithFields(log.Fields{
+					"total_frames": len(msg),
+					"raw_frames":   msg,
+				}).Debug("processing incoming message")
+
 				sender, msg := util.PopStr(msg)
-				_, msg = util.PopStr(msg)
+				log.WithFields(log.Fields{
+					"sender":           sender,
+					"remaining_frames": len(msg),
+				}).Debug("extracted sender")
+
+				_, msg = util.PopStr(msg) // Pop empty delimiter
+				log.WithFields(log.Fields{
+					"remaining_frames_after_delimiter": len(msg),
+				}).Debug("popped empty delimiter")
+
 				header, msg := util.PopStr(msg)
+				log.WithFields(log.Fields{
+					"header":           header,
+					"expected_client":  MdpcClient,
+					"expected_worker":  MdpwWorker,
+					"remaining_frames": len(msg),
+					"remaining_data":   msg,
+				}).Debug("extracted header for processing")
 
 				switch header {
 				case MdpcClient:
+					log.WithFields(log.Fields{
+						"sender":         sender,
+						"message_frames": len(msg),
+					}).Debug("routing to ClientMsg")
 					b.ClientMsg(sender, msg)
 				case MdpwWorker:
+					log.WithFields(log.Fields{
+						"sender":         sender,
+						"message_frames": len(msg),
+					}).Debug("routing to WorkerMsg")
 					b.WorkerMsg(sender, msg)
 				default:
+					log.WithFields(log.Fields{
+						"header":            header,
+						"expected_client":   MdpcClient,
+						"expected_worker":   MdpwWorker,
+						"sender":            sender,
+						"remaining_message": msg,
+					}).Warn("invalid message header")
 					log.Warnf("invalid message: %s", msg)
 				}
 			}
