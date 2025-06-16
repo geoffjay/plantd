@@ -173,6 +173,12 @@ func (s *Service) runMessageLoop(ctx context.Context, wg *sync.WaitGroup) {
 
 // processMessage processes a single MDP message.
 func (s *Service) processMessage(ctx context.Context, message []string) []string {
+	// Add detailed debug logging
+	s.logger.WithFields(logrus.Fields{
+		"message_length": len(message),
+		"raw_message":    message,
+	}).Debug("Identity service received MDP message")
+
 	if len(message) < 1 {
 		s.logger.Warn("Received empty MDP message")
 		return []string{}
@@ -194,8 +200,9 @@ func (s *Service) processMessage(ctx context.Context, message []string) []string
 	}
 
 	s.logger.WithFields(logrus.Fields{
-		"service":     serviceName,
-		"message_len": len(messageData),
+		"extracted_service": serviceName,
+		"message_data":      messageData,
+		"message_len":       len(messageData),
 	}).Debug("Processing MDP message")
 
 	// Route to appropriate handler
@@ -204,6 +211,12 @@ func (s *Service) processMessage(ctx context.Context, message []string) []string
 		s.logger.WithError(err).Error("Failed to handle MDP message")
 		return []string{fmt.Sprintf(`{"error": "Internal server error: %s"}`, err.Error())}
 	}
+
+	s.logger.WithFields(logrus.Fields{
+		"service":       serviceName,
+		"response_len":  len(response),
+		"response_type": fmt.Sprintf("%T", response),
+	}).Debug("Identity service returning response")
 
 	return response
 }

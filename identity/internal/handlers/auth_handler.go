@@ -26,6 +26,12 @@ func NewAuthHandler(authService *auth.AuthService, logger *logrus.Logger) *AuthH
 
 // HandleMessage handles incoming MDP messages for authentication operations.
 func (h *AuthHandler) HandleMessage(ctx context.Context, message []string) ([]string, error) {
+	h.logger.WithFields(logrus.Fields{
+		"handler":        "auth",
+		"message_length": len(message),
+		"raw_message":    message,
+	}).Debug("Auth handler received message")
+
 	defer func() {
 		if responseBytes, err := h.HandlePanic(unknownOperation); responseBytes != nil { //nolint:revive
 			// Return the panic response
@@ -35,34 +41,57 @@ func (h *AuthHandler) HandleMessage(ctx context.Context, message []string) ([]st
 	}()
 
 	if len(message) < 2 {
+		h.logger.Warn("Auth handler: message too short, expected at least 2 parts")
 		return h.createErrorMessage("", "INVALID_MESSAGE", "Message must contain operation and data", "")
 	}
 
 	operation := message[0]
 	data := message[1]
 
+	h.logger.WithFields(logrus.Fields{
+		"operation": operation,
+		"data_len":  len(data),
+	}).Debug("Auth handler processing operation")
+
 	switch operation {
 	case "login":
+		h.logger.Debug("Routing to handleLogin")
 		return h.handleLogin(ctx, data)
 	case "refresh":
+		h.logger.Debug("Routing to handleRefreshToken")
 		return h.handleRefreshToken(ctx, data)
 	case "logout":
+		h.logger.Debug("Routing to handleLogout")
 		return h.handleLogout(ctx, data)
 	case "validate":
+		h.logger.Debug("Routing to handleValidateToken")
 		return h.handleValidateToken(ctx, data)
 	case "change_password":
+		h.logger.Debug("Routing to handleChangePassword")
 		return h.handleChangePassword(ctx, data)
 	default:
+		h.logger.WithField("operation", operation).Warn("Unknown operation in auth handler")
 		return h.createErrorMessage("", "UNKNOWN_OPERATION", fmt.Sprintf("Unknown operation: %s", operation), "")
 	}
 }
 
 // handleLogin processes login requests.
 func (h *AuthHandler) handleLogin(ctx context.Context, data string) ([]string, error) {
+	h.logger.WithFields(logrus.Fields{
+		"method":   "handleLogin",
+		"data_len": len(data),
+	}).Debug("Starting login processing")
+
 	var req LoginRequest
 	if err := h.ParseRequest([]byte(data), &req); err != nil {
+		h.logger.WithError(err).Error("Failed to parse login request")
 		return h.createErrorMessage(req.Header.RequestID, "INVALID_REQUEST", err.Error(), "")
 	}
+
+	h.logger.WithFields(logrus.Fields{
+		"identifier": req.Identifier,
+		"request_id": req.Header.RequestID,
+	}).Debug("Parsed login request")
 
 	requestID := h.ExtractRequestID(&req)
 	userID := h.ExtractUserID(&req)
@@ -76,12 +105,20 @@ func (h *AuthHandler) handleLogin(ctx context.Context, data string) ([]string, e
 		UserAgent:  req.UserAgent,
 	}
 
+	h.logger.WithField("request_id", requestID).Debug("Calling auth service login")
+
 	// Call auth service
 	authResp, err := h.authService.Login(ctx, authReq)
 	if err != nil {
+		h.logger.WithError(err).Error("Auth service login failed")
 		h.LogResponse("login", requestID, false, err)
 		return h.createErrorMessage(requestID, "LOGIN_FAILED", err.Error(), "")
 	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id": requestID,
+		"user_email": authResp.User.Email,
+	}).Debug("Auth service login successful, creating response")
 
 	// Create response
 	response := LoginResponse{
@@ -98,9 +135,15 @@ func (h *AuthHandler) handleLogin(ctx context.Context, data string) ([]string, e
 
 	responseBytes, err := json.Marshal(response)
 	if err != nil {
+		h.logger.WithError(err).Error("Failed to marshal login response")
 		h.LogResponse("login", requestID, false, err)
 		return h.createErrorMessage(requestID, "RESPONSE_ERROR", err.Error(), "")
 	}
+
+	h.logger.WithFields(logrus.Fields{
+		"request_id":     requestID,
+		"response_bytes": len(responseBytes),
+	}).Debug("Login response created successfully")
 
 	h.LogResponse("login", requestID, true, nil)
 	return []string{string(responseBytes)}, nil

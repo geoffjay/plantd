@@ -24,7 +24,7 @@ type Broker struct {
 	isBound      bool                     // if the socket is bound to an endpoint
 	ErrorChannel chan error
 	EventChannel chan Event
-	// Phase 3: Request durability support
+	// Request durability support
 	requestManager *RequestManager // manages request persistence and retry
 	cleanupTicker  *time.Ticker    // periodic cleanup of expired requests
 }
@@ -272,10 +272,32 @@ func (b *Broker) Run(done chan bool) {
 
 				switch header {
 				case MdpcClient:
+					// Strip the command frame (should be "REQUEST" for MDP v0.2)
+					if len(msg) < 1 {
+						log.WithFields(log.Fields{
+							"sender": sender,
+							"msg":    msg,
+						}).Error("client message missing command frame")
+						continue
+					}
+
+					command, msg := util.PopStr(msg)
 					log.WithFields(log.Fields{
 						"sender":         sender,
+						"command":        command,
 						"message_frames": len(msg),
 					}).Debug("routing to ClientMsg")
+
+					// Validate command is REQUEST for MDP v0.2
+					if command != MdpcRequest {
+						log.WithFields(log.Fields{
+							"sender":           sender,
+							"command":          command,
+							"expected_command": MdpcRequest,
+						}).Warn("invalid client command")
+						continue
+					}
+
 					b.ClientMsg(sender, msg)
 				case MdpwWorker:
 					log.WithFields(log.Fields{
