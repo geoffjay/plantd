@@ -4,6 +4,7 @@ package mdp
 // Implements the MDP/Worker spec at http://rfc.zeromq.org/spec:7.
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -32,6 +33,41 @@ type Worker struct {
 	shutdown bool
 }
 
+// WorkerResponseStream represents a streaming response handler for workers
+type WorkerResponseStream struct {
+	worker  *Worker
+	client  string
+	service string
+}
+
+// SendPartial sends a partial response to the client
+func (rs *WorkerResponseStream) SendPartial(data []string) error {
+	if rs.client == "" {
+		return fmt.Errorf("no client address available for response")
+	}
+
+	// Create message with client address
+	m := make([]string, 1, 1+len(data))
+	m = append(m, data...)
+	m[0] = rs.client
+
+	return rs.worker.SendToBroker(MdpwPartial, "", m)
+}
+
+// SendFinal sends the final response to the client and closes the stream
+func (rs *WorkerResponseStream) SendFinal(data []string) error {
+	if rs.client == "" {
+		return fmt.Errorf("no client address available for response")
+	}
+
+	// Create message with client address
+	m := make([]string, 1, 1+len(data))
+	m = append(m, data...)
+	m[0] = rs.client
+
+	return rs.worker.SendToBroker(MdpwFinal, "", m)
+}
+
 // NewWorker creates a new instance of the worker class.
 func NewWorker(broker, service string) (w *Worker, err error) {
 	w = &Worker{
@@ -48,24 +84,42 @@ func NewWorker(broker, service string) (w *Worker, err error) {
 	return
 }
 
-// SendToBroker sends a message to the broker.
+// SendToBroker sends a message to the broker using MDP v0.2 format (no empty frames).
 func (w *Worker) SendToBroker(command string, option string, msg []string) (err error) {
-	n := 3
+	n := 2
 	if option != "" {
 		n++
 	}
 	m := make([]string, n, n+len(msg))
 	m = append(m, msg...)
 
-	// Stack protocol envelope to start of message
+	// Stack protocol envelope to start of message (MDP v0.2 - no empty frame)
 	if option != "" {
-		m[3] = option
+		m[2] = option
 	}
-	m[2] = command
-	m[1] = MdpwWorker
-	m[0] = ""
+	m[1] = command
+	m[0] = MdpwWorker
+
+	// Validate the message before sending
+	if err := ValidateBrokerToWorkerMessage(m); err != nil {
+		log.WithError(err).Error("invalid worker message format")
+		return fmt.Errorf("invalid message format: %w", err)
+	}
 
 	err = w.worker.SendMessage(stringArrayToByte2D(m))
+	if err != nil {
+		log.WithFields(log.Fields{
+			"command": command,
+			"option":  option,
+			"error":   err,
+		}).Error("failed to send message to broker")
+	} else {
+		log.WithFields(log.Fields{
+			"command": command,
+			"option":  option,
+			"frames":  len(m),
+		}).Debug("sent message to broker")
+	}
 	return
 }
 
@@ -91,13 +145,18 @@ func (w *Worker) ConnectToBroker() (err error) {
 
 	// Register service with broker
 	if err = w.SendToBroker(MdpwReady, w.service, []string{}); err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("failed to send read message to broker")
+		log.WithFields(log.Fields{"error": err}).Error("failed to send ready message to broker")
 		return
 	}
 
 	// If liveness hits zero, queue is considered disconnected
 	w.liveness = HeartbeatLiveness
 	w.heartbeatAt = time.Now().Add(w.heartbeat)
+
+	log.WithFields(log.Fields{
+		"broker":  w.broker,
+		"service": w.service,
+	}).Info("worker connected to broker")
 
 	return
 }
@@ -131,8 +190,30 @@ func (w *Worker) SetReconnect(reconnect time.Duration) {
 	w.reconnect = reconnect
 }
 
-// Recv send a reply, if any, to broker and waits for the next request.
-// nolint: funlen, cyclop, nestif
+// Reply sends a simple reply (backward compatible - sends FINAL response)
+func (w *Worker) Reply(reply []string) error {
+	if w.replyTo == "" {
+		return fmt.Errorf("no recipient provided")
+	}
+
+	m := make([]string, 1, 1+len(reply))
+	m = append(m, reply...)
+	m[0] = w.replyTo
+
+	return w.SendToBroker(MdpwFinal, "", m)
+}
+
+// GetResponseStream returns a streaming response handler for the current request
+func (w *Worker) GetResponseStream() *WorkerResponseStream {
+	return &WorkerResponseStream{
+		worker:  w,
+		client:  w.replyTo,
+		service: w.service,
+	}
+}
+
+// Recv sends a reply, if any, to broker and waits for the next request.
+// Updated for MDP v0.2 protocol with PARTIAL/FINAL support
 func (w *Worker) Recv(reply []string) (msg []string, err error) {
 	// format and send the reply if we were provided one
 	if len(reply) == 0 && w.expectReply {
@@ -140,16 +221,10 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 	}
 
 	if len(reply) > 0 {
-		if w.replyTo == "" {
-			// FIXME: do something?
-			log.Trace("no recipient provided, unhandled")
+		if err := w.Reply(reply); err != nil {
+			log.WithError(err).Error("failed to send reply")
+			return nil, err
 		}
-
-		m := make([]string, 2, 2+len(reply))
-		m = append(m, reply...)
-		m[0] = w.replyTo
-		m[1] = ""
-		err = w.SendToBroker(MdpwReply, "", m)
 	}
 
 	w.expectReply = true
@@ -195,8 +270,9 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 					continue // Skip invalid messages and continue processing
 				}
 
-				command := recvMsg[2]
-				msg = recvMsg[3:]
+				// MDP v0.2 frame format (no empty frames)
+				command := recvMsg[1]
+				msg = recvMsg[2:]
 
 				switch command {
 				case MdpwRequest:

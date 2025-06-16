@@ -270,16 +270,32 @@ func (b *Broker) WorkerMsg(sender string, msg []string) {
 			worker.service = b.ServiceRequire(msg[0])
 			worker.Waiting()
 		}
-	case MdpwReply:
+	case MdpwPartial:
 		if workerReady {
 			// remove & save client return envelope and insert the
 			// protocol header and service name, then re-wrap envelope.
 			client, msg := util.Unwrap(msg)
 			snd := stringArrayToByte2D(append(
-				[]string{client, "", MdpcClient, worker.service.name}, msg...))
+				[]string{client, MdpcClient, MdpcPartial, worker.service.name}, msg...))
 			if err := b.Socket.SendMessage(snd); err != nil {
 				b.ErrorChannel <- err
-				log.WithFields(log.Fields{"error": err}).Error("failed to send message to worker")
+				log.WithFields(log.Fields{"error": err}).Error("failed to send partial message to client")
+				return
+			}
+			// Don't set worker to waiting for partial responses - wait for final
+		} else {
+			worker.Delete(true)
+		}
+	case MdpwFinal:
+		if workerReady {
+			// remove & save client return envelope and insert the
+			// protocol header and service name, then re-wrap envelope.
+			client, msg := util.Unwrap(msg)
+			snd := stringArrayToByte2D(append(
+				[]string{client, MdpcClient, MdpcFinal, worker.service.name}, msg...))
+			if err := b.Socket.SendMessage(snd); err != nil {
+				b.ErrorChannel <- err
+				log.WithFields(log.Fields{"error": err}).Error("failed to send final message to client")
 				return
 			}
 			worker.Waiting()
@@ -342,7 +358,7 @@ func (b *Broker) ClientMsg(sender string, msg []string) {
 		// remove & save client return envelope and insert the
 		// protocol header and service name, then re-wrap envelope.
 		client, msg := util.Unwrap(msg)
-		snd := stringArrayToByte2D(append([]string{client, "", MdpcClient, serviceFrame}, msg...))
+		snd := stringArrayToByte2D(append([]string{client, MdpcClient, MdpcFinal, serviceFrame}, msg...))
 		if err := b.Socket.SendMessage(snd); err != nil {
 			b.ErrorChannel <- err
 			log.WithFields(log.Fields{"error": err}).Error("failed to send message to client")
@@ -445,22 +461,22 @@ func (w *brokerWorker) Delete(disconnect bool) {
 	delete(w.broker.workers, w.idString)
 }
 
-// Send formats and sends a command to a worker. The caller may also provide a
-// command option, and a message payload.
+// Send formats and sends a command to a worker using MDP v0.2 format (no empty frames).
+// The caller may also provide a command option, and a message payload.
 func (w *brokerWorker) Send(command, option string, msg []string) (err error) {
-	n := 4
+	n := 3
 	if option != "" {
 		n++
 	}
 	m := make([]string, n, n+len(msg))
 	m = append(m, msg...)
 
-	// stack protocol envelope to start of message
+	// stack protocol envelope to start of message (MDP v0.2 - no empty frame)
 	if option != "" {
-		m[4] = option
+		m[3] = option
 	}
-	m[3] = command
-	m[2] = MdpwWorker
+	m[2] = command
+	m[1] = MdpwWorker
 
 	// stack routing envelope to start of message
 	m[1] = ""

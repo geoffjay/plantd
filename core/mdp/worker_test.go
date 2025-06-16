@@ -208,7 +208,8 @@ func TestWorkerConstants(t *testing.T) {
 	assert.NotEmpty(t, MdpwWorker)
 	assert.NotEmpty(t, MdpwReady)
 	assert.NotEmpty(t, MdpwRequest)
-	assert.NotEmpty(t, MdpwReply)
+	assert.NotEmpty(t, MdpwPartial)
+	assert.NotEmpty(t, MdpwFinal)
 	assert.NotEmpty(t, MdpwHeartbeat)
 	assert.NotEmpty(t, MdpwDisconnect)
 
@@ -216,9 +217,10 @@ func TestWorkerConstants(t *testing.T) {
 	assert.Equal(t, "MDPW01", MdpwWorker)
 	assert.Equal(t, "\001", MdpwReady)
 	assert.Equal(t, "\002", MdpwRequest)
-	assert.Equal(t, "\003", MdpwReply)
-	assert.Equal(t, "\004", MdpwHeartbeat)
-	assert.Equal(t, "\005", MdpwDisconnect)
+	assert.Equal(t, "\003", MdpwPartial)
+	assert.Equal(t, "\004", MdpwFinal)
+	assert.Equal(t, "\005", MdpwHeartbeat)
+	assert.Equal(t, "\006", MdpwDisconnect)
 
 	// Test heartbeat constants
 	assert.Equal(t, 3, HeartbeatLiveness)

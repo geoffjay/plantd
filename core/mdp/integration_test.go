@@ -41,7 +41,7 @@ func TestBasicClientWorkerInteraction(t *testing.T) {
 
 		// Simulate worker sending reply
 		reply := []string{"echo:", "hello", "world"}
-		workerReplyMsg := []string{"", MdpwWorker, MdpwReply, "client-123", ""}
+		workerReplyMsg := []string{MdpwWorker, MdpwFinal, "client-123", "response-data"}
 		workerReplyMsg = append(workerReplyMsg, reply...)
 
 		if err := ValidateWorkerMessage(workerReplyMsg); err != nil {
