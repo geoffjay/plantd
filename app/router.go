@@ -8,6 +8,7 @@ import (
 	cfg "github.com/geoffjay/plantd/app/config"
 	_ "github.com/geoffjay/plantd/app/docs"
 	"github.com/geoffjay/plantd/app/handlers"
+	"github.com/geoffjay/plantd/app/internal/auth"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/app/views/pages"
 	"github.com/geoffjay/plantd/core/util"
@@ -64,8 +65,8 @@ func httpHandler(f http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(f)
 }
 
-func initializeRouter(app *fiber.App) {
-	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/public")
+func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware) {
+	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/static")
 
 	csrfConfig := csrf.Config{
 		Session:        handlers.SessionStore,
@@ -80,18 +81,23 @@ func initializeRouter(app *fiber.App) {
 	}
 	csrfMiddleware := csrf.New(csrfConfig)
 
-	app.Static("/public", staticContents)
+	app.Static("/static", staticContents)
 
+	// Public routes
 	app.Get("/", csrfMiddleware, handlers.Index)
-	app.Get("/login", csrfMiddleware, handlers.LoginPage)
-	app.Post("/login", csrfMiddleware, handlers.Login)
-	app.Get("/logout", handlers.Logout)
-	app.Post("/register", handlers.Register)
+	app.Get("/login", csrfMiddleware, authHandlers.LoginPage)
+	app.Post("/login", csrfMiddleware, authHandlers.Login)
+	app.Get("/logout", authHandlers.Logout)
+	app.Post("/register", authHandlers.Register)
 
 	app.Get("/sse", handlers.ReloadSSE)
 
 	// API routes
 	api := app.Group("/api")
+	api.Post("/auth/login", authHandlers.Login)
+	api.Post("/auth/logout", authHandlers.Logout)
+	api.Post("/auth/refresh", authHandlers.RefreshToken)
+	api.Get("/auth/profile", authMiddleware.RequireAuth(), authHandlers.UserProfile)
 	api.Get("/docs/*", swagger.HandlerDefault)
 
 	v1 := api.Group("/v1", func(c *fiber.Ctx) error {

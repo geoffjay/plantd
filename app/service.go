@@ -17,6 +17,7 @@ import (
 
 	conf "github.com/geoffjay/plantd/app/config"
 	"github.com/geoffjay/plantd/app/handlers"
+	"github.com/geoffjay/plantd/app/internal/auth"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/core/util"
 
@@ -92,6 +93,20 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 			JSONDecoder: json.Unmarshal,
 		})
 
+		// Initialize authentication components
+		identityClient, err := auth.NewIdentityClient(config)
+		if err != nil {
+			log.WithFields(fields).WithError(err).Fatal("Failed to initialize Identity Service client")
+		}
+
+		sessionManager, err := auth.NewSessionManager(config, identityClient)
+		if err != nil {
+			log.WithFields(fields).WithError(err).Fatal("Failed to initialize session manager")
+		}
+
+		authHandlers := handlers.NewAuthHandlers(identityClient, sessionManager)
+		authMiddleware := auth.NewAuthMiddleware(sessionManager, identityClient)
+
 		handlers.SessionStore = session.New(config.Session.ToSessionConfig())
 
 		app.Use(helmet.New())
@@ -104,7 +119,7 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 			Max:        50,
 		}))
 
-		initializeRouter(app)
+		initializeRouter(app, authHandlers, authMiddleware)
 
 		cert := initializeCert()
 		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
