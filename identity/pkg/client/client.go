@@ -102,7 +102,8 @@ func (c *Client) sendRequest(
 			}).Info("Retrying request after connection timeout")
 		}
 
-		// Send request via MDP
+		// Send request via MDP - Format the message properly for MDP v0.2
+		// The identity worker expects: [service, operation, data] as separate frames
 		if err := c.mdpClient.Send("org.plantd.Identity", service, operation, string(requestData)); err != nil {
 			if attempt == maxRetries {
 				return nil, fmt.Errorf("failed to send MDP request after %d attempts: %w", maxRetries+1, err)

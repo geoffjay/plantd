@@ -4,6 +4,7 @@ package mdp
 // Implements the MDP/Worker spec at http://rfc.zeromq.org/spec:7.
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -17,6 +18,78 @@ type Client struct {
 	client  *czmq.Sock    // Socket to broker
 	timeout time.Duration // Request timeout
 	poller  *czmq.Poller
+}
+
+// ResponseStream represents a streaming response handler for MDP v0.2
+type ResponseStream struct {
+	client   *Client
+	service  string
+	finished bool
+}
+
+// Next waits for the next response in the stream
+func (rs *ResponseStream) Next() (msg []string, final bool, err error) {
+	if rs.finished {
+		return nil, true, fmt.Errorf("stream already finished")
+	}
+
+	// poll socket for a reply, with timeout
+	socket, perr := rs.client.poller.Wait(int(rs.client.timeout / time.Millisecond))
+	if perr != nil {
+		log.WithFields(log.Fields{
+			"err": perr,
+		}).Error("client failure while socket poller was waiting")
+		return nil, false, perr
+	}
+	if socket == nil {
+		log.WithFields(log.Fields{
+			"timeout (ms)": int(rs.client.timeout / time.Millisecond),
+		}).Warn("no messages received on client socket for the timeout duration")
+
+		// Attempt to reconnect on timeout
+		log.Info("attempting to reconnect to broker due to timeout")
+		if reconnectErr := rs.client.ConnectToBroker(); reconnectErr != nil {
+			log.WithFields(log.Fields{
+				"err": reconnectErr,
+			}).Error("failed to reconnect to broker after timeout")
+			return nil, false, reconnectErr
+		}
+		log.Info("successfully reconnected to broker")
+		return nil, false, fmt.Errorf("timeout - connection refreshed, please retry")
+	}
+
+	recv, _ := socket.RecvMessage()
+	recvMsg := byte2DToStringArray(recv)
+
+	// if we got a reply, process it
+	if len(recvMsg) > 0 {
+		// Validate message format using robust validation
+		if err := ValidateClientMessage(recvMsg); err != nil {
+			log.WithError(err).Error("received invalid client message")
+			return nil, false, fmt.Errorf("invalid message format: %w", err)
+		}
+
+		command := recvMsg[1]
+		service := recvMsg[2]
+		data := recvMsg[3:]
+
+		// Check if this is the final response
+		if command == MdpcFinal {
+			rs.finished = true
+			final = true
+		}
+
+		log.WithFields(log.Fields{
+			"service": service,
+			"command": command,
+			"data":    data,
+			"final":   final,
+		}).Debug("received streaming response")
+
+		return data, final, nil
+	}
+
+	return nil, false, fmt.Errorf("empty response received")
 }
 
 // NewClient creates a new instance of an MDP client.
@@ -110,30 +183,49 @@ func (c *Client) SetTimeout(timeout time.Duration) {
 	c.timeout = timeout
 }
 
-// Send just sends one message, without waiting for a reply. Since we're using
-// a DEALER socket we have to send an empty frame at the start, to create the
-// same envelope that the REQ socket would normally make.
+// Send sends a request message using MDP v0.2 protocol format with empty delimiter frame
 func (c *Client) Send(service string, request ...string) (err error) {
-	// Prefix request with protocol frames
-	// Frame 0: empty (REQ emulation)
-	// Frame 1: "MDPCxy" (six bytes, MDP/Client x.y)
-	// Frame 2: Service name (printable string)
+	// MDP v0.2 format with empty delimiter frame (consistent with worker format)
+	// Frame 0: "" (empty delimiter frame for DEALER socket routing)
+	// Frame 1: "MDPC02" (six bytes, MDP/Client v0.2)
+	// Frame 2: REQUEST command
+	// Frame 3: Service name (printable string)
+	// Frame 4+: Request body
 
-	req := make([]string, 3, len(request)+3)
+	req := make([]string, 4, len(request)+4)
 	req = append(req, request...)
-	req[2] = service
+	req[3] = service
+	req[2] = MdpcRequest
 	req[1] = MdpcClient
-	req[0] = ""
+	req[0] = "" // Empty delimiter frame for DEALER socket routing
+
+	// Note: ValidateClientRequestMessage expects the format without empty delimiter
+	// so we validate frames 1-3 (skipping the empty delimiter at frame 0)
+	if err := ValidateClientRequestMessage(req[1:]); err != nil {
+		log.WithError(err).Error("invalid client request message format")
+		return fmt.Errorf("invalid request format: %w", err)
+	}
+
 	err = c.client.SendMessage(stringArrayToByte2D(req))
+	if err != nil {
+		log.WithFields(log.Fields{
+			"service": service,
+			"error":   err,
+		}).Error("failed to send request")
+	} else {
+		log.WithFields(log.Fields{
+			"service": service,
+			"frames":  len(req),
+		}).Debug("sent request")
+	}
 
 	return
 }
 
 // Recv waits for a reply message and returns that to the caller. Returns the
-// reply message or NULL if there was no reply. Does not attempt to recover
-// from a broker failure, this is not possible without storing all unanswered
-// requests and resending them all.
-// nolint: funlen, nestif
+// reply message or NULL if there was no reply. This method handles both PARTIAL
+// and FINAL responses but only returns the FINAL response for backward compatibility.
+// Use RecvStream() for full streaming support.
 func (c *Client) Recv() (msg []string, err error) {
 	// poll socket for a reply, with timeout
 	socket, perr := c.poller.Wait(int(c.timeout / time.Millisecond))
@@ -171,41 +263,34 @@ func (c *Client) Recv() (msg []string, err error) {
 
 	// if we got a reply, process it
 	if len(recvMsg) > 0 {
-		// don't try to handle errors, just assert noisily
-		if len(recvMsg) < 4 {
-			log.WithFields(log.Fields{
-				"expected": 4,
-				"received": len(recvMsg),
-			}).Warn("message received had less than the required number of frames")
-		} else {
-			// var empty string
-			// empty, msg = util.PopStr(msg)
-			// if empty != "" {
-			if recvMsg[0] != "" {
-				log.WithFields(log.Fields{
-					"received": recvMsg[0],
-				}).Warn("message frame didn't contain expected value (empty)")
-			}
-
-			// var header string
-			// header, msg = util.PopStr(msg)
-			// if header != MDPC_CLIENT {
-			if recvMsg[1] != MdpcClient {
-				log.WithFields(log.Fields{
-					"expected": MdpcClient,
-					"received": recvMsg[1],
-				}).Warn("message frame didn't contain expected value")
-			}
-
-			// FIXME: this fails when len(msg) < 4
-			service := recvMsg[2]
-			msg = recvMsg[3:]
-			// service, msg = util.PopStr(msg)
-			log.WithFields(log.Fields{"service": service, "msg": msg}).Debug("received message")
+		// Validate message format using robust validation
+		if err := ValidateClientMessage(recvMsg); err != nil {
+			log.WithError(err).Error("received invalid client message")
+			return nil, fmt.Errorf("invalid message format: %w", err)
 		}
 
-		// if this was reached the request was successful
-		return
+		command := recvMsg[1]
+		service := recvMsg[2]
+		data := recvMsg[3:]
+
+		// For backward compatibility, wait for FINAL response
+		// If this is PARTIAL, keep reading until FINAL
+		if command == MdpcPartial {
+			log.WithFields(log.Fields{
+				"service":      service,
+				"partial_data": data,
+			}).Debug("received partial response, waiting for final")
+
+			// Continue waiting for FINAL response
+			return c.Recv()
+		}
+
+		log.WithFields(log.Fields{
+			"service": service,
+			"msg":     data,
+		}).Debug("received final response")
+
+		return data, nil
 	}
 
 	// FIXME: why freak out on timeout?
@@ -214,4 +299,21 @@ func (c *Client) Recv() (msg []string, err error) {
 	msg = []string{"timeout error"}
 
 	return
+}
+
+// RecvStream returns a ResponseStream for handling streaming responses with PARTIAL/FINAL support
+func (c *Client) RecvStream(service string) *ResponseStream {
+	return &ResponseStream{
+		client:   c,
+		service:  service,
+		finished: false,
+	}
+}
+
+// SendAndRecvStream sends a request and returns a stream for receiving responses
+func (c *Client) SendAndRecvStream(service string, request ...string) (*ResponseStream, error) {
+	if err := c.Send(service, request...); err != nil {
+		return nil, err
+	}
+	return c.RecvStream(service), nil
 }

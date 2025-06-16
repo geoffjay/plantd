@@ -208,7 +208,6 @@ func (s *Service) runBroker(ctx context.Context) {
 			log.WithFields(log.Fields{"error": err}).Error(
 				"received error from message queue")
 		case <-ctx.Done():
-			_ = s.broker.Close()
 			done <- true
 			log.Debug("exiting broker")
 			return

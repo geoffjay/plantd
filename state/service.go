@@ -105,11 +105,11 @@ func (s *Service) setupHandler() {
 		"delete": &deleteCallback{
 			name: "delete", store: s.store,
 		},
-		"get": &getCallback{
-			name: "get", store: s.store,
+		"state-get": &getCallback{
+			name: "state-get", store: s.store,
 		},
-		"set": &setCallback{
-			name: "set", store: s.store,
+		"state-set": &setCallback{
+			name: "state-set", store: s.store,
 		},
 		"health": &healthCallback{
 			name: "health", store: s.store,
@@ -369,6 +369,7 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 			if request, err = s.worker.Recv(reply); err != nil {
 				log.WithFields(log.Fields{"error": err}).Error(
 					"failed while receiving request")
+				continue
 			}
 
 			log.WithFields(log.Fields{
@@ -381,37 +382,14 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 				continue
 			}
 
-			msgType := request[0]
+			// Process the message - expecting format: [client_id, operation, data...]
+			// The client_id is included in the message for reply routing
+			reply = s.processMessage(ctx, request)
 
-			// Reset reply
-			reply = []string{}
-			for _, part := range request[1:] {
-				log.WithFields(log.Fields{
-					"context": "worker",
-					"part":    part,
-				}).Debug("processing message")
-				var data []byte
-				switch msgType {
-				case "create-scope", "delete-scope", "delete", "get", "set", "list-scopes", "list-keys":
-					log.Tracef("part: %s", part)
-					if data, err = s.handler.callbacks[msgType].Execute(
-						part); err != nil {
-						log.WithFields(log.Fields{
-							"context": "service.worker",
-							"type":    msgType,
-							"error":   err,
-						}).Warn("message failed")
-						break
-					}
-					log.Tracef("data: %s", data)
-				default:
-					log.Error("invalid message type provided")
-				}
-
-				reply = append(reply, string(data))
-			}
-
-			log.Tracef("reply: %+v", reply)
+			log.WithFields(log.Fields{
+				"context": "service.worker",
+				"reply":   reply,
+			}).Debug("prepared reply")
 		}
 	}()
 
@@ -419,6 +397,67 @@ func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
 	s.worker.Shutdown()
 
 	log.WithFields(fields).Debug("exiting")
+}
+
+// processMessage processes a single MDP message for the state service
+func (s *Service) processMessage(_ context.Context, message []string) []string {
+	log.WithFields(log.Fields{
+		"message_length": len(message),
+		"raw_message":    message,
+	}).Debug("State service received MDP message")
+
+	if len(message) < 2 {
+		log.Warn("Received message with insufficient frames")
+		return []string{`{"error": "Invalid message format"}`}
+	}
+
+	// Extract operation from message
+	// Message format: [operation, ...args]
+	operation := message[0]
+	args := message[1:]
+
+	log.WithFields(log.Fields{
+		"operation": operation,
+		"args":      args,
+	}).Debug("Processing state service request")
+
+	// Check if the operation is valid
+	callback, exists := s.handler.callbacks[operation]
+	if !exists {
+		log.WithFields(log.Fields{
+			"operation": operation,
+		}).Error("Invalid operation requested")
+		return []string{`{"error": "Invalid operation"}`}
+	}
+
+	// Process the arguments and execute the callback
+	var data []byte
+	var err error
+
+	// For most operations, we need to combine the args into a single string
+	// This matches the expected behavior of the original implementation
+	if len(args) > 0 {
+		argData := args[0] // Most operations expect a single argument
+		data, err = callback.Execute(argData)
+	} else {
+		// Some operations like "list-scopes" don't need arguments
+		data, err = callback.Execute("")
+	}
+
+	if err != nil {
+		log.WithFields(log.Fields{
+			"operation": operation,
+			"error":     err,
+		}).Warn("Operation failed")
+		return []string{fmt.Sprintf(`{"error": "Operation failed: %s"}`, err.Error())}
+	}
+
+	log.WithFields(log.Fields{
+		"operation":    operation,
+		"response_len": len(data),
+	}).Debug("State service operation completed successfully")
+
+	return []string{string(data)}
 }
 
 // RegisterCallback is a pointless wrapper around the handler.

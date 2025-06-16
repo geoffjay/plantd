@@ -24,6 +24,9 @@ type Broker struct {
 	isBound      bool                     // if the socket is bound to an endpoint
 	ErrorChannel chan error
 	EventChannel chan Event
+	// Request durability support
+	requestManager *RequestManager // manages request persistence and retry
+	cleanupTicker  *time.Ticker    // periodic cleanup of expired requests
 }
 
 // Service defines a single service instance.
@@ -54,16 +57,26 @@ type WorkerInfo struct {
 
 // NewBroker creates a new broker instance.
 func NewBroker(endpoint string) (broker *Broker, err error) {
+	// Initialize persistence store
+	persistenceStore := NewMemoryPersistenceStore()
+	requestManager := NewRequestManager(persistenceStore)
+
 	broker = &Broker{
-		endpoint:     endpoint,
-		services:     make(map[string]*Service),
-		workers:      make(map[string]*brokerWorker),
-		Waiting:      make([]*brokerWorker, 0),
-		HeartbeatAt:  time.Now().Add(HeartbeatInterval),
-		isBound:      false,
-		ErrorChannel: make(chan error, 1),
-		EventChannel: make(chan Event),
+		endpoint:       endpoint,
+		services:       make(map[string]*Service),
+		workers:        make(map[string]*brokerWorker),
+		Waiting:        make([]*brokerWorker, 0),
+		HeartbeatAt:    time.Now().Add(HeartbeatInterval),
+		isBound:        false,
+		ErrorChannel:   make(chan error, 1),
+		EventChannel:   make(chan Event),
+		requestManager: requestManager,
+		cleanupTicker:  time.NewTicker(1 * time.Minute), // cleanup every minute
 	}
+
+	// Start cleanup goroutine for expired requests
+	go broker.cleanupExpiredRequests()
+
 	return
 }
 
@@ -135,7 +148,17 @@ func initMonitor(socket *czmq.Sock) {
 
 // Close is used to terminate the broker socket.
 func (b *Broker) Close() (err error) {
-	if b.isBound {
+	// Stop cleanup ticker
+	if b.cleanupTicker != nil {
+		b.cleanupTicker.Stop()
+	}
+
+	// Close request manager
+	if b.requestManager != nil {
+		_ = b.requestManager.Close()
+	}
+
+	if b.isBound && b.Socket != nil {
 		err = b.Socket.Unbind(b.endpoint)
 		b.Socket.Destroy()
 		b.Socket = nil
@@ -145,6 +168,20 @@ func (b *Broker) Close() (err error) {
 	close(b.EventChannel)
 
 	return
+}
+
+// cleanupExpiredRequests periodically cleans up expired requests
+func (b *Broker) cleanupExpiredRequests() {
+	for range b.cleanupTicker.C {
+		if store, ok := b.requestManager.store.(*MemoryPersistenceStore); ok {
+			removed := store.CleanupExpiredRequests()
+			if removed > 0 {
+				log.WithFields(log.Fields{
+					"expired_requests": removed,
+				}).Debug("cleaned up expired requests")
+			}
+		}
+	}
 }
 
 // Bind the broker instance to an endpoint. We can call this multiple times.
@@ -206,16 +243,76 @@ func (b *Broker) Run(done chan bool) {
 				// 	break // Interrupted
 				// }
 				log.WithFields(log.Fields{"data": msg}).Trace("received message")
+
+				// Enhanced debugging: log the raw message structure
+				log.WithFields(log.Fields{
+					"total_frames": len(msg),
+					"raw_frames":   msg,
+				}).Debug("processing incoming message")
+
 				sender, msg := util.PopStr(msg)
-				_, msg = util.PopStr(msg)
+				log.WithFields(log.Fields{
+					"sender":           sender,
+					"remaining_frames": len(msg),
+				}).Debug("extracted sender")
+
+				_, msg = util.PopStr(msg) // Pop empty delimiter
+				log.WithFields(log.Fields{
+					"remaining_frames_after_delimiter": len(msg),
+				}).Debug("popped empty delimiter")
+
 				header, msg := util.PopStr(msg)
+				log.WithFields(log.Fields{
+					"header":           header,
+					"expected_client":  MdpcClient,
+					"expected_worker":  MdpwWorker,
+					"remaining_frames": len(msg),
+					"remaining_data":   msg,
+				}).Debug("extracted header for processing")
 
 				switch header {
 				case MdpcClient:
+					// Strip the command frame (should be "REQUEST" for MDP v0.2)
+					if len(msg) < 1 {
+						log.WithFields(log.Fields{
+							"sender": sender,
+							"msg":    msg,
+						}).Error("client message missing command frame")
+						continue
+					}
+
+					command, msg := util.PopStr(msg)
+					log.WithFields(log.Fields{
+						"sender":         sender,
+						"command":        command,
+						"message_frames": len(msg),
+					}).Debug("routing to ClientMsg")
+
+					// Validate command is REQUEST for MDP v0.2
+					if command != MdpcRequest {
+						log.WithFields(log.Fields{
+							"sender":           sender,
+							"command":          command,
+							"expected_command": MdpcRequest,
+						}).Warn("invalid client command")
+						continue
+					}
+
 					b.ClientMsg(sender, msg)
 				case MdpwWorker:
+					log.WithFields(log.Fields{
+						"sender":         sender,
+						"message_frames": len(msg),
+					}).Debug("routing to WorkerMsg")
 					b.WorkerMsg(sender, msg)
 				default:
+					log.WithFields(log.Fields{
+						"header":            header,
+						"expected_client":   MdpcClient,
+						"expected_worker":   MdpwWorker,
+						"sender":            sender,
+						"remaining_message": msg,
+					}).Warn("invalid message header")
 					log.Warnf("invalid message: %s", msg)
 				}
 			}
@@ -263,23 +360,39 @@ func (b *Broker) WorkerMsg(sender string, msg []string) {
 		case workerReady:
 			// not first command in session
 			worker.Delete(true)
-		case len(sender) >= 4 /* reserved service name */ && sender[:4] == "mmi.":
+		case len(sender) >= 4 /* reserved service name */ && sender[:4] == MMINamespace:
 			worker.Delete(true)
 		default:
 			// attach worker to service and mark as idle
 			worker.service = b.ServiceRequire(msg[0])
 			worker.Waiting()
 		}
-	case MdpwReply:
+	case MdpwPartial:
 		if workerReady {
 			// remove & save client return envelope and insert the
 			// protocol header and service name, then re-wrap envelope.
 			client, msg := util.Unwrap(msg)
 			snd := stringArrayToByte2D(append(
-				[]string{client, "", MdpcClient, worker.service.name}, msg...))
+				[]string{client, MdpcClient, MdpcPartial, worker.service.name}, msg...))
 			if err := b.Socket.SendMessage(snd); err != nil {
 				b.ErrorChannel <- err
-				log.WithFields(log.Fields{"error": err}).Error("failed to send message to worker")
+				log.WithFields(log.Fields{"error": err}).Error("failed to send partial message to client")
+				return
+			}
+			// Don't set worker to waiting for partial responses - wait for final
+		} else {
+			worker.Delete(true)
+		}
+	case MdpwFinal:
+		if workerReady {
+			// remove & save client return envelope and insert the
+			// protocol header and service name, then re-wrap envelope.
+			client, msg := util.Unwrap(msg)
+			snd := stringArrayToByte2D(append(
+				[]string{client, MdpcClient, MdpcFinal, worker.service.name}, msg...))
+			if err := b.Socket.SendMessage(snd); err != nil {
+				b.ErrorChannel <- err
+				log.WithFields(log.Fields{"error": err}).Error("failed to send final message to client")
 				return
 			}
 			worker.Waiting()
@@ -323,9 +436,9 @@ func (b *Broker) ClientMsg(sender string, msg []string) {
 	msg = append(m, msg...)
 
 	// If we got a MMI service request, process that internally
-	if len(serviceFrame) >= 4 && serviceFrame[:4] == "mmi." {
+	if len(serviceFrame) >= 4 && serviceFrame[:4] == MMINamespace {
 		var returnCode string
-		if serviceFrame == "mmi.service" {
+		if serviceFrame == MMIService {
 			name := msg[len(msg)-1]
 			service, ok := b.services[name]
 			if ok && len(service.waiting) > 0 {
@@ -342,12 +455,38 @@ func (b *Broker) ClientMsg(sender string, msg []string) {
 		// remove & save client return envelope and insert the
 		// protocol header and service name, then re-wrap envelope.
 		client, msg := util.Unwrap(msg)
-		snd := stringArrayToByte2D(append([]string{client, "", MdpcClient, serviceFrame}, msg...))
+		snd := stringArrayToByte2D(append([]string{client, MdpcClient, MdpcFinal, serviceFrame}, msg...))
 		if err := b.Socket.SendMessage(snd); err != nil {
 			b.ErrorChannel <- err
 			log.WithFields(log.Fields{"error": err}).Error("failed to send message to client")
 		}
 	} else {
+		// Phase 3: Persist request for durability before dispatching
+		request, err := b.requestManager.CreateRequest(sender, serviceFrame, msg)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error":   err,
+				"client":  sender,
+				"service": serviceFrame,
+			}).Error("failed to persist request")
+			b.ErrorChannel <- err
+			return
+		}
+
+		log.WithFields(log.Fields{
+			"request_id": request.ID,
+			"client":     sender,
+			"service":    serviceFrame,
+		}).Debug("persisted client request")
+
+		// Mark as processing and dispatch to service
+		if err := b.requestManager.MarkRequestProcessing(request.ID); err != nil {
+			log.WithFields(log.Fields{
+				"error":      err,
+				"request_id": request.ID,
+			}).Warn("failed to mark request as processing")
+		}
+
 		// else dispatch the message to the requested service
 		service.Dispatch(msg)
 	}
@@ -445,25 +584,24 @@ func (w *brokerWorker) Delete(disconnect bool) {
 	delete(w.broker.workers, w.idString)
 }
 
-// Send formats and sends a command to a worker. The caller may also provide a
-// command option, and a message payload.
+// Send formats and sends a command to a worker using MDP v0.2 format (no empty frames).
+// The caller may also provide a command option, and a message payload.
 func (w *brokerWorker) Send(command, option string, msg []string) (err error) {
-	n := 4
+	n := 3
 	if option != "" {
 		n++
 	}
 	m := make([]string, n, n+len(msg))
 	m = append(m, msg...)
 
-	// stack protocol envelope to start of message
+	// stack protocol envelope to start of message (MDP v0.2 - no empty frame)
 	if option != "" {
-		m[4] = option
+		m[3] = option
 	}
-	m[3] = command
-	m[2] = MdpwWorker
+	m[2] = command
+	m[1] = MdpwWorker
 
 	// stack routing envelope to start of message
-	m[1] = ""
 	m[0] = w.identity
 
 	log.WithFields(log.Fields{

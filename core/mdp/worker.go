@@ -4,6 +4,7 @@ package mdp
 // Implements the MDP/Worker spec at http://rfc.zeromq.org/spec:7.
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -32,6 +33,41 @@ type Worker struct {
 	shutdown bool
 }
 
+// WorkerResponseStream represents a streaming response handler for workers
+type WorkerResponseStream struct {
+	worker  *Worker
+	client  string
+	service string
+}
+
+// SendPartial sends a partial response to the client
+func (rs *WorkerResponseStream) SendPartial(data []string) error {
+	if rs.client == "" {
+		return fmt.Errorf("no client address available for response")
+	}
+
+	// Create message with client address
+	m := make([]string, 1, 1+len(data))
+	m = append(m, data...)
+	m[0] = rs.client
+
+	return rs.worker.SendToBroker(MdpwPartial, "", m)
+}
+
+// SendFinal sends the final response to the client and closes the stream
+func (rs *WorkerResponseStream) SendFinal(data []string) error {
+	if rs.client == "" {
+		return fmt.Errorf("no client address available for response")
+	}
+
+	// Create message with client address
+	m := make([]string, 1, 1+len(data))
+	m = append(m, data...)
+	m[0] = rs.client
+
+	return rs.worker.SendToBroker(MdpwFinal, "", m)
+}
+
 // NewWorker creates a new instance of the worker class.
 func NewWorker(broker, service string) (w *Worker, err error) {
 	w = &Worker{
@@ -48,24 +84,41 @@ func NewWorker(broker, service string) (w *Worker, err error) {
 	return
 }
 
-// SendToBroker sends a message to the broker.
+// SendToBroker sends a message to the broker using MDP v0.2 format (no empty frames).
 func (w *Worker) SendToBroker(command string, option string, msg []string) (err error) {
-	n := 3
+	n := 3 // Always include empty delimiter frame
 	if option != "" {
 		n++
 	}
 	m := make([]string, n, n+len(msg))
 	m = append(m, msg...)
 
-	// Stack protocol envelope to start of message
+	// Stack protocol envelope to start of message (MDP v0.2 with empty delimiter)
 	if option != "" {
 		m[3] = option
 	}
 	m[2] = command
 	m[1] = MdpwWorker
-	m[0] = ""
+	m[0] = "" // Empty delimiter frame for DEALER socket routing
+
+	// Validate the message before sending (worker-to-broker message format)
+	// Skip validation for now since we're sending with empty delimiter frame
+	// The broker will validate after processing the routing frames
 
 	err = w.worker.SendMessage(stringArrayToByte2D(m))
+	if err != nil {
+		log.WithFields(log.Fields{
+			"command": command,
+			"option":  option,
+			"error":   err,
+		}).Error("failed to send message to broker")
+	} else {
+		log.WithFields(log.Fields{
+			"command": command,
+			"option":  option,
+			"frames":  len(m),
+		}).Debug("sent message to broker")
+	}
 	return
 }
 
@@ -91,13 +144,18 @@ func (w *Worker) ConnectToBroker() (err error) {
 
 	// Register service with broker
 	if err = w.SendToBroker(MdpwReady, w.service, []string{}); err != nil {
-		log.WithFields(log.Fields{"error": err}).Error("failed to send read message to broker")
+		log.WithFields(log.Fields{"error": err}).Error("failed to send ready message to broker")
 		return
 	}
 
 	// If liveness hits zero, queue is considered disconnected
 	w.liveness = HeartbeatLiveness
 	w.heartbeatAt = time.Now().Add(w.heartbeat)
+
+	log.WithFields(log.Fields{
+		"broker":  w.broker,
+		"service": w.service,
+	}).Info("worker connected to broker")
 
 	return
 }
@@ -131,25 +189,41 @@ func (w *Worker) SetReconnect(reconnect time.Duration) {
 	w.reconnect = reconnect
 }
 
-// Recv send a reply, if any, to broker and waits for the next request.
-// nolint: funlen, cyclop, nestif
-func (w *Worker) Recv(reply []string) (msg []string, err error) {
+// Reply sends a simple reply (backward compatible - sends FINAL response)
+func (w *Worker) Reply(reply []string) error {
+	if w.replyTo == "" {
+		return fmt.Errorf("no recipient provided")
+	}
+
+	m := make([]string, 1, 1+len(reply))
+	m = append(m, reply...)
+	m[0] = w.replyTo
+
+	return w.SendToBroker(MdpwFinal, "", m)
+}
+
+// GetResponseStream returns a streaming response handler for the current request
+func (w *Worker) GetResponseStream() *WorkerResponseStream {
+	return &WorkerResponseStream{
+		worker:  w,
+		client:  w.replyTo,
+		service: w.service,
+	}
+}
+
+// Recv sends a reply, if any, to broker and waits for the next request.
+// Updated for MDP v0.2 protocol with PARTIAL/FINAL support
+func (w *Worker) Recv(reply []string) (msg []string, err error) { //nolint:cyclop
 	// format and send the reply if we were provided one
 	if len(reply) == 0 && w.expectReply {
 		log.Trace("received reply, unhandled")
 	}
 
 	if len(reply) > 0 {
-		if w.replyTo == "" {
-			// FIXME: do something?
-			log.Trace("no recipient provided, unhandled")
+		if err := w.Reply(reply); err != nil {
+			log.WithError(err).Error("failed to send reply")
+			return nil, err
 		}
-
-		m := make([]string, 2, 2+len(reply))
-		m = append(m, reply...)
-		m[0] = w.replyTo
-		m[1] = ""
-		err = w.SendToBroker(MdpwReply, "", m)
 	}
 
 	w.expectReply = true
@@ -169,7 +243,7 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 			break
 		}
 
-		if socket == nil {
+		if socket == nil { //nolint:nestif
 			log.WithFields(log.Fields{
 				"timeout (ms)": int(HeartbeatInterval) / 1e6,
 			}).Tracef("no messages received on worker socket for the timeout duration")
@@ -189,34 +263,15 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 			if len(recvMsg) > 0 {
 				w.liveness = HeartbeatLiveness
 
-				// FIXME: I can't remember why this was changed to just index,
-				// should do this instead:
-				//  header, request := Unwrap(recvMsg)
-				//  command, msg := PopStr(request)
-
-				// Don't try to handle errors, just assert noisily
-				if len(recvMsg) < 3 {
-					log.WithFields(log.Fields{
-						"expected": 3,
-						"received": len(recvMsg),
-					}).Warn("message received had less than the required number of frames")
+				// Validate message format using robust validation
+				if err := ValidateWorkerMessage(recvMsg); err != nil {
+					log.WithError(err).Error("received invalid worker message")
+					continue // Skip invalid messages and continue processing
 				}
 
-				if recvMsg[0] != "" {
-					log.WithFields(log.Fields{
-						"received": recvMsg[0],
-					}).Warn("message frame didn't contain expected value (empty)")
-				}
-
-				if recvMsg[1] != MdpwWorker {
-					log.WithFields(log.Fields{
-						"expected": MdpwWorker,
-						"received": recvMsg[1],
-					}).Warn("message frame didn't contain expected value")
-				}
-
-				command := recvMsg[2]
-				msg = recvMsg[3:]
+				// MDP v0.2 frame format (no empty frames)
+				command := recvMsg[1]
+				msg = recvMsg[2:]
 
 				switch command {
 				case MdpwRequest:
@@ -241,6 +296,7 @@ func (w *Worker) Recv(reply []string) (msg []string, err error) {
 					}
 					log.Debug("worker received a disconnection command")
 				default:
+					log.WithField("command", command).Warn("received unknown command")
 				}
 			} else { // len(RecvMsg) == 0
 				log.WithFields(log.Fields{
