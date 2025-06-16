@@ -1,0 +1,387 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Plantd App Service Development Rules
+
+## Overview
+
+The plantd App Service is a modern web application providing the central management interface for the plantd distributed control system. This service serves as the primary dashboard for monitoring, configuring, and managing all plantd services through an intuitive web interface.
+
+## 🚨 Critical Requirements
+
+### Package Management
+- **ALWAYS** use `bun` for package management
+- **NEVER** use `npm`, `yarn`, or `deno` under any circumstances
+- All frontend dependencies must be managed through `bun install`
+- Use `bun run` for all script execution
+
+### Process Management
+- **ALWAYS** use `overmind` for controlling running processes
+- **NEVER** execute compiled binaries directly (e.g., `./build/plantd-app`)
+- Use `overmind start` to start services
+- Use `overmind restart app` to restart the app service
+- Use `overmind echo app` to view logs instead of terminating processes
+
+### Frontend Technology Stack
+- **MUST** use `templ` for all frontend components and templates
+- **MUST** use `tailwindcss` (v4) for all styling
+- **NEVER** use standard Go html/template - only templ
+- **NEVER** use other CSS frameworks (Bootstrap, Foundation, etc.)
+
+## Architecture Requirements
+
+### Authentication and User Management
+- **MUST** integrate with Identity Service for all authentication
+- **NEVER** create local user models or authentication logic
+- **NEVER** maintain local user database or repositories
+- Use session-based authentication for web interface
+- Implement proper CSRF protection for all forms
+
+### Service Integration
+- **MUST** communicate with other plantd services via MDP protocol through broker
+- **MUST** use the established plantd service client patterns
+- Implement proper error handling and graceful degradation
+- Use circuit breaker patterns for service resilience
+
+### Project Structure
+- Follow the established internal/ structure pattern:
+  ```
+  app/
+  ├── cmd/main.go
+  ├── internal/
+  │   ├── auth/           # Authentication middleware and session management
+  │   ├── services/       # Business logic layer
+  │   ├── handlers/       # HTTP handlers (web + API)
+  │   └── models/         # Data transfer objects only
+  ├── views/              # Templ templates only
+  ├── static/             # Static assets
+  └── config.yml          # Configuration
+  ```
+
+## Development Workflow
+
+### Asset Pipeline
+```bash
+# Development with hot reload
+bun run dev
+
+# Build for production
+bun run build
+
+# CSS compilation
+bun run build-css
+bun run watch-css
+
+# Templ generation
+bun run templ:generate
+bun run templ:watch
+```
+
+### Service Development
+```bash
+# Start all services including app
+overmind start
+
+# Restart just the app service
+overmind restart app
+
+# View app service logs
+overmind echo app
+
+# Check service status
+overmind status
+```
+
+### Testing
+```bash
+# Run tests
+go test ./...
+
+# Run with coverage
+go test -cover ./...
+
+# Run integration tests
+go test -tags=integration ./...
+```
+
+## Code Patterns
+
+### Templ Components
+- Create reusable components in `views/components/`
+- Use layouts in `views/layouts/`
+- Page-specific templates in `views/pages/`
+- Always use templ syntax, never standard Go templates
+
+Example templ component:
+```templ
+// views/components/service_card.templ
+package components
+
+templ ServiceCard(service ServiceStatus) {
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <h3 class="text-lg font-medium text-gray-900">{ service.Name }</h3>
+            @StatusBadge(service.Status)
+        </div>
+        <p class="text-sm text-gray-600 mt-2">
+            Workers: { fmt.Sprintf("%d", service.Workers) }
+        </p>
+    </div>
+}
+```
+
+### Authentication Middleware
+- Always check authentication before protected routes
+- Use session-based auth for web pages
+- Use JWT validation for API endpoints
+- Implement proper role and permission checking
+
+Example auth middleware usage:
+```go
+// Protect web routes
+protected := router.Group("/")
+protected.Use(auth.RequireAuth())
+protected.GET("/dashboard", handlers.ShowDashboard)
+
+// Protect API routes with permissions
+api := router.Group("/api/v1")
+api.Use(auth.RequireAuth())
+api.Use(auth.RequirePermission("app:admin"))
+api.GET("/services", handlers.GetServices)
+```
+
+### Service Integration
+- Use the established service client patterns
+- Implement proper error handling and fallbacks
+- Use context for request timeouts
+- Log all service interactions
+
+Example service integration:
+```go
+type BrokerService struct {
+    client *client.Client
+    config *config.Config
+}
+
+func (bs *BrokerService) GetServiceStatuses(ctx context.Context) ([]ServiceStatus, error) {
+    // Use MDP client to communicate with broker
+    // Implement proper timeout and error handling
+    // Return structured data for UI consumption
+}
+```
+
+## Configuration Management
+
+### Environment Variables
+Use the PLANTD_APP_ prefix for all app-specific environment variables:
+- `PLANTD_APP_BIND_ADDRESS` (default: "127.0.0.1")
+- `PLANTD_APP_BIND_PORT` (default: "8443")
+- `PLANTD_APP_IDENTITY_ENDPOINT` (default: "tcp://127.0.0.1:7200")
+- `PLANTD_APP_BROKER_ENDPOINT` (default: "tcp://127.0.0.1:7100")
+- `PLANTD_APP_SESSION_SECRET` (required for production)
+
+### Configuration Structure
+```go
+type Config struct {
+    Server struct {
+        BindAddress string `yaml:"bind_address" env:"PLANTD_APP_BIND_ADDRESS"`
+        BindPort    string `yaml:"bind_port" env:"PLANTD_APP_BIND_PORT"`
+        TLSCert     string `yaml:"tls_cert" env:"PLANTD_APP_TLS_CERT"`
+        TLSKey      string `yaml:"tls_key" env:"PLANTD_APP_TLS_KEY"`
+    } `yaml:"server"`
+    
+    Identity struct {
+        Endpoint string `yaml:"endpoint" env:"PLANTD_APP_IDENTITY_ENDPOINT"`
+        Timeout  string `yaml:"timeout" env:"PLANTD_APP_IDENTITY_TIMEOUT"`
+    } `yaml:"identity"`
+    
+    Session struct {
+        SecretKey string `yaml:"secret_key" env:"PLANTD_APP_SESSION_SECRET"`
+        MaxAge    int    `yaml:"max_age" env:"PLANTD_APP_SESSION_MAX_AGE"`
+        Secure    bool   `yaml:"secure" env:"PLANTD_APP_SESSION_SECURE"`
+    } `yaml:"session"`
+}
+```
+
+## Security Requirements
+
+### Authentication
+- Never implement local authentication logic
+- Always validate sessions and tokens
+- Implement automatic token refresh
+- Use secure session cookies (HttpOnly, Secure, SameSite)
+
+### Authorization
+- Check permissions for all protected operations
+- Implement role-based access control
+- Use the Identity Service permission model
+- Log all authorization decisions
+
+### Input Security
+- Validate and sanitize all user inputs
+- Implement CSRF protection for all forms
+- Use Content Security Policy headers
+- Escape all template outputs properly
+
+### HTTPS Only
+- Always use HTTPS in production
+- Redirect HTTP to HTTPS
+- Use proper TLS configuration
+- Generate self-signed certs for development only
+
+## UI/UX Guidelines
+
+### Responsive Design
+- Mobile-first approach using Tailwind CSS
+- Support mobile, tablet, and desktop viewports
+- Use Tailwind's responsive prefixes (sm:, md:, lg:, xl:)
+- Test on multiple screen sizes
+
+### Accessibility
+- Use semantic HTML elements
+- Implement proper ARIA labels
+- Ensure keyboard navigation works
+- Maintain color contrast ratios
+
+### Performance
+- Minimize CSS and JavaScript bundles
+- Use lazy loading for large datasets
+- Implement efficient caching strategies
+- Optimize images and assets
+
+### Plantd Design System
+Use the established plantd color palette:
+```css
+:root {
+  --plantd-primary: #10B981;
+  --plantd-secondary: #06B6D4;
+  --plantd-accent: #8B5CF6;
+  --plantd-danger: #EF4444;
+  --plantd-warning: #F59E0B;
+  --plantd-success: #10B981;
+}
+```
+
+## API Design
+
+### RESTful Endpoints
+- Use standard HTTP methods (GET, POST, PUT, DELETE)
+- Implement proper status codes
+- Use consistent JSON response format
+- Include proper error messages
+
+### Response Format
+```go
+type APIResponse struct {
+    Success bool        `json:"success"`
+    Data    interface{} `json:"data,omitempty"`
+    Error   string      `json:"error,omitempty"`
+    Message string      `json:"message,omitempty"`
+}
+```
+
+### API Versioning
+- Prefix all API routes with `/api/v1/`
+- Maintain backward compatibility
+- Document API changes clearly
+- Use Swagger/OpenAPI documentation
+
+## Testing Requirements
+
+### Unit Tests
+- Test all handlers with mock dependencies
+- Test service layer business logic
+- Test authentication and authorization logic
+- Achieve >90% code coverage
+
+### Integration Tests
+- Test complete request/response cycles
+- Test service integration points
+- Test authentication flows
+- Test error handling scenarios
+
+### End-to-End Tests
+- Test complete user workflows
+- Test across different browsers
+- Test responsive design
+- Test accessibility features
+
+## Error Handling
+
+### Graceful Degradation
+- Handle service unavailability gracefully
+- Provide meaningful error messages
+- Implement circuit breaker patterns
+- Log errors appropriately
+
+### User Experience
+- Show loading states for async operations
+- Provide clear error messages to users
+- Implement retry mechanisms where appropriate
+- Maintain application state during errors
+
+## Monitoring and Observability
+
+### Logging
+- Use structured logging (logrus)
+- Log all authentication and authorization events
+- Log service integration calls
+- Include request tracing information
+
+### Metrics
+- Collect performance metrics
+- Monitor service health
+- Track user sessions and activity
+- Monitor resource usage
+
+### Health Checks
+- Implement comprehensive health endpoints
+- Check all service dependencies
+- Provide detailed health information
+- Support monitoring system integration
+
+## Performance Requirements
+
+### Target Metrics
+- Page load time: <2 seconds
+- Time to interactive: <3 seconds
+- API response time: <500ms
+- Memory usage: <100MB typical
+- CSS bundle size: <50KB compressed
+
+### Optimization Strategies
+- Implement efficient caching
+- Minimize database queries
+- Optimize asset delivery
+- Use connection pooling
+- Implement lazy loading
+
+## Deployment and Operations
+
+### Build Process
+```bash
+# Production build
+make build-app
+
+# Asset compilation
+bun run build
+
+# Template generation
+bun run templ:generate
+```
+
+### Docker Integration
+- Use multi-stage Docker builds
+- Implement proper health checks
+- Use non-root user execution
+- Optimize image layers
+
+### Service Dependencies
+- Depends on Identity Service for authentication
+- Depends on Broker Service for service communication
+- Depends on State Service for configuration management
+- Optional dependency on metrics and logging services
+
+Remember: The App Service is the primary user interface for the plantd system. It must be reliable, secure, performant, and provide an excellent user experience for system administrators and operators.

@@ -112,13 +112,13 @@ The application uses Tailwind CSS for styling:
 
 ```bash
 # Install dependencies
-npm install
+bun install
 
 # Watch for CSS changes
-npm run watch-css
+bun run watch-css
 
 # Build production CSS
-npm run build-css
+bun run build-css
 ```
 
 ### Testing
