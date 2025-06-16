@@ -29,34 +29,34 @@ const (
 	HeartbeatExpiry = HeartbeatInterval * HeartbeatLiveness
 )
 
-// MDP v0.2 Client commands (single-byte identifiers)
+// MDP v0.2 Client commands (human-readable string identifiers)
 const (
-	MdpcRequest = string(rune(0x01)) // Client request
+	MdpcRequest = "REQUEST" // Client request
 )
 
 // MDP v0.2 Client reply types
 const (
-	MdpcPartial = string(rune(0x02)) // Partial response from broker to client
-	MdpcFinal   = string(rune(0x03)) // Final response from broker to client
+	MdpcPartial = "PARTIAL" // Partial response from broker to client
+	MdpcFinal   = "FINAL"   // Final response from broker to client
 )
 
-// MDP v0.2 Worker commands (single-byte identifiers)
+// MDP v0.2 Worker commands (human-readable string identifiers)
 const (
-	MdpwReady      = string(rune(0x01)) // Worker ready
-	MdpwRequest    = string(rune(0x02)) // Request from broker to worker
-	MdpwPartial    = string(rune(0x03)) // Partial reply from worker to broker
-	MdpwFinal      = string(rune(0x04)) // Final reply from worker to broker
-	MdpwHeartbeat  = string(rune(0x05)) // Heartbeat
-	MdpwDisconnect = string(rune(0x06)) // Worker disconnect
+	MdpwReady      = "READY"      // Worker ready
+	MdpwRequest    = "REQUEST"    // Request from broker to worker
+	MdpwPartial    = "PARTIAL"    // Partial reply from worker to broker
+	MdpwFinal      = "FINAL"      // Final reply from worker to broker
+	MdpwHeartbeat  = "HEARTBEAT"  // Heartbeat
+	MdpwDisconnect = "DISCONNECT" // Worker disconnect
 )
 
-// Legacy MDP v0.1 commands (for backward compatibility if needed)
+// Legacy MDP v0.1 commands (single-byte for backward compatibility)
 const (
-	MdpwReadyV1 = string(rune(iota + 1))
-	MdpwRequestV1
-	MdpwReplyV1
-	MdpwHeartbeatV1
-	MdpwDisconnectV1
+	MdpwReadyV1      = string(rune(0x01)) // Legacy READY
+	MdpwRequestV1    = string(rune(0x02)) // Legacy REQUEST
+	MdpwReplyV1      = string(rune(0x03)) // Legacy REPLY
+	MdpwHeartbeatV1  = string(rune(0x04)) // Legacy HEARTBEAT
+	MdpwDisconnectV1 = string(rune(0x05)) // Legacy DISCONNECT
 )
 
 // MMI (Majordomo Management Interface) constants

@@ -24,6 +24,9 @@ type Broker struct {
 	isBound      bool                     // if the socket is bound to an endpoint
 	ErrorChannel chan error
 	EventChannel chan Event
+	// Phase 3: Request durability support
+	requestManager *RequestManager // manages request persistence and retry
+	cleanupTicker  *time.Ticker    // periodic cleanup of expired requests
 }
 
 // Service defines a single service instance.
@@ -54,16 +57,26 @@ type WorkerInfo struct {
 
 // NewBroker creates a new broker instance.
 func NewBroker(endpoint string) (broker *Broker, err error) {
+	// Initialize persistence store
+	persistenceStore := NewMemoryPersistenceStore()
+	requestManager := NewRequestManager(persistenceStore)
+
 	broker = &Broker{
-		endpoint:     endpoint,
-		services:     make(map[string]*Service),
-		workers:      make(map[string]*brokerWorker),
-		Waiting:      make([]*brokerWorker, 0),
-		HeartbeatAt:  time.Now().Add(HeartbeatInterval),
-		isBound:      false,
-		ErrorChannel: make(chan error, 1),
-		EventChannel: make(chan Event),
+		endpoint:       endpoint,
+		services:       make(map[string]*Service),
+		workers:        make(map[string]*brokerWorker),
+		Waiting:        make([]*brokerWorker, 0),
+		HeartbeatAt:    time.Now().Add(HeartbeatInterval),
+		isBound:        false,
+		ErrorChannel:   make(chan error, 1),
+		EventChannel:   make(chan Event),
+		requestManager: requestManager,
+		cleanupTicker:  time.NewTicker(1 * time.Minute), // cleanup every minute
 	}
+
+	// Start cleanup goroutine for expired requests
+	go broker.cleanupExpiredRequests()
+
 	return
 }
 
@@ -135,7 +148,17 @@ func initMonitor(socket *czmq.Sock) {
 
 // Close is used to terminate the broker socket.
 func (b *Broker) Close() (err error) {
-	if b.isBound {
+	// Stop cleanup ticker
+	if b.cleanupTicker != nil {
+		b.cleanupTicker.Stop()
+	}
+
+	// Close request manager
+	if b.requestManager != nil {
+		_ = b.requestManager.Close()
+	}
+
+	if b.isBound && b.Socket != nil {
 		err = b.Socket.Unbind(b.endpoint)
 		b.Socket.Destroy()
 		b.Socket = nil
@@ -145,6 +168,20 @@ func (b *Broker) Close() (err error) {
 	close(b.EventChannel)
 
 	return
+}
+
+// cleanupExpiredRequests periodically cleans up expired requests
+func (b *Broker) cleanupExpiredRequests() {
+	for range b.cleanupTicker.C {
+		if store, ok := b.requestManager.store.(*MemoryPersistenceStore); ok {
+			removed := store.CleanupExpiredRequests()
+			if removed > 0 {
+				log.WithFields(log.Fields{
+					"expired_requests": removed,
+				}).Debug("cleaned up expired requests")
+			}
+		}
+	}
 }
 
 // Bind the broker instance to an endpoint. We can call this multiple times.
@@ -364,6 +401,32 @@ func (b *Broker) ClientMsg(sender string, msg []string) {
 			log.WithFields(log.Fields{"error": err}).Error("failed to send message to client")
 		}
 	} else {
+		// Phase 3: Persist request for durability before dispatching
+		request, err := b.requestManager.CreateRequest(sender, serviceFrame, msg)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error":   err,
+				"client":  sender,
+				"service": serviceFrame,
+			}).Error("failed to persist request")
+			b.ErrorChannel <- err
+			return
+		}
+
+		log.WithFields(log.Fields{
+			"request_id": request.ID,
+			"client":     sender,
+			"service":    serviceFrame,
+		}).Debug("persisted client request")
+
+		// Mark as processing and dispatch to service
+		if err := b.requestManager.MarkRequestProcessing(request.ID); err != nil {
+			log.WithFields(log.Fields{
+				"error":      err,
+				"request_id": request.ID,
+			}).Warn("failed to mark request as processing")
+		}
+
 		// else dispatch the message to the requested service
 		service.Dispatch(msg)
 	}
@@ -479,7 +542,6 @@ func (w *brokerWorker) Send(command, option string, msg []string) (err error) {
 	m[1] = MdpwWorker
 
 	// stack routing envelope to start of message
-	m[1] = ""
 	m[0] = w.identity
 
 	log.WithFields(log.Fields{
