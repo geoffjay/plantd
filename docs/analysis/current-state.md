@@ -221,7 +221,7 @@ During the MDP v0.2 upgrade, several breaking changes were introduced that requi
 - ✅ **Validation Functions**: Fixed worker to use `ValidateWorkerMessage` instead of `ValidateBrokerToWorkerMessage`
 - ✅ **Protocol Compatibility**: Updated all services to use MDP v0.2 message format
 - ✅ **Integration Testing**: Verified broker ↔ identity service connectivity
-- ✅ **Frame Structure Fix**: Resolved critical client communication failure by adding empty delimiter frame to client messages (see `docs/reports/mdp-upgrade-issue-resolution.md`)
+- ✅ **Frame Structure Fix**: Resolved critical client communication failure by adding empty delimiter frame to client messages and fixing broker command frame processing (see `docs/reports/mdp-framing-issue-resolution.md`)
 - ✅ **Broker Message Routing Fix**: Fixed broker to properly strip command frames from client messages before routing to services, enabling complete end-to-end authentication flow
 
 **Result**: All services now successfully connect and communicate using MDP v0.2 protocol with human-readable commands, proper frame validation, complete client-broker communication functionality, and fully working identity service authentication. The identity service is now properly configured to respond to client requests.
