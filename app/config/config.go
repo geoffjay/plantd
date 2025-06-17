@@ -64,7 +64,7 @@ var defaults = map[string]interface{}{
 	"log.loki.address":       "http://localhost:3100",
 	"log.loki.labels":        map[string]string{"app": "app", "environment": "development"},
 	"cors.allow-credentials": true,
-	"cors.allow-origins":     "*",
+	"cors.allow-origins":     "https://localhost:8443,http://localhost:8443,https://127.0.0.1:8443,http://127.0.0.1:8443",
 	"cors.allow-headers": "Origin, Content-Type, Accept, Content-Length, Accept-Language, " +
 		"Accept-Encoding, Connection, Authorization, Access-Control-Allow-Origin, " +
 		"Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin",
@@ -81,7 +81,7 @@ var defaults = map[string]interface{}{
 	"identity.client_id": "plantd-app",
 
 	// Services defaults
-	"services.broker_endpoint": "tcp://127.0.0.1:7100",
+	"services.broker_endpoint": "tcp://127.0.0.1:9797",
 	"services.state_endpoint":  "tcp://127.0.0.1:7300",
 	"services.timeout":         "30s",
 

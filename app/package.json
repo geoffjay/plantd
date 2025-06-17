@@ -1,16 +1,8 @@
 {
-  "name": "plantd-app",
-  "private": true,
+  "name": "plantd",
+  "version": "0.1.0",
+  "description": "Plantd distributed control system",
   "scripts": {
-    "dev": "bun run templ:watch & bun run watch-css",
-    "build": "bun run templ:generate && bun run build-css",
-    "build-css-watch": "tailwindcss --input static/css/input.css --output static/css/tailwind.css --watch",
-    "watch-css": "tailwindcss --input static/css/input.css --output static/css/tailwind.css --watch",
-    "build-css": "tailwindcss --input static/css/input.css --output static/css/tailwind.css --minify",
-    "templ:generate": "templ generate",
-    "templ:watch": "templ generate --watch",
-    "lint:css": "stylelint static/css/**/*.css",
-    "format:css": "prettier --write static/css/**/*.css",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
@@ -18,14 +10,8 @@
     "test:e2e:report": "playwright show-report",
     "test:install": "playwright install"
   },
+  "dependencies": {},
   "devDependencies": {
-    "tailwindcss": "^3.4.0",
-    "@tailwindcss/forms": "^0.5.0",
-    "@tailwindcss/typography": "^0.5.0",
-    "autoprefixer": "^10.4.16",
-    "postcss": "^8.4.32",
-    "@playwright/test": "^1.40.0",
-    "stylelint": "^16.0.0",
-    "prettier": "^3.0.0"
+    "@playwright/test": "^1.53.0"
   }
-} 
+}

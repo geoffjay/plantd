@@ -62,12 +62,14 @@ func (ah *AuthHandlers) LoginPage(c *fiber.Ctx) error {
 
 	log.WithFields(fields).Debug("Rendering login page")
 
-	// Render login page
-	// Set context values for template
-	c.Locals("csrf", pageData.CSRFToken)
-	c.Locals("error", pageData.Error)
+	// Get CSRF token from middleware
+	csrfToken := c.Locals("csrf")
+	csrfTokenStr := ""
+	if csrfToken != nil {
+		csrfTokenStr = csrfToken.(string)
+	}
 
-	return views.Render(c, pages.Login(), templ.WithStatus(http.StatusOK))
+	return views.Render(c, pages.LoginWithData(csrfTokenStr, pageData.Error), templ.WithStatus(http.StatusOK))
 }
 
 // Login handles user login requests.
@@ -84,7 +86,7 @@ func (ah *AuthHandlers) Login(c *fiber.Ctx) error {
 	redirectURL := c.FormValue("redirect")
 
 	if redirectURL == "" {
-		redirectURL = "/"
+		redirectURL = "/dashboard"
 	}
 
 	fields["email"] = email

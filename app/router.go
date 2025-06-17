@@ -19,6 +19,7 @@ import (
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/csrf"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/swagger"
 	log "github.com/sirupsen/logrus"
 )
@@ -66,11 +67,10 @@ func httpHandler(f http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(f)
 }
 
-func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware, service *service) {
+func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware, service *service, sessionStore *session.Store) {
 	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/static")
 
 	csrfConfig := csrf.Config{
-		Session:        handlers.SessionStore,
 		KeyLookup:      "form:csrf",
 		CookieName:     "__Host-csrf",
 		CookieSameSite: "Lax",
@@ -82,7 +82,8 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 	}
 	csrfMiddleware := csrf.New(csrfConfig)
 
-	app.Static("/static", staticContents)
+	app.Static("/public", staticContents)
+	app.Static("/static", staticContents) // Keep both for compatibility
 
 	// Create dashboard handler
 	dashboardHandler := internalHandlers.NewDashboardHandler(

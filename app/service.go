@@ -158,7 +158,8 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 			s.healthService = services.NewHealthService(s.brokerService, s.stateService, identityClient, config)
 		}
 
-		handlers.SessionStore = session.New(config.Session.ToSessionConfig())
+		sessionStore := session.New(config.Session.ToSessionConfig())
+		handlers.SessionStore = sessionStore
 
 		app.Use(helmet.New())
 		app.Use(cors.New(config.Cors.ToCorsConfig()))
@@ -171,7 +172,7 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		}))
 
 		// Initialize router with services
-		initializeRouter(app, authHandlers, authMiddleware, s)
+		initializeRouter(app, authHandlers, authMiddleware, s, sessionStore)
 
 		cert := initializeCert()
 		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}

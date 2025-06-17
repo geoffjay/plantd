@@ -68,8 +68,22 @@ type BrokerMetrics struct {
 func NewBrokerService(cfg *config.Config) (*BrokerService, error) {
 	logger := log.WithField("service", "broker_client")
 
+	// Workaround: If broker endpoint is empty, use default from config defaults
+	brokerEndpoint := cfg.Services.BrokerEndpoint
+	if brokerEndpoint == "" {
+		brokerEndpoint = "tcp://127.0.0.1:9797"
+		logger.Warn("Broker endpoint was empty, using default: tcp://127.0.0.1:9797")
+	}
+
+	// Debug logging for configuration
+	logger.WithFields(log.Fields{
+		"broker_endpoint": brokerEndpoint,
+		"state_endpoint":  cfg.Services.StateEndpoint,
+		"timeout":         cfg.Services.Timeout,
+	}).Debug("Broker service configuration loaded")
+
 	// Create MDP client for broker communication
-	client, err := mdp.NewClient(cfg.Services.BrokerEndpoint)
+	client, err := mdp.NewClient(brokerEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MDP client: %w", err)
 	}

@@ -31,42 +31,42 @@ build: build-pre build-app build-broker build-client build-identity build-logger
 build-pre: ; $(info $(M) Building projects...)
 	@mkdir -p build/
 
-build-app:
+build-app: ; $(info $(M) Building app service...)
 	@pushd app >/dev/null; \
 	go build -o ../build/plantd-app $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-broker:
+build-broker: ; $(info $(M) Building broker service...)
 	@pushd broker >/dev/null; \
 	go build -o ../build/plantd-broker $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-client:
+build-client: ; $(info $(M) Building client utlity...)
 	@pushd client >/dev/null; \
 	go build -o ../build/plant $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-identity:
+build-identity: ; $(info $(M) Building identity service...)
 	@pushd identity >/dev/null; \
 	go build -o ../build/plantd-identity $(BUILD_ARGS) ./cmd/main.go; \
 	popd >/dev/null
 
-build-logger:
+build-logger: ; $(info $(M) Building logger service...)
 	@pushd logger >/dev/null; \
 	go build -o ../build/plantd-logger $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-proxy:
+build-proxy: ; $(info $(M) Building proxy service...)
 	@pushd proxy >/dev/null; \
 	go build -o ../build/plantd-proxy $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-state:
+build-state: ; $(info $(M) Building state service...)
 	@pushd state >/dev/null; \
 	go build -o ../build/plantd-state $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-module-echo:
+build-module-echo: ; $(info $(M) Building echo module...)
 	@pushd module/echo >/dev/null; \
 	go build -o ../../build/plantd-module-echo $(BUILD_ARGS) .; \
 	popd >/dev/null

@@ -1,11 +1,6 @@
 package handlers
 
 import (
-	"net/http"
-
-	"github.com/geoffjay/plantd/app/views"
-
-	"github.com/a-h/templ"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
 )
@@ -19,17 +14,12 @@ var SessionStore *session.Store
 //	@Description The application index page
 //	@Tags        pages
 func Index(c *fiber.Ctx) error {
-	session, err := SessionStore.Get(c)
-	if err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
+	// Check if user is authenticated
+	if user := c.Locals("user"); user != nil {
+		// User is authenticated, redirect to dashboard
+		return c.Redirect("/dashboard")
 	}
 
-	loggedIn, _ := session.Get("loggedIn").(bool)
-	if !loggedIn {
-		return c.Redirect("/login")
-	}
-
-	c.Locals("title", "App")
-
-	return views.Render(c, views.Index(), templ.WithStatus(http.StatusOK))
+	// User is not authenticated, redirect to login
+	return c.Redirect("/login")
 }

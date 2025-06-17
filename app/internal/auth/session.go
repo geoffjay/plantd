@@ -69,28 +69,28 @@ func NewSessionManager(cfg *config.Config, identityClient *IdentityClient) (*Ses
 
 // getCookieName returns the session cookie name with fallback.
 func (sm *SessionManager) getCookieName() string {
-	if sm.config.Session.CookieName != "" {
-		return sm.config.Session.CookieName
+	if sm.config.EnhancedSession.CookieName != "" {
+		return sm.config.EnhancedSession.CookieName
 	}
 	return "__Host-session"
 }
 
 // getMaxAge returns the session max age with fallback.
 func (sm *SessionManager) getMaxAge() int {
-	if sm.config.Session.MaxAge > 0 {
-		return sm.config.Session.MaxAge
+	if sm.config.EnhancedSession.MaxAge > 0 {
+		return sm.config.EnhancedSession.MaxAge
 	}
 	return 7200 // 2 hours default
 }
 
 // isSecure returns whether cookies should be secure.
 func (sm *SessionManager) isSecure() bool {
-	return sm.config.Session.Secure
+	return sm.config.EnhancedSession.Secure
 }
 
 // isHttpOnly returns whether cookies should be HTTP only.
 func (sm *SessionManager) isHttpOnly() bool {
-	return sm.config.Session.HttpOnly
+	return sm.config.EnhancedSession.HttpOnly
 }
 
 // CreateSession creates a new secure session for a user.

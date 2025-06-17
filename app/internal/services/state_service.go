@@ -69,8 +69,20 @@ type StateChangeNotification struct {
 func NewStateService(cfg *config.Config) (*StateService, error) {
 	logger := log.WithField("service", "state_client")
 
+	// Workaround: If state endpoint is empty, use broker endpoint
+	// (state service communicates through broker)
+	stateEndpoint := cfg.Services.StateEndpoint
+	if stateEndpoint == "" {
+		// Use broker endpoint since state service is an MDP service
+		stateEndpoint = cfg.Services.BrokerEndpoint
+		if stateEndpoint == "" {
+			stateEndpoint = "tcp://127.0.0.1:9797"
+		}
+		logger.Warn("State endpoint was empty, using broker endpoint for MDP communication")
+	}
+
 	// Create MDP client for state service communication
-	client, err := mdp.NewClient(cfg.Services.StateEndpoint)
+	client, err := mdp.NewClient(stateEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create MDP client for state service: %w", err)
 	}
@@ -84,7 +96,7 @@ func NewStateService(cfg *config.Config) (*StateService, error) {
 	client.SetTimeout(timeout)
 
 	logger.WithFields(log.Fields{
-		"state_endpoint": cfg.Services.StateEndpoint,
+		"state_endpoint": stateEndpoint,
 		"timeout":        timeout,
 	}).Info("State service client initialized")
 
@@ -392,7 +404,7 @@ func (ss *StateService) CheckConnectivity(ctx context.Context) error {
 	ss.logger.Debug("Checking state service connectivity")
 
 	// Try to ping the state service
-	response, err := ss.sendRequest(ctx, "ping")
+	response, err := ss.sendRequest(ctx, "org.plantd.State", "ping")
 	if err != nil {
 		return fmt.Errorf("state service connectivity check failed: %w", err)
 	}
@@ -415,9 +427,14 @@ func (ss *StateService) sendAuthenticatedRequest(ctx context.Context, userToken,
 
 // sendRequest sends a request to the state service.
 func (ss *StateService) sendRequest(ctx context.Context, service string, args ...string) ([]string, error) {
+	command := "<no_command>"
+	if len(args) > 0 {
+		command = args[0]
+	}
+
 	ss.logger.WithFields(log.Fields{
 		"service": service,
-		"command": args[0],
+		"command": command,
 		"args":    len(args),
 	}).Trace("Sending state service request")
 
@@ -435,7 +452,7 @@ func (ss *StateService) sendRequest(ctx context.Context, service string, args ..
 
 	ss.logger.WithFields(log.Fields{
 		"service":  service,
-		"command":  args[0],
+		"command":  command,
 		"response": response,
 	}).Trace("Received state service response")
 

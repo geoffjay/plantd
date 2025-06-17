@@ -33,6 +33,7 @@ func NewAuthMiddleware(sessionManager *SessionManager, identityClient *IdentityC
 		"/auth/login",
 		"/auth/logout",
 		"/static/",
+		"/public/",
 		"/favicon.ico",
 		"/robots.txt",
 		"/manifest.json",

@@ -1,5 +1,5 @@
 app: make dev-app
-css: bun run build-css-watch
+css: cd app && bun run build-css-watch
 templ: templ generate --watch -path ./app
 broker: make dev-broker
 identity: make dev-identity
