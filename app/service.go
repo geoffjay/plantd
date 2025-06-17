@@ -149,6 +149,9 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 			log.WithFields(fields).WithError(err).Fatal("Failed to initialize session manager")
 		}
 
+		// Set global session manager for handlers
+		handlers.SessionManager = sessionManager
+
 		authHandlers := handlers.NewAuthHandlers(identityClient, sessionManager)
 		authMiddleware := auth.NewAuthMiddleware(sessionManager, identityClient)
 
@@ -167,8 +170,24 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		app.Use(recover.New())
 		app.Use(etag.New())
 		app.Use(limiter.New(limiter.Config{
-			Expiration: 30 * time.Second,
-			Max:        50,
+			Expiration: 1 * time.Minute,
+			Max:        300,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				return c.IP()
+			},
+			LimitReached: func(c *fiber.Ctx) error {
+				log.WithFields(log.Fields{
+					"service": "app",
+					"context": "rate_limiter",
+					"ip":      c.IP(),
+					"path":    c.Path(),
+				}).Warn("Rate limit exceeded")
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error": "Too many requests, please try again later",
+				})
+			},
+			SkipFailedRequests:     true,
+			SkipSuccessfulRequests: false,
 		}))
 
 		// Initialize router with services

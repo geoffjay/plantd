@@ -115,13 +115,12 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 	app.Post("/register", authHandlers.Register)
 
 	// Protected routes
-	protected := app.Group("/", authMiddleware.RequireAuth())
-	protected.Get("/dashboard", csrfMiddleware, dashboardHandler.ShowDashboard)
-	protected.Get("/services", csrfMiddleware, servicesHandler.ShowServices)
+	app.Get("/dashboard", authMiddleware.RequireAuth(), csrfMiddleware, dashboardHandler.ShowDashboard)
+	app.Get("/services", authMiddleware.RequireAuth(), csrfMiddleware, servicesHandler.ShowServices)
 
 	// Real-time update routes (SSE)
-	protected.Get("/dashboard/sse", sseHandler.DashboardSSE)
-	protected.Get("/system/status/sse", sseHandler.SystemStatusSSE)
+	app.Get("/dashboard/sse", authMiddleware.RequireAuth(), sseHandler.DashboardSSE)
+	app.Get("/system/status/sse", authMiddleware.RequireAuth(), sseHandler.SystemStatusSSE)
 
 	app.Get("/sse", handlers.ReloadSSE)
 

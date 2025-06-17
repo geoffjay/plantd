@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/geoffjay/plantd/app/config"
@@ -16,9 +17,78 @@ import (
 
 // BrokerService handles communication with the plantd broker for service discovery and management.
 type BrokerService struct {
-	client *mdp.Client
-	config *config.Config
-	logger *log.Entry
+	client         *mdp.Client
+	config         *config.Config
+	logger         *log.Entry
+	circuitBreaker *CircuitBreaker
+	mutex          sync.RWMutex
+	lastError      error
+	disabled       bool
+}
+
+// CircuitBreaker implements a simple circuit breaker pattern.
+type CircuitBreaker struct {
+	failureCount    int
+	failureLimit    int
+	resetTimeout    time.Duration
+	lastFailureTime time.Time
+	state           CircuitBreakerState
+	mutex           sync.RWMutex
+}
+
+type CircuitBreakerState int
+
+const (
+	CircuitClosed CircuitBreakerState = iota
+	CircuitOpen
+	CircuitHalfOpen
+)
+
+// NewCircuitBreaker creates a new circuit breaker.
+func NewCircuitBreaker(failureLimit int, resetTimeout time.Duration) *CircuitBreaker {
+	return &CircuitBreaker{
+		failureLimit: failureLimit,
+		resetTimeout: resetTimeout,
+		state:        CircuitClosed,
+	}
+}
+
+// Call executes a function with circuit breaker protection.
+func (cb *CircuitBreaker) Call(fn func() error) error {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	// Check if circuit should be reset
+	if cb.state == CircuitOpen && time.Since(cb.lastFailureTime) > cb.resetTimeout {
+		cb.state = CircuitHalfOpen
+		cb.failureCount = 0
+	}
+
+	// If circuit is open, return error immediately
+	if cb.state == CircuitOpen {
+		return fmt.Errorf("circuit breaker is open")
+	}
+
+	// Execute function
+	err := fn()
+	if err != nil {
+		cb.failureCount++
+		cb.lastFailureTime = time.Now()
+
+		// Open circuit if failure limit reached
+		if cb.failureCount >= cb.failureLimit {
+			cb.state = CircuitOpen
+		}
+		return err
+	}
+
+	// Success - reset circuit
+	if cb.state == CircuitHalfOpen {
+		cb.state = CircuitClosed
+	}
+	cb.failureCount = 0
+
+	return nil
 }
 
 // ServiceStatus represents the status information for a plantd service.
@@ -82,36 +152,63 @@ func NewBrokerService(cfg *config.Config) (*BrokerService, error) {
 		"timeout":         cfg.Services.Timeout,
 	}).Debug("Broker service configuration loaded")
 
-	// Create MDP client for broker communication
-	client, err := mdp.NewClient(brokerEndpoint)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create MDP client: %w", err)
+	// Create circuit breaker to prevent memory corruption issues
+	circuitBreaker := NewCircuitBreaker(3, 30*time.Second) // 3 failures, 30s reset
+
+	// Create broker service without client initially
+	bs := &BrokerService{
+		config:         cfg,
+		logger:         logger,
+		circuitBreaker: circuitBreaker,
+		disabled:       false,
 	}
 
-	// Parse timeout
-	timeout, err := time.ParseDuration(cfg.Services.Timeout)
+	// Try to create MDP client with circuit breaker protection
+	err := circuitBreaker.Call(func() error {
+		client, err := mdp.NewClient(brokerEndpoint)
+		if err != nil {
+			return fmt.Errorf("failed to create MDP client: %w", err)
+		}
+
+		// Parse timeout
+		timeout, err := time.ParseDuration(cfg.Services.Timeout)
+		if err != nil {
+			timeout = 30 * time.Second
+			logger.WithError(err).Warn("Failed to parse services timeout, using default 30s")
+		}
+		client.SetTimeout(timeout)
+
+		bs.mutex.Lock()
+		bs.client = client
+		bs.mutex.Unlock()
+
+		return nil
+	})
+
 	if err != nil {
-		timeout = 30 * time.Second
-		logger.WithError(err).Warn("Failed to parse services timeout, using default 30s")
+		logger.WithError(err).Warn("Failed to initialize broker client, broker functionality will be disabled")
+		bs.disabled = true
+		bs.lastError = err
+		// Don't return error - allow service to start without broker
+	} else {
+		logger.WithFields(log.Fields{
+			"broker_endpoint": cfg.Services.BrokerEndpoint,
+			"timeout":         cfg.Services.Timeout,
+		}).Info("Broker service client initialized")
 	}
-	client.SetTimeout(timeout)
 
-	logger.WithFields(log.Fields{
-		"broker_endpoint": cfg.Services.BrokerEndpoint,
-		"timeout":         timeout,
-	}).Info("Broker service client initialized")
-
-	return &BrokerService{
-		client: client,
-		config: cfg,
-		logger: logger,
-	}, nil
+	return bs, nil
 }
 
 // Close closes the broker service client connection.
 func (bs *BrokerService) Close() error {
+	bs.mutex.Lock()
+	defer bs.mutex.Unlock()
+
 	if bs.client != nil {
-		return bs.client.Close()
+		err := bs.client.Close()
+		bs.client = nil
+		return err
 	}
 	return nil
 }
@@ -120,10 +217,22 @@ func (bs *BrokerService) Close() error {
 func (bs *BrokerService) GetServiceStatuses(ctx context.Context) ([]ServiceStatus, error) {
 	bs.logger.Debug("Requesting service statuses from broker")
 
+	// Check if broker service is disabled
+	bs.mutex.RLock()
+	disabled := bs.disabled
+	lastError := bs.lastError
+	bs.mutex.RUnlock()
+
+	if disabled {
+		bs.logger.WithError(lastError).Warn("Broker service is disabled, returning empty service list")
+		return []ServiceStatus{}, nil
+	}
+
 	// Query broker for service list using MMI (Management Interface)
 	response, err := bs.queryMMI(ctx, "mmi.services")
 	if err != nil {
-		return nil, fmt.Errorf("failed to query services: %w", err)
+		bs.logger.WithError(err).Warn("Failed to query services from broker")
+		return []ServiceStatus{}, nil // Return empty list instead of error to prevent app crash
 	}
 
 	if len(response) == 0 {
@@ -290,18 +399,53 @@ func (bs *BrokerService) RestartService(ctx context.Context, serviceName string)
 
 // queryMMI queries the broker's Management Interface (MMI).
 func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, error) {
-	bs.logger.WithField("query", query).Trace("Sending MMI query")
+	bs.mutex.RLock()
+	disabled := bs.disabled
+	lastError := bs.lastError
+	client := bs.client
+	bs.mutex.RUnlock()
 
-	// Send MMI query to broker
-	err := bs.client.Send(query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send MMI query: %w", err)
+	if disabled {
+		return nil, fmt.Errorf("broker service is disabled due to previous errors: %w", lastError)
 	}
 
-	// Receive response
-	response, err := bs.client.Recv()
+	if client == nil {
+		return nil, fmt.Errorf("broker client is not initialized")
+	}
+
+	bs.logger.WithField("query", query).Trace("Sending MMI query")
+
+	var response []string
+	err := bs.circuitBreaker.Call(func() error {
+		// Send MMI query to broker
+		err := client.Send(query)
+		if err != nil {
+			return fmt.Errorf("failed to send MMI query: %w", err)
+		}
+
+		// Receive response
+		resp, err := client.Recv()
+		if err != nil {
+			return fmt.Errorf("failed to receive MMI response: %w", err)
+		}
+
+		response = resp
+		return nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to receive MMI response: %w", err)
+		bs.logger.WithError(err).WithField("query", query).Error("MMI query failed")
+
+		// If circuit breaker is now open, disable the service
+		if bs.circuitBreaker.state == CircuitOpen {
+			bs.mutex.Lock()
+			bs.disabled = true
+			bs.lastError = err
+			bs.mutex.Unlock()
+			bs.logger.Warn("Broker service disabled due to circuit breaker opening")
+		}
+
+		return nil, err
 	}
 
 	bs.logger.WithField("query", query).WithField("response", response).
@@ -442,4 +586,37 @@ func (bs *BrokerService) HealthCheck(ctx context.Context) (map[string]interface{
 	}
 
 	return healthStatus, nil
+}
+
+// IsAvailable returns whether the broker service is available for use.
+func (bs *BrokerService) IsAvailable() bool {
+	bs.mutex.RLock()
+	defer bs.mutex.RUnlock()
+	return !bs.disabled && bs.client != nil
+}
+
+// GetStatus returns the current status of the broker service.
+func (bs *BrokerService) GetStatus() map[string]interface{} {
+	bs.mutex.RLock()
+	defer bs.mutex.RUnlock()
+
+	status := map[string]interface{}{
+		"available": !bs.disabled && bs.client != nil,
+		"disabled":  bs.disabled,
+	}
+
+	if bs.lastError != nil {
+		status["last_error"] = bs.lastError.Error()
+	}
+
+	if bs.circuitBreaker != nil {
+		bs.circuitBreaker.mutex.RLock()
+		status["circuit_breaker"] = map[string]interface{}{
+			"state":         bs.circuitBreaker.state,
+			"failure_count": bs.circuitBreaker.failureCount,
+		}
+		bs.circuitBreaker.mutex.RUnlock()
+	}
+
+	return status
 }

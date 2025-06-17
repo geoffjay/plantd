@@ -27,6 +27,7 @@ func NewAuthMiddleware(sessionManager *SessionManager, identityClient *IdentityC
 
 	// Define paths that don't require authentication
 	excludedPaths := []string{
+		"/",
 		"/api/health",
 		"/api/ping",
 		"/login",

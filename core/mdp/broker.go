@@ -248,18 +248,18 @@ func (b *Broker) Run(done chan bool) {
 				log.WithFields(log.Fields{
 					"total_frames": len(msg),
 					"raw_frames":   msg,
-				}).Debug("processing incoming message")
+				}).Trace("processing incoming message")
 
 				sender, msg := util.PopStr(msg)
 				log.WithFields(log.Fields{
 					"sender":           sender,
 					"remaining_frames": len(msg),
-				}).Debug("extracted sender")
+				}).Trace("extracted sender")
 
 				_, msg = util.PopStr(msg) // Pop empty delimiter
 				log.WithFields(log.Fields{
 					"remaining_frames_after_delimiter": len(msg),
-				}).Debug("popped empty delimiter")
+				}).Trace("popped empty delimiter")
 
 				header, msg := util.PopStr(msg)
 				log.WithFields(log.Fields{
@@ -268,7 +268,7 @@ func (b *Broker) Run(done chan bool) {
 					"expected_worker":  MdpwWorker,
 					"remaining_frames": len(msg),
 					"remaining_data":   msg,
-				}).Debug("extracted header for processing")
+				}).Trace("extracted header for processing")
 
 				switch header {
 				case MdpcClient:
@@ -286,7 +286,7 @@ func (b *Broker) Run(done chan bool) {
 						"sender":         sender,
 						"command":        command,
 						"message_frames": len(msg),
-					}).Debug("routing to ClientMsg")
+					}).Trace("routing to ClientMsg")
 
 					// Validate command is REQUEST for MDP v0.2
 					if command != MdpcRequest {
@@ -303,7 +303,7 @@ func (b *Broker) Run(done chan bool) {
 					log.WithFields(log.Fields{
 						"sender":         sender,
 						"message_frames": len(msg),
-					}).Debug("routing to WorkerMsg")
+					}).Trace("routing to WorkerMsg")
 					b.WorkerMsg(sender, msg)
 				default:
 					log.WithFields(log.Fields{

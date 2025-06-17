@@ -44,6 +44,9 @@ func (dh *DashboardHandler) ShowDashboard(c *fiber.Ctx) error {
 	logger := log.WithField("handler", "dashboard.show")
 	logger.Debug("Rendering dashboard page")
 
+	// Set content type to HTML
+	c.Set("Content-Type", "text/html; charset=utf-8")
+
 	ctx := context.Background()
 
 	// Get user context from session

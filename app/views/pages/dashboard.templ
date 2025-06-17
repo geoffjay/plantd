@@ -59,7 +59,7 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Services</p>
-								<p id="service-count" class="text-2xl font-semibold text-gray-900">{fmt.Sprintf("%d", data.ServiceCount)}</p>
+								<p id="service-count" class="text-2xl font-semibold text-gray-900">{ fmt.Sprintf("%d", data.ServiceCount) }</p>
 							</div>
 						</div>
 					</div>
@@ -75,7 +75,7 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Health</p>
-								<p id="health-status" class="text-2xl font-semibold text-gray-900 capitalize">{data.HealthStatus}</p>
+								<p id="health-status" class="text-2xl font-semibold text-gray-900 capitalize">{ data.HealthStatus }</p>
 							</div>
 						</div>
 					</div>
@@ -91,7 +91,7 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Requests/sec</p>
-								<p id="request-rate" class="text-2xl font-semibold text-gray-900">{data.RequestRate}</p>
+								<p id="request-rate" class="text-2xl font-semibold text-gray-900">{ data.RequestRate }</p>
 							</div>
 						</div>
 					</div>
@@ -107,7 +107,7 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Uptime</p>
-								<p id="system-uptime" class="text-2xl font-semibold text-gray-900">{data.Uptime}</p>
+								<p id="system-uptime" class="text-2xl font-semibold text-gray-900">{ data.Uptime }</p>
 							</div>
 						</div>
 					</div>
@@ -120,15 +120,15 @@ templ dashboardContents(data *DashboardData) {
 						<h3 class="text-lg font-medium text-gray-900 mb-4">Service Status</h3>
 						if len(data.Services) > 0 {
 							<div class="space-y-3">
-															for i, _ := range data.Services {
-								<div class="flex items-center justify-between p-3 bg-gray-50 rounded-md">
-									<div class="flex items-center">
-										<div class="w-3 h-3 bg-green-400 rounded-full mr-3"></div>
-										<span class="font-medium text-gray-900">{ fmt.Sprintf("Service %d", i+1) }</span>
+								for i, _ := range data.Services {
+									<div class="flex items-center justify-between p-3 bg-gray-50 rounded-md">
+										<div class="flex items-center">
+											<div class="w-3 h-3 bg-green-400 rounded-full mr-3"></div>
+											<span class="font-medium text-gray-900">{ fmt.Sprintf("Service %d", i+1) }</span>
+										</div>
+										<div class="text-sm text-gray-500">Active</div>
 									</div>
-									<div class="text-sm text-gray-500">Active</div>
-								</div>
-							}
+								}
 							</div>
 						} else {
 							<div class="text-center py-8">
@@ -147,14 +147,14 @@ templ dashboardContents(data *DashboardData) {
 							<div class="flex items-center justify-between">
 								<span class="text-sm font-medium text-gray-500">Overall Status</span>
 								<span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full capitalize">
-									{data.HealthStatus}
+									{ data.HealthStatus }
 								</span>
 							</div>
 							
 							if data.HealthComponents != nil && len(data.HealthComponents) > 0 {
 								for name, _ := range data.HealthComponents {
 									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-700">{name}</span>
+										<span class="text-sm text-gray-700">{ name }</span>
 										<div class="w-3 h-3 bg-green-400 rounded-full"></div>
 									</div>
 								}
@@ -198,19 +198,11 @@ templ dashboardContents(data *DashboardData) {
 					<div class="bg-white rounded-lg shadow p-6">
 						<h3 class="text-lg font-medium text-gray-900 mb-4">Performance Metrics</h3>
 						<div class="h-64 flex items-center justify-center bg-gray-50 rounded-md">
-							<div class="text-center">
-								<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-								</svg>
-								<p class="mt-2 text-sm text-gray-500">Performance chart will be displayed here</p>
-							</div>
+							<p class="text-gray-500">Performance charts will be displayed here</p>
 						</div>
 					</div>
 				</div>
 			</main>
 		</div>
 	</div>
-	
-	<!-- Dashboard Real-time Updates JavaScript -->
-	<script src="/static/js/dashboard.js"></script>
 } 
