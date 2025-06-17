@@ -1,0 +1,292 @@
+package pages
+
+import (
+	"fmt"
+	"github.com/geoffjay/plantd/app/views/layouts"
+	"github.com/geoffjay/plantd/app/views/components"
+)
+
+// ServicesData represents the data structure for services page rendering.
+type ServicesData struct {
+	User         interface{}     `json:"user"`
+	Services     []interface{}   `json:"services"`
+	ServiceCount int             `json:"service_count"`
+	Filter       string          `json:"filter"`
+	Sort         string          `json:"sort"`
+}
+
+// ServiceDetailsData represents the data structure for service details page rendering.
+type ServiceDetailsData struct {
+	User          interface{}     `json:"user"`
+	ServiceName   string          `json:"service_name"`
+	ServiceData   interface{}     `json:"service_data"`
+	HealthData    interface{}     `json:"health_data"`
+	WorkerActions []string        `json:"worker_actions"`
+}
+
+templ Services(data *ServicesData) {
+	@layouts.Base(servicesContents(data))
+}
+
+templ servicesContents(data *ServicesData) {
+	<div class="min-h-screen bg-gray-50">
+		@components.Header()
+		
+		<div class="flex">
+			@components.Sidenav()
+			
+			<main class="flex-1 p-6">
+				<div class="mb-6 flex items-center justify-between">
+					<div>
+						<h1 class="text-2xl font-bold text-gray-900">Services</h1>
+						<p class="text-gray-600">Monitor and manage system services</p>
+					</div>
+					<div class="flex items-center space-x-4">
+						<button onclick="refreshServices()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+							Refresh
+						</button>
+					</div>
+				</div>
+
+				<!-- Filter and Search Controls -->
+				<div class="bg-white rounded-lg shadow mb-6 p-4">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center space-x-4">
+							<div>
+								<label for="filter" class="block text-sm font-medium text-gray-700 mb-1">Filter</label>
+								<select id="filter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+									<option value="all">All Services</option>
+									<option value="healthy">Healthy</option>
+									<option value="unhealthy">Unhealthy</option>
+									<option value="running">Running</option>
+									<option value="stopped">Stopped</option>
+								</select>
+							</div>
+							<div>
+								<label for="sort" class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
+								<select id="sort" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+									<option value="name">Name</option>
+									<option value="status">Status</option>
+									<option value="uptime">Uptime</option>
+									<option value="workers">Workers</option>
+								</select>
+							</div>
+						</div>
+						<div class="text-sm text-gray-500">
+							Total: { fmt.Sprintf("%d", data.ServiceCount) } services
+						</div>
+					</div>
+				</div>
+
+				<!-- Services List -->
+				<div class="bg-white rounded-lg shadow">
+					<div class="px-6 py-4 border-b border-gray-200">
+						<h3 class="text-lg font-medium text-gray-900">Service Status</h3>
+					</div>
+					
+					if len(data.Services) > 0 {
+						<div class="divide-y divide-gray-200">
+							for i, _ := range data.Services {
+								<div class="px-6 py-4 hover:bg-gray-50">
+									<div class="flex items-center justify-between">
+										<div class="flex items-center">
+											<div class="w-3 h-3 bg-green-400 rounded-full mr-4"></div>
+											<div>
+												<h4 class="text-sm font-medium text-gray-900">{ fmt.Sprintf("Service %d", i+1) }</h4>
+												<p class="text-sm text-gray-500">Description for service { fmt.Sprintf("%d", i+1) }</p>
+											</div>
+										</div>
+										<div class="flex items-center space-x-4">
+											<div class="text-right">
+												<div class="text-sm font-medium text-gray-900">2 workers</div>
+												<div class="text-xs text-gray-500">Uptime: 2h 15m</div>
+											</div>
+											<span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+												Healthy
+											</span>
+											<div class="relative">
+												<button class="text-gray-400 hover:text-gray-600 focus:outline-none" onclick="toggleServiceMenu(this)" data-service-index={ fmt.Sprintf("%d", i) }>
+													<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+														<path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
+													</svg>
+												</button>
+												<div id={ fmt.Sprintf("service-menu-%d", i) } class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden">
+													<div class="py-1">
+														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">View Details</a>
+														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Restart</a>
+														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Stop</a>
+														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Scale</a>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							}
+						</div>
+					} else {
+						<div class="px-6 py-12 text-center">
+							<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+							</svg>
+							<p class="mt-2 text-sm text-gray-500">No services available</p>
+							<p class="text-xs text-gray-400">Services will appear here when they are discovered</p>
+						</div>
+					}
+				</div>
+
+				<!-- Service Actions Modal (Hidden by default) -->
+				<div id="service-action-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+					<div class="bg-white rounded-lg p-6 w-96">
+						<h3 id="modal-title" class="text-lg font-medium text-gray-900 mb-4">Service Action</h3>
+						<div id="modal-content" class="mb-4">
+							<!-- Content will be inserted by JavaScript -->
+						</div>
+						<div class="flex justify-end space-x-3">
+							<button onclick="closeServiceModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
+								Cancel
+							</button>
+							<button id="modal-confirm" onclick="confirmServiceAction()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">
+								Confirm
+							</button>
+						</div>
+					</div>
+				</div>
+			</main>
+		</div>
+	</div>
+	
+	<!-- Services Management JavaScript -->
+	<script src="/static/js/services.js"></script>
+}
+
+templ ServiceDetails(data *ServiceDetailsData) {
+	@layouts.Base(serviceDetailsContents(data))
+}
+
+templ serviceDetailsContents(data *ServiceDetailsData) {
+	<div class="min-h-screen bg-gray-50">
+		@components.Header()
+		
+		<div class="flex">
+			@components.Sidenav()
+			
+			<main class="flex-1 p-6">
+				<div class="mb-6 flex items-center justify-between">
+					<div class="flex items-center">
+						<a href="/services" class="text-gray-400 hover:text-gray-600 mr-4">
+							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+							</svg>
+						</a>
+						<div>
+							<h1 class="text-2xl font-bold text-gray-900">{ data.ServiceName }</h1>
+							<p class="text-gray-600">Service details and management</p>
+						</div>
+					</div>
+					<div class="flex items-center space-x-3">
+						<button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+							Start
+						</button>
+						<button class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+							Restart
+						</button>
+						<button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+							Stop
+						</button>
+					</div>
+				</div>
+
+				<!-- Service Overview Cards -->
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0">
+								<div class="w-8 h-8 bg-green-100 rounded-md flex items-center justify-center">
+									<div class="w-3 h-3 bg-green-400 rounded-full"></div>
+								</div>
+							</div>
+							<div class="ml-4">
+								<p class="text-sm font-medium text-gray-500">Status</p>
+								<p class="text-xl font-semibold text-gray-900">Healthy</p>
+							</div>
+						</div>
+					</div>
+					
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0">
+								<div class="w-8 h-8 bg-blue-100 rounded-md flex items-center justify-center">
+									<svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+									</svg>
+								</div>
+							</div>
+							<div class="ml-4">
+								<p class="text-sm font-medium text-gray-500">Workers</p>
+								<p class="text-xl font-semibold text-gray-900">3</p>
+							</div>
+						</div>
+					</div>
+					
+					<div class="bg-white rounded-lg shadow p-6">
+						<div class="flex items-center">
+							<div class="flex-shrink-0">
+								<div class="w-8 h-8 bg-purple-100 rounded-md flex items-center justify-center">
+									<svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+									</svg>
+								</div>
+							</div>
+							<div class="ml-4">
+								<p class="text-sm font-medium text-gray-500">Uptime</p>
+								<p class="text-xl font-semibold text-gray-900">2h 15m</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Service Details and Logs -->
+				<div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+					<!-- Service Configuration -->
+					<div class="bg-white rounded-lg shadow p-6">
+						<h3 class="text-lg font-medium text-gray-900 mb-4">Configuration</h3>
+						<div class="space-y-3">
+							<div class="flex justify-between py-2 border-b border-gray-100">
+								<span class="text-sm font-medium text-gray-500">Service Type</span>
+								<span class="text-sm text-gray-900">Worker Service</span>
+							</div>
+							<div class="flex justify-between py-2 border-b border-gray-100">
+								<span class="text-sm font-medium text-gray-500">Protocol</span>
+								<span class="text-sm text-gray-900">MDP v0.2</span>
+							</div>
+							<div class="flex justify-between py-2 border-b border-gray-100">
+								<span class="text-sm font-medium text-gray-500">Endpoint</span>
+								<span class="text-sm text-gray-900 font-mono">tcp://localhost:5555</span>
+							</div>
+							<div class="flex justify-between py-2 border-b border-gray-100">
+								<span class="text-sm font-medium text-gray-500">Auto Restart</span>
+								<span class="text-sm text-green-600">Enabled</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Recent Logs -->
+					<div class="bg-white rounded-lg shadow p-6">
+						<h3 class="text-lg font-medium text-gray-900 mb-4">Recent Logs</h3>
+						<div class="bg-gray-900 rounded-md p-4 h-64 overflow-y-auto">
+							<div class="text-green-400 text-xs font-mono space-y-1">
+								<div>[2024-01-15 14:30:25] INFO: Service started successfully</div>
+								<div>[2024-01-15 14:30:26] INFO: Worker pool initialized with 3 workers</div>
+								<div>[2024-01-15 14:30:27] INFO: Connected to broker at tcp://localhost:5555</div>
+								<div>[2024-01-15 14:30:28] INFO: Ready to process requests</div>
+								<div>[2024-01-15 14:35:12] INFO: Processed 127 requests in last 5 minutes</div>
+								<div>[2024-01-15 14:40:18] INFO: Health check passed</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</main>
+		</div>
+	</div>
+} 

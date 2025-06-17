@@ -9,6 +9,7 @@ import (
 	_ "github.com/geoffjay/plantd/app/docs"
 	"github.com/geoffjay/plantd/app/handlers"
 	"github.com/geoffjay/plantd/app/internal/auth"
+	internalHandlers "github.com/geoffjay/plantd/app/internal/handlers"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/app/views/pages"
 	"github.com/geoffjay/plantd/core/util"
@@ -65,7 +66,7 @@ func httpHandler(f http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(f)
 }
 
-func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware) {
+func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware, service *service) {
 	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/static")
 
 	csrfConfig := csrf.Config{
@@ -83,12 +84,43 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 
 	app.Static("/static", staticContents)
 
+	// Create dashboard handler
+	dashboardHandler := internalHandlers.NewDashboardHandler(
+		service.brokerService,
+		service.stateService,
+		service.healthService,
+		service.metricsService,
+	)
+
+	// Create SSE handler for real-time updates
+	sseHandler := internalHandlers.NewSSEHandler(
+		service.brokerService,
+		service.healthService,
+		service.metricsService,
+	)
+
+	// Create services handler
+	servicesHandler := internalHandlers.NewServicesHandler(
+		service.brokerService,
+		service.stateService,
+		service.healthService,
+	)
+
 	// Public routes
 	app.Get("/", csrfMiddleware, handlers.Index)
 	app.Get("/login", csrfMiddleware, authHandlers.LoginPage)
 	app.Post("/login", csrfMiddleware, authHandlers.Login)
 	app.Get("/logout", authHandlers.Logout)
 	app.Post("/register", authHandlers.Register)
+
+	// Protected routes
+	protected := app.Group("/", authMiddleware.RequireAuth())
+	protected.Get("/dashboard", csrfMiddleware, dashboardHandler.ShowDashboard)
+	protected.Get("/services", csrfMiddleware, servicesHandler.ShowServices)
+
+	// Real-time update routes (SSE)
+	protected.Get("/dashboard/sse", sseHandler.DashboardSSE)
+	protected.Get("/system/status/sse", sseHandler.SystemStatusSSE)
 
 	app.Get("/sse", handlers.ReloadSSE)
 
@@ -99,6 +131,14 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 	api.Post("/auth/refresh", authHandlers.RefreshToken)
 	api.Get("/auth/profile", authMiddleware.RequireAuth(), authHandlers.UserProfile)
 	api.Get("/docs/*", swagger.HandlerDefault)
+
+	// Dashboard API routes
+	api.Get("/dashboard/data", authMiddleware.RequireAuth(), dashboardHandler.GetDashboardData)
+	api.Get("/system/status", authMiddleware.RequireAuth(), dashboardHandler.GetSystemStatus)
+
+	// Services API routes
+	api.Get("/services", authMiddleware.RequireAuth(), servicesHandler.GetServicesAPI)
+	api.Post("/services/:name/restart", authMiddleware.RequireAuth(), servicesHandler.RestartService)
 
 	v1 := api.Group("/v1", func(c *fiber.Ctx) error {
 		c.Set("Version", "v1")

@@ -15,9 +15,10 @@ templ Sidenav() {
 		xyz="fade left-100%"
 		_="init if localStorage.sidebarOpen == 'true' then remove .hidden"
 	>
-		@SidenavItem("/", "Dashboard", "table-columns", nil)
+		@SidenavItem("/dashboard", "Dashboard", "table-columns", nil)
+		@SidenavItem("/services", "Services", "paper-plane", nil)
 		<div class="p-4"><hr/></div>
-		@SidenavItem("/api/v1/services", "Services", "paper-plane", "#services-menu")
+		@SidenavItem("/api/v1/services", "API Services", "gear", "#services-menu")
 		<div
 			id="services-menu"
 			class="hidden"

@@ -18,6 +18,7 @@ import (
 	conf "github.com/geoffjay/plantd/app/config"
 	"github.com/geoffjay/plantd/app/handlers"
 	"github.com/geoffjay/plantd/app/internal/auth"
+	"github.com/geoffjay/plantd/app/internal/services"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/core/util"
 
@@ -34,7 +35,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type service struct{}
+type service struct {
+	// Service integrations
+	brokerService  *services.BrokerService
+	stateService   *services.StateService
+	healthService  *services.HealthService
+	metricsService *services.MetricsService
+}
 
 func (s *service) init() {
 	log.WithFields(log.Fields{
@@ -42,8 +49,36 @@ func (s *service) init() {
 		"context": "service.init",
 	}).Debug("initializing")
 
-	// TODO: Initialize Identity Service client and other service integrations
-	// Repository initialization removed - using Identity Service for user management
+	config := conf.GetConfig()
+
+	// Initialize Broker Service
+	log.Debug("Initializing Broker Service")
+	brokerService, err := services.NewBrokerService(config)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to initialize Broker Service")
+	}
+	s.brokerService = brokerService
+
+	// Initialize State Service
+	log.Debug("Initializing State Service")
+	stateService, err := services.NewStateService(config)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to initialize State Service")
+	}
+	s.stateService = stateService
+
+	// Initialize Health Service (depends on broker and state services)
+	log.Debug("Initializing Health Service")
+	s.healthService = services.NewHealthService(s.brokerService, s.stateService, nil, config)
+
+	// Initialize Metrics Service (depends on broker and state services)
+	log.Debug("Initializing Metrics Service")
+	s.metricsService = services.NewMetricsService(s.brokerService, s.stateService, config)
+
+	log.WithFields(log.Fields{
+		"service": "app",
+		"context": "service.init",
+	}).Info("All services initialized successfully")
 }
 
 func (s *service) run(ctx context.Context, wg *sync.WaitGroup) {
@@ -54,10 +89,20 @@ func (s *service) run(ctx context.Context, wg *sync.WaitGroup) {
 		"context": "service.run",
 	}).Debug("starting")
 
+	// Start metrics collection
+	if s.metricsService != nil {
+		go s.metricsService.StartCollection(ctx)
+	}
+
 	wg.Add(1)
 	go s.runApp(ctx, wg)
 
 	<-ctx.Done()
+
+	// Stop metrics collection
+	if s.metricsService != nil {
+		s.metricsService.StopCollection()
+	}
 
 	log.WithFields(log.Fields{
 		"service": "app",
@@ -107,6 +152,12 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		authHandlers := handlers.NewAuthHandlers(identityClient, sessionManager)
 		authMiddleware := auth.NewAuthMiddleware(sessionManager, identityClient)
 
+		// Update health service with identity client now that it's available
+		if s.healthService != nil {
+			// Pass identity client to health service for health checks
+			s.healthService = services.NewHealthService(s.brokerService, s.stateService, identityClient, config)
+		}
+
 		handlers.SessionStore = session.New(config.Session.ToSessionConfig())
 
 		app.Use(helmet.New())
@@ -119,7 +170,8 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 			Max:        50,
 		}))
 
-		initializeRouter(app, authHandlers, authMiddleware)
+		// Initialize router with services
+		initializeRouter(app, authHandlers, authMiddleware, s)
 
 		cert := initializeCert()
 		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
