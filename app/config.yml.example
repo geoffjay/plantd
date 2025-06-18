@@ -1,0 +1,53 @@
+# Plantd App Service Configuration Example
+# Copy this to config.yml and customize for your environment
+
+env: development
+client-endpoint: tcp://localhost:9797
+
+log:
+  formatter: text
+  level: info
+  loki:
+    address: http://localhost:3100
+    labels:
+      app: app
+      environment: development
+
+cors:
+  allow-credentials: true
+  allow-origins: "*"
+  allow-headers: "Origin, Content-Type, Accept, Content-Length, Accept-Language, Accept-Encoding, Connection, Authorization, Access-Control-Allow-Origin, Access-Control-Allow-Methods, Access-Control-Allow-Headers, Access-Control-Allow-Origin"
+  allow-methods: "GET, POST, HEAD, PUT, DELETE, PATCH, OPTIONS"
+
+session:
+  expiration: 2h
+  key-lookup: "cookie:__Host-session"
+  cookie-secure: true
+  cookie-http-only: true
+  cookie-same-site: "Lax"
+
+# Identity Service Integration (Phase 2)
+identity:
+  endpoint: tcp://127.0.0.1:7200
+  timeout: 30s
+  client_id: plantd-app
+
+# Services Integration (Phase 3)
+services:
+  broker_endpoint: tcp://127.0.0.1:7100
+  state_endpoint: tcp://127.0.0.1:7300
+  timeout: 30s
+
+# Enhanced Session Management (Phase 2)
+enhanced_session:
+  secret_key: "" # Set via PLANTD_APP_SESSION_SECRET environment variable
+  cookie_name: "__Host-plantd-session"
+  max_age: 7200 # 2 hours
+  secure: true
+  http_only: true
+
+# Feature Flags
+features:
+  enable_metrics: true
+  enable_config: true
+  enable_health: true 

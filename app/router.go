@@ -8,6 +8,8 @@ import (
 	cfg "github.com/geoffjay/plantd/app/config"
 	_ "github.com/geoffjay/plantd/app/docs"
 	"github.com/geoffjay/plantd/app/handlers"
+	"github.com/geoffjay/plantd/app/internal/auth"
+	internalHandlers "github.com/geoffjay/plantd/app/internal/handlers"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/app/views/pages"
 	"github.com/geoffjay/plantd/core/util"
@@ -17,6 +19,7 @@ import (
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/csrf"
+	"github.com/gofiber/fiber/v2/middleware/session"
 	"github.com/gofiber/swagger"
 	log "github.com/sirupsen/logrus"
 )
@@ -64,12 +67,11 @@ func httpHandler(f http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(f)
 }
 
-func initializeRouter(app *fiber.App) {
-	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/public")
+func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware, service *service, sessionStore *session.Store) { //nolint:revive
+	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/static")
 
 	csrfConfig := csrf.Config{
-		Session:        handlers.SessionStore,
-		KeyLookup:      "form:csrf",
+		KeyLookup:      "form:_csrf",
 		CookieName:     "__Host-csrf",
 		CookieSameSite: "Lax",
 		CookieSecure:   true,
@@ -81,18 +83,62 @@ func initializeRouter(app *fiber.App) {
 	csrfMiddleware := csrf.New(csrfConfig)
 
 	app.Static("/public", staticContents)
+	app.Static("/static", staticContents) // Keep both for compatibility
 
+	// Create dashboard handler
+	dashboardHandler := internalHandlers.NewDashboardHandler(
+		service.brokerService,
+		service.stateService,
+		service.healthService,
+		service.metricsService,
+	)
+
+	// Create SSE handler for real-time updates
+	sseHandler := internalHandlers.NewSSEHandler(
+		service.brokerService,
+		service.healthService,
+		service.metricsService,
+	)
+
+	// Create services handler
+	servicesHandler := internalHandlers.NewServicesHandler(
+		service.brokerService,
+		service.stateService,
+		service.healthService,
+	)
+
+	// Public routes
 	app.Get("/", csrfMiddleware, handlers.Index)
-	app.Get("/login", csrfMiddleware, handlers.LoginPage)
-	app.Post("/login", csrfMiddleware, handlers.Login)
-	app.Get("/logout", handlers.Logout)
-	app.Post("/register", handlers.Register)
+	app.Get("/login", csrfMiddleware, authHandlers.LoginPage)
+	app.Post("/login", csrfMiddleware, authHandlers.Login)
+	app.Get("/logout", authHandlers.Logout)
+	app.Post("/register", authHandlers.Register)
+
+	// Protected routes
+	app.Get("/dashboard", authMiddleware.RequireAuth(), csrfMiddleware, dashboardHandler.ShowDashboard)
+	app.Get("/services", authMiddleware.RequireAuth(), csrfMiddleware, servicesHandler.ShowServices)
+
+	// Real-time update routes (SSE)
+	app.Get("/dashboard/sse", authMiddleware.RequireAuth(), sseHandler.DashboardSSE)
+	app.Get("/system/status/sse", authMiddleware.RequireAuth(), sseHandler.SystemStatusSSE)
 
 	app.Get("/sse", handlers.ReloadSSE)
 
 	// API routes
 	api := app.Group("/api")
+	api.Post("/auth/login", authHandlers.Login)
+	api.Post("/auth/logout", authHandlers.Logout)
+	api.Post("/auth/refresh", authHandlers.RefreshToken)
+	api.Get("/auth/profile", authMiddleware.RequireAuth(), authHandlers.UserProfile)
 	api.Get("/docs/*", swagger.HandlerDefault)
+
+	// Dashboard API routes
+	api.Get("/dashboard/data", authMiddleware.RequireAuth(), dashboardHandler.GetDashboardData)
+	api.Get("/system/status", authMiddleware.RequireAuth(), dashboardHandler.GetSystemStatus)
+
+	// Services API routes
+	api.Get("/services", authMiddleware.RequireAuth(), servicesHandler.GetServicesAPI)
+	api.Post("/services/:name/restart", authMiddleware.RequireAuth(), servicesHandler.RestartService)
 
 	v1 := api.Group("/v1", func(c *fiber.Ctx) error {
 		c.Set("Version", "v1")

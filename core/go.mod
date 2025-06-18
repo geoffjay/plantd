@@ -11,6 +11,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.27.0
 	github.com/yukitsune/lokirus v1.0.1
 	github.com/zeromq/goczmq/v4 v4.2.1-0.20210413114303-4e50cfc0edc9
+	gopkg.in/yaml.v2 v2.4.0
 )
 
 require (
@@ -94,6 +95,5 @@ require (
 	golang.org/x/text v0.24.0 // indirect
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

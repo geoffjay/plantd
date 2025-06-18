@@ -11,3 +11,13 @@ type LoginRequest struct {
 type LoginResponse struct {
 	Token string `json:"token"`
 }
+
+// PageData represents common data passed to page templates.
+type PageData struct {
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Keywords    string `json:"keywords"`
+	Error       string `json:"error,omitempty"`
+	Success     string `json:"success,omitempty"`
+	CSRFToken   string `json:"csrf_token,omitempty"`
+}

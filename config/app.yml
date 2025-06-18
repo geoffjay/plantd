@@ -1,9 +1,0 @@
----
-version: "1"
-
-env: development
-client-endpoint: tcp://localhost:9797
-
-log:
-  formatter: text
-  level: debug

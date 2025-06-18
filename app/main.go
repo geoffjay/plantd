@@ -16,13 +16,14 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// @title Plantd Web Application
-// @version 1.0
-// @description The Plantd web application.
-// @contact.name Geoff Johnson
-// @contact.email geoff.jay@gmail.com
-// @license.name MIT
-// @license.url https://opensource.org/license/mit/
+//	@title			Plantd App Service API
+//	@version		1.0
+//	@description	App Service for the Plantd distributed control system
+//	@contact.name	API Support
+//	@contact.url	https://github.com/geoffjay/plantd/issues
+//	@host			localhost:8443
+//	@BasePath		/api/v1
+
 func main() {
 	config := cfg.GetConfig()
 

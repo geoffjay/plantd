@@ -1,17 +1,17 @@
 package handlers
 
 import (
-	"net/http"
-
-	"github.com/geoffjay/plantd/app/views"
-
-	"github.com/a-h/templ"
+	"github.com/geoffjay/plantd/app/internal/auth"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/session"
+	log "github.com/sirupsen/logrus"
 )
 
 // SessionStore app wide session store.
 var SessionStore *session.Store
+
+// SessionManager for checking authentication status
+var SessionManager *auth.SessionManager
 
 // Index renders the application index page.
 //
@@ -19,17 +19,24 @@ var SessionStore *session.Store
 //	@Description The application index page
 //	@Tags        pages
 func Index(c *fiber.Ctx) error {
-	session, err := SessionStore.Get(c)
-	if err != nil {
-		return c.SendStatus(fiber.StatusInternalServerError)
+	fields := log.Fields{
+		"service": "app",
+		"context": "handlers.index",
+		"path":    c.Path(),
+		"ip":      c.IP(),
 	}
 
-	loggedIn, _ := session.Get("loggedIn").(bool)
-	if !loggedIn {
-		return c.Redirect("/login")
+	// Check if user is authenticated by checking session directly
+	if SessionManager != nil {
+		sessionData, err := SessionManager.GetSession(c)
+		if err == nil && sessionData != nil && sessionData.UserID > 0 {
+			// User is authenticated, redirect to dashboard
+			log.WithFields(fields).WithField("user_id", sessionData.UserID).Debug("User authenticated, redirecting to dashboard")
+			return c.Redirect("/dashboard")
+		}
 	}
 
-	c.Locals("title", "App")
-
-	return views.Render(c, views.Index(), templ.WithStatus(http.StatusOK))
+	// User is not authenticated, redirect to login
+	log.WithFields(fields).Debug("User not authenticated, redirecting to login")
+	return c.Redirect("/login")
 }

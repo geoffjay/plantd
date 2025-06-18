@@ -4,7 +4,8 @@ go 1.24
 
 require (
 	github.com/geoffjay/plantd/core v0.0.0-20250608040042-47ac2c0f29bb
-	github.com/geoffjay/plantd/identity v0.0.0-20250610064958-95a7201837b4
+	github.com/geoffjay/plantd/identity v0.0.0-20250616210328-5317820bc755
+	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.3.0
 	github.com/spf13/viper v1.10.1
 	github.com/stretchr/testify v1.9.0
@@ -31,7 +32,6 @@ require (
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/pelletier/go-toml v1.9.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/spf13/afero v1.8.2 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -48,3 +48,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/gorm v1.30.0 // indirect
 )
+
+replace github.com/geoffjay/plantd/identity => ../identity

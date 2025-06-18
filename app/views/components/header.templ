@@ -48,6 +48,73 @@ templ headerHandlers() {
     </script>
 }
 
+templ mobileMenu() {
+	<div class="md:hidden">
+		<button
+			data-testid="mobile-menu-button"
+			class="inline-flex items-center justify-center p-2 rounded-md text-gray-700 hover:text-gray-900 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-slate-500"
+			_="on click toggle .hidden on #mobile-menu"
+		>
+			<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+			</svg>
+		</button>
+		<div
+			id="mobile-menu"
+			data-testid="mobile-menu"
+			class="hidden absolute top-16 left-0 right-0 bg-white shadow-lg border-t border-gray-200 z-20"
+		>
+			<div class="px-2 pt-2 pb-3 space-y-1">
+				<a href="/dashboard" class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+					Dashboard
+				</a>
+				<a href="/services" class="block px-3 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50">
+					Services
+				</a>
+			</div>
+		</div>
+	</div>
+}
+
+templ userMenu() {
+	<div class="relative ml-auto">
+		<button
+			data-testid="user-menu"
+			class="flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+			_="on click toggle .hidden on #user-menu-dropdown"
+		>
+			<i class="fa-solid fa-user"></i>
+			<span class="hidden md:inline">Menu</span>
+			<i class="fa-solid fa-chevron-down"></i>
+		</button>
+		<div
+			id="user-menu-dropdown"
+			class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-20"
+		>
+			<a
+				href="#"
+				class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+			>
+				Profile
+			</a>
+			<a
+				href="#"
+				class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+			>
+				Settings
+			</a>
+			<hr class="my-1"/>
+			<a
+				data-testid="logout-button"
+				href="/logout"
+				class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+			>
+				Sign out
+			</a>
+		</div>
+	</div>
+}
+
 templ Header() {
 	<div class={ classes(headerClasses) }>
 		<div
@@ -64,5 +131,7 @@ templ Header() {
 				alt="logo"
 			/>
 		</div>
+		@mobileMenu()
+		@userMenu()
 	</div>
 }
