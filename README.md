@@ -43,6 +43,25 @@ The list of projects that should be brought into this one:
 * [Identity](identity/README.md)
 * [Proxy](proxy/README.md)
 * [State](state/README.md)
+* [App](app/README.md) - Web application interface
+
+## Documentation
+
+### 📋 Configuration & Setup
+- **[SSL/TLS Quick Reference](docs/ssl-quick-reference.md)** - Quick solutions for common SSL/TLS scenarios
+- **[SSL/TLS Configuration Guide](docs/ssl-tls-configuration.md)** - Comprehensive guide for certificate management across all services
+- **[App Service README](app/README.md)** - Web application setup and configuration
+- **[Identity Service Documentation](identity/README.md)** - Authentication and authorization setup
+
+### 🔧 Development
+- **[SSL/TLS Testing](scripts/test-ssl)** - Built-in script for testing certificate configuration
+- **Development Setup**: Use `overmind start` for local development
+- **HTTP vs HTTPS**: Services support both modes (see SSL/TLS guide)
+
+### 🏗 Architecture
+- **[System Overview](docs/analysis/system-overview.md)** - High-level architecture
+- **[Service Architecture](docs/analysis/service-architecture.md)** - Individual service designs
+- **[Current State](docs/analysis/current-state.md)** - Project status and maturity matrix
 
 ## Contributing
 
@@ -58,6 +77,23 @@ Once complete you can start everything with `docker` and `overmind`.
 docker compose up -d
 overmind start
 ```
+
+### Development Modes
+
+**HTTPS (Default - Recommended):**
+```shell
+overmind start
+# Access: https://localhost:8443 (accept self-signed certificate)
+```
+
+**HTTP (Development Alternative):**
+```shell
+export PLANTD_APP_USE_HTTP=true
+overmind restart app
+# Access: http://localhost:8080
+```
+
+For detailed SSL/TLS configuration, see the [SSL/TLS Configuration Guide](docs/ssl-tls-configuration.md).
 
 <!-- links -->
 

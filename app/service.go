@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"strconv"
 	"sync"
@@ -122,6 +123,16 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		log.WithFields(fields).Fatal(err)
 	}
 
+	// Check if HTTP mode is enabled for development
+	useHTTP := util.Getenv("PLANTD_APP_USE_HTTP", "false") == "true"
+	if useHTTP && config.Env != "production" {
+		// Use default HTTP port if not specified and using HTTP
+		if util.Getenv("PLANTD_APP_BIND_PORT", "") == "" {
+			bindPort = 8080
+		}
+		log.WithFields(fields).Info("Running in HTTP mode (development only)")
+	}
+
 	log.WithFields(fields).Debug("starting server")
 
 	go func() {
@@ -193,16 +204,24 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		// Initialize router with services
 		initializeRouter(app, authHandlers, authMiddleware, s, sessionStore)
 
-		cert := initializeCert()
-		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 		address := fmt.Sprintf("%s:%d", bindAddress, bindPort)
 
-		ln, err := tls.Listen("tcp", address, tlsConfig)
-		if err != nil {
-			panic(err)
-		}
+		// Start server with or without TLS
+		if useHTTP && config.Env != "production" {
+			log.WithFields(fields).WithField("address", address).Info("Starting HTTP server (development only)")
+			log.WithFields(fields).Fatal(app.Listen(address))
+		} else {
+			cert := initializeCert()
+			tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 
-		log.WithFields(fields).Fatal(app.Listener(ln))
+			ln, err := tls.Listen("tcp", address, tlsConfig)
+			if err != nil {
+				panic(err)
+			}
+
+			log.WithFields(fields).WithField("address", address).Info("Starting HTTPS server")
+			log.WithFields(fields).Fatal(app.Listener(ln))
+		}
 	}()
 
 	<-ctx.Done()
@@ -253,15 +272,32 @@ func generateSelfSignedCert(certFile string, keyFile string) error {
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			Organization: []string{"Plantd Org"},
+			Organization:  []string{"Plantd Development"},
+			Country:       []string{"US"},
+			Province:      []string{""},
+			Locality:      []string{""},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 180),
+		NotAfter:  time.Now().Add(time.Hour * 24 * 365), // 1 year validity
 
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+
+		// Add Subject Alternative Names for proper localhost support
+		DNSNames: []string{
+			"localhost",
+			"*.localhost",
+			"plantd.local",
+			"*.plantd.local",
+		},
+		IPAddresses: []net.IP{
+			net.IPv4(127, 0, 0, 1), // 127.0.0.1
+			net.IPv6loopback,       // ::1
+		},
 	}
 
 	derBytes, err := x509.CreateCertificate(
