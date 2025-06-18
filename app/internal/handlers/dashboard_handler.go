@@ -236,7 +236,7 @@ func (dh *DashboardHandler) GetSystemStatus(c *fiber.Ctx) error {
 // formatRequestRate formats request rate for display.
 func formatRequestRate(rate float64) string {
 	if rate < 1 {
-		return "< 1/sec"
+		return "< 1 req/sec"
 	}
-	return fmt.Sprintf("%.1f/sec", rate)
+	return fmt.Sprintf("%.1f req/sec", rate)
 }

@@ -16,7 +16,7 @@ The plantd project is currently in a **pre-alpha state** with core infrastructur
 | **Proxy** | 🔴 Stub | 🔴 None | 🟡 Basic | 🔴 No |
 | **Logger** | 🔴 Stub | 🔴 None | 🔴 None | 🔴 No |
 | **Identity** | ✅ Complete | ✅ Good | ✅ Complete | ✅ Production Ready |
-| **App** | ✅ Dashboard and Service Management Complete (Phase 4) | 🟡 Basic | 🟡 Basic | 🟡 In Progress |
+| **App** | ✅ Dashboard and Service Management Complete (Phase 4) | ✅ Good | 🟡 Basic | 🟡 In Progress |
 | **Modules** | 🟡 Examples | 🔴 None | 🟡 Basic | 🔴 No |
 
 ### Legend

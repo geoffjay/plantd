@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -215,7 +216,9 @@ func (bs *BrokerService) Close() error {
 
 // GetServiceStatuses retrieves status information for all registered services.
 func (bs *BrokerService) GetServiceStatuses(ctx context.Context) ([]ServiceStatus, error) {
-	bs.logger.Debug("Requesting service statuses from broker")
+	if bs.logger != nil {
+		bs.logger.Debug("Requesting service statuses from broker")
+	}
 
 	// Check if broker service is disabled
 	bs.mutex.RLock()
@@ -224,19 +227,25 @@ func (bs *BrokerService) GetServiceStatuses(ctx context.Context) ([]ServiceStatu
 	bs.mutex.RUnlock()
 
 	if disabled {
-		bs.logger.WithError(lastError).Warn("Broker service is disabled, returning empty service list")
+		if bs.logger != nil {
+			bs.logger.WithError(lastError).Warn("Broker service is disabled, returning empty service list")
+		}
 		return []ServiceStatus{}, nil
 	}
 
 	// Query broker for service list using MMI (Management Interface)
 	response, err := bs.queryMMI(ctx, "mmi.services")
 	if err != nil {
-		bs.logger.WithError(err).Warn("Failed to query services from broker")
+		if bs.logger != nil {
+			bs.logger.WithError(err).Warn("Failed to query services from broker")
+		}
 		return []ServiceStatus{}, nil // Return empty list instead of error to prevent app crash
 	}
 
 	if len(response) == 0 {
-		bs.logger.Warn("No services found in broker")
+		if bs.logger != nil {
+			bs.logger.Warn("No services found in broker")
+		}
 		return []ServiceStatus{}, nil
 	}
 
@@ -248,8 +257,10 @@ func (bs *BrokerService) GetServiceStatuses(ctx context.Context) ([]ServiceStatu
 	for _, serviceName := range serviceNames {
 		status, err := bs.getServiceDetails(ctx, serviceName)
 		if err != nil {
-			bs.logger.WithError(err).WithField("service", serviceName).
-				Warn("Failed to get service details, using basic status")
+			if bs.logger != nil {
+				bs.logger.WithError(err).WithField("service", serviceName).
+					Warn("Failed to get service details, using basic status")
+			}
 
 			// Create basic status if detailed query fails
 			status = &ServiceStatus{
@@ -265,7 +276,9 @@ func (bs *BrokerService) GetServiceStatuses(ctx context.Context) ([]ServiceStatu
 		statuses = append(statuses, *status)
 	}
 
-	bs.logger.WithField("service_count", len(statuses)).Debug("Retrieved service statuses")
+	if bs.logger != nil {
+		bs.logger.WithField("service_count", len(statuses)).Debug("Retrieved service statuses")
+	}
 	return statuses, nil
 }
 
@@ -365,7 +378,22 @@ func (bs *BrokerService) GetBrokerHealth(ctx context.Context) (*BrokerHealth, er
 
 // CheckConnectivity verifies connectivity to the broker.
 func (bs *BrokerService) CheckConnectivity(ctx context.Context) error {
-	bs.logger.Debug("Checking broker connectivity")
+	bs.mutex.RLock()
+	disabled := bs.disabled
+	lastError := bs.lastError
+	bs.mutex.RUnlock()
+
+	if disabled {
+		return fmt.Errorf("broker service is disabled due to previous errors: %w", lastError)
+	}
+
+	if bs.circuitBreaker != nil && bs.circuitBreaker.state == CircuitOpen {
+		return fmt.Errorf("circuit breaker is open")
+	}
+
+	if bs.logger != nil {
+		bs.logger.Debug("Checking broker connectivity")
+	}
 
 	// Try to query broker status
 	response, err := bs.queryMMI(ctx, "mmi.status")
@@ -377,7 +405,9 @@ func (bs *BrokerService) CheckConnectivity(ctx context.Context) error {
 		return fmt.Errorf("broker returned empty status response")
 	}
 
-	bs.logger.Debug("Broker connectivity check successful")
+	if bs.logger != nil {
+		bs.logger.Debug("Broker connectivity check successful")
+	}
 	return nil
 }
 
@@ -526,9 +556,32 @@ func (bs *BrokerService) parseSimpleMetrics(response []string) *BrokerMetrics {
 			continue
 		}
 
-		// Try to parse as numeric value
-		if val, err := strconv.ParseInt(item, 10, 64); err == nil {
-			metrics.MessagesProcessed = val
+		// Parse key:value format
+		parts := strings.SplitN(item, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+
+		switch key {
+		case "messages_processed":
+			if val, err := strconv.ParseInt(value, 10, 64); err == nil {
+				metrics.MessagesProcessed = val
+			}
+		case "avg_response_time":
+			if duration, err := time.ParseDuration(value); err == nil {
+				metrics.AvgResponseTime = duration
+			}
+		case "error_count":
+			if val, err := strconv.ParseInt(value, 10, 64); err == nil {
+				metrics.ErrorCount = val
+			}
+		case "active_connections":
+			if val, err := strconv.Atoi(value); err == nil {
+				metrics.ActiveConnections = val
+			}
 		}
 	}
 
@@ -605,8 +658,21 @@ func (bs *BrokerService) GetStatus() map[string]interface{} {
 		"disabled":  bs.disabled,
 	}
 
+	// Add status and endpoint fields for compatibility
+	if bs.disabled {
+		status["status"] = "disabled"
+	} else {
+		status["status"] = "healthy"
+	}
+
+	if bs.config != nil {
+		status["endpoint"] = bs.config.Services.BrokerEndpoint
+	}
+
 	if bs.lastError != nil {
 		status["last_error"] = bs.lastError.Error()
+	} else {
+		status["last_error"] = nil
 	}
 
 	if bs.circuitBreaker != nil {

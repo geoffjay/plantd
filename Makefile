@@ -71,7 +71,7 @@ build-module-echo: ; $(info $(M) Building echo module...)
 	go build -o ../../build/plantd-module-echo $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-test: test-pre test-core test-broker test-identity test-state
+test: test-pre test-core test-broker test-identity test-state test-app
 
 test-pre: ; $(info $(M) Testing projects...)
 	@mkdir -p coverage/
@@ -103,6 +103,17 @@ test-state:
 	@pushd state >/dev/null; \
 	go test $(TEST_ARGS) ./... -v; \
 	if [[ -f coverage.txt ]]; then mv coverage.txt ../coverage/state.txt; fi; \
+	popd >/dev/null
+
+test-app:
+	@pushd app >/dev/null; \
+	go test $(TEST_ARGS) ./... -v; \
+	if [[ -f coverage.txt ]]; then mv coverage.txt ../coverage/app.txt; fi; \
+	popd >/dev/null
+
+test-e2e:
+	@pushd app >/dev/null; \
+	bun run test:e2e; \
 	popd >/dev/null
 
 # live reload helpers
