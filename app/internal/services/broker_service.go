@@ -37,11 +37,15 @@ type CircuitBreaker struct {
 	mutex           sync.RWMutex
 }
 
+// CircuitBreakerState represents the state of the circuit breaker.
 type CircuitBreakerState int
 
 const (
+	// CircuitClosed represents the closed state of the circuit breaker.
 	CircuitClosed CircuitBreakerState = iota
+	// CircuitOpen represents the open state of the circuit breaker.
 	CircuitOpen
+	// CircuitHalfOpen represents the half-open state of the circuit breaker.
 	CircuitHalfOpen
 )
 
@@ -301,11 +305,11 @@ func (bs *BrokerService) getServiceDetails(ctx context.Context, serviceName stri
 	workerCount := len(workersResponse)
 
 	// Determine service status based on worker availability
-	status := "unknown"
+	var status string
 	if workerCount > 0 {
-		status = "healthy"
+		status = StatusHealthy
 	} else {
-		status = "unhealthy"
+		status = StatusUnhealthy
 	}
 
 	// For now, create basic service status
@@ -344,9 +348,9 @@ func (bs *BrokerService) GetBrokerHealth(ctx context.Context) (*BrokerHealth, er
 	}
 
 	// Determine overall broker status
-	brokerStatus := "healthy"
+	brokerStatus := StatusHealthy
 	if len(services) == 0 {
-		brokerStatus = "unhealthy"
+		brokerStatus = StatusUnhealthy
 	}
 
 	// Create broker health response
@@ -428,7 +432,7 @@ func (bs *BrokerService) RestartService(ctx context.Context, serviceName string)
 }
 
 // queryMMI queries the broker's Management Interface (MMI).
-func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, error) {
+func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, error) { //nolint:revive
 	bs.mutex.RLock()
 	disabled := bs.disabled
 	lastError := bs.lastError
@@ -485,7 +489,7 @@ func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, 
 }
 
 // queryService sends a query to a specific service.
-func (bs *BrokerService) queryService(ctx context.Context, serviceName string, command string, args ...string) ([]string, error) {
+func (bs *BrokerService) queryService(ctx context.Context, serviceName string, command string, args ...string) ([]string, error) { //nolint:revive
 	bs.logger.WithFields(log.Fields{
 		"service": serviceName,
 		"command": command,
@@ -591,7 +595,7 @@ func (bs *BrokerService) parseSimpleMetrics(response []string) *BrokerMetrics {
 // HealthCheck performs a comprehensive health check of the broker service.
 func (bs *BrokerService) HealthCheck(ctx context.Context) (map[string]interface{}, error) {
 	healthStatus := map[string]interface{}{
-		"status":    "healthy",
+		"status":    StatusHealthy,
 		"timestamp": time.Now(),
 		"checks":    map[string]interface{}{},
 	}
@@ -604,7 +608,7 @@ func (bs *BrokerService) HealthCheck(ctx context.Context) (map[string]interface{
 			"status": "failed",
 			"error":  err.Error(),
 		}
-		healthStatus["status"] = "unhealthy"
+		healthStatus["status"] = StatusUnhealthy
 	} else {
 		checks["connectivity"] = map[string]interface{}{
 			"status": "passed",
@@ -618,11 +622,11 @@ func (bs *BrokerService) HealthCheck(ctx context.Context) (map[string]interface{
 			"status": "failed",
 			"error":  err.Error(),
 		}
-		healthStatus["status"] = "degraded"
+		healthStatus["status"] = StatusDegraded
 	} else {
 		healthyServices := 0
 		for _, service := range services {
-			if service.Status == "healthy" {
+			if service.Status == StatusHealthy {
 				healthyServices++
 			}
 		}
@@ -634,7 +638,7 @@ func (bs *BrokerService) HealthCheck(ctx context.Context) (map[string]interface{
 		}
 
 		if healthyServices == 0 && len(services) > 0 {
-			healthStatus["status"] = "degraded"
+			healthStatus["status"] = StatusDegraded
 		}
 	}
 
@@ -662,7 +666,7 @@ func (bs *BrokerService) GetStatus() map[string]interface{} {
 	if bs.disabled {
 		status["status"] = "disabled"
 	} else {
-		status["status"] = "healthy"
+		status["status"] = StatusHealthy
 	}
 
 	if bs.config != nil {

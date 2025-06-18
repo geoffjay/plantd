@@ -601,13 +601,13 @@ func (ms *MetricsService) calculateMinimum(dataPoints []DataPoint) float64 {
 		return 0
 	}
 
-	min := dataPoints[0].Value
+	minVal := dataPoints[0].Value
 	for _, point := range dataPoints {
-		if point.Value < min {
-			min = point.Value
+		if point.Value < minVal {
+			minVal = point.Value
 		}
 	}
-	return min
+	return minVal
 }
 
 // calculateMaximum finds the maximum value in data points.
@@ -616,13 +616,13 @@ func (ms *MetricsService) calculateMaximum(dataPoints []DataPoint) float64 {
 		return 0
 	}
 
-	max := dataPoints[0].Value
+	maxVal := dataPoints[0].Value
 	for _, point := range dataPoints {
-		if point.Value > max {
-			max = point.Value
+		if point.Value > maxVal {
+			maxVal = point.Value
 		}
 	}
-	return max
+	return maxVal
 }
 
 // getDefaultMetricsThresholds returns default alert thresholds for metrics.

@@ -88,9 +88,9 @@ func (sm *SessionManager) isSecure() bool {
 	return sm.config.EnhancedSession.Secure
 }
 
-// isHttpOnly returns whether cookies should be HTTP only.
-func (sm *SessionManager) isHttpOnly() bool {
-	return sm.config.EnhancedSession.HttpOnly
+// isHTTPOnly returns whether cookies should be HTTP only.
+func (sm *SessionManager) isHTTPOnly() bool {
+	return sm.config.EnhancedSession.HTTPOnly
 }
 
 // CreateSession creates a new secure session for a user.
@@ -138,7 +138,7 @@ func (sm *SessionManager) CreateSession(c *fiber.Ctx, userData *SessionData) err
 		Domain:   "",
 		MaxAge:   sm.getMaxAge(),
 		Secure:   sm.isSecure(),
-		HTTPOnly: sm.isHttpOnly(),
+		HTTPOnly: sm.isHTTPOnly(),
 		SameSite: "Lax",
 	}
 
@@ -188,7 +188,7 @@ func (sm *SessionManager) GetSession(c *fiber.Ctx) (*SessionData, error) {
 	// Check if session is expired
 	if time.Now().After(sessionData.ExpiresAt) {
 		log.WithFields(fields).Debug("Session expired")
-		sm.DestroySession(c)
+		_ = sm.DestroySession(c) // Ignore error since session is already invalid
 		return nil, fmt.Errorf("session expired")
 	}
 
@@ -220,7 +220,7 @@ func (sm *SessionManager) RefreshSession(c *fiber.Ctx) error {
 	if err != nil {
 		log.WithFields(fields).WithError(err).Error("Failed to refresh token")
 		// If refresh fails, destroy the session
-		sm.DestroySession(c)
+		_ = sm.DestroySession(c) // Ignore error since we're already handling a refresh failure
 		return fmt.Errorf("failed to refresh token: %w", err)
 	}
 
@@ -276,7 +276,7 @@ func (sm *SessionManager) DestroySession(c *fiber.Ctx) error {
 		Path:     "/",
 		MaxAge:   -1,
 		Secure:   sm.isSecure(),
-		HTTPOnly: sm.isHttpOnly(),
+		HTTPOnly: sm.isHTTPOnly(),
 		SameSite: "Lax",
 	})
 
@@ -327,5 +327,5 @@ func (sm *SessionManager) updateSessionActivity(sessionKey string, sessionData *
 
 	expiration := time.Duration(sm.getMaxAge()) * time.Second
 
-	sm.store.Set(sessionKey, sessionBytes, expiration)
+	_ = sm.store.Set(sessionKey, sessionBytes, expiration) // Ignore error for activity update
 }

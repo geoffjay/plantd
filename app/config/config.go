@@ -42,7 +42,7 @@ type Config struct {
 		CookieName string `yaml:"cookie_name" env:"PLANTD_APP_SESSION_COOKIE"`
 		MaxAge     int    `yaml:"max_age" env:"PLANTD_APP_SESSION_MAX_AGE"`
 		Secure     bool   `yaml:"secure" env:"PLANTD_APP_SESSION_SECURE"`
-		HttpOnly   bool   `yaml:"http_only" env:"PLANTD_APP_SESSION_HTTP_ONLY"`
+		HTTPOnly   bool   `yaml:"http_only" env:"PLANTD_APP_SESSION_HTTP_ONLY"`
 	} `yaml:"enhanced_session" mapstructure:"enhanced_session"`
 
 	// Feature flags

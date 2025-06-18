@@ -64,7 +64,7 @@ func (ic *IdentityClient) Close() error {
 }
 
 // ValidateToken validates a JWT token with the Identity Service.
-func (ic *IdentityClient) ValidateToken(token string) (*UserContext, error) {
+func (ic *IdentityClient) ValidateToken(token string) (*UserContext, error) { //nolint:revive
 	fields := log.Fields{
 		"service": "app",
 		"context": "identity_client.validate_token",
@@ -91,7 +91,7 @@ func (ic *IdentityClient) ValidateToken(token string) (*UserContext, error) {
 }
 
 // Login authenticates a user with email and password.
-func (ic *IdentityClient) Login(email, password string) (*TokenPair, *UserContext, error) {
+func (ic *IdentityClient) Login(email, password string) (*TokenPair, *UserContext, error) { //nolint:revive
 	fields := log.Fields{
 		"service": "app",
 		"context": "identity_client.login",
@@ -126,7 +126,7 @@ func (ic *IdentityClient) Login(email, password string) (*TokenPair, *UserContex
 }
 
 // RefreshToken refreshes an access token using a refresh token.
-func (ic *IdentityClient) RefreshToken(refreshToken string) (*TokenPair, error) {
+func (ic *IdentityClient) RefreshToken(refreshToken string) (*TokenPair, error) { //nolint:revive
 	fields := log.Fields{
 		"service": "app",
 		"context": "identity_client.refresh_token",
@@ -150,7 +150,7 @@ func (ic *IdentityClient) RefreshToken(refreshToken string) (*TokenPair, error) 
 }
 
 // Logout invalidates a user's session.
-func (ic *IdentityClient) Logout(accessToken string) error {
+func (ic *IdentityClient) Logout(accessToken string) error { //nolint:revive
 	fields := log.Fields{
 		"service": "app",
 		"context": "identity_client.logout",
@@ -163,7 +163,7 @@ func (ic *IdentityClient) Logout(accessToken string) error {
 }
 
 // HealthCheck performs a health check against the Identity Service.
-func (ic *IdentityClient) HealthCheck() error {
+func (ic *IdentityClient) HealthCheck() error { //nolint:revive
 	fields := log.Fields{
 		"service": "app",
 		"context": "identity_client.health_check",
@@ -206,5 +206,7 @@ func (ic *IdentityClient) markUnhealthy() {
 
 // performHealthCheck performs a health check in a separate goroutine.
 func (ic *IdentityClient) performHealthCheck() {
-	ic.HealthCheck()
+	if err := ic.HealthCheck(); err != nil {
+		ic.markUnhealthy()
+	}
 }

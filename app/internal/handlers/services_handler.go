@@ -156,13 +156,13 @@ func (sh *ServicesHandler) RestartService(c *fiber.Ctx) error {
 func (sh *ServicesHandler) shouldIncludeService(service services.ServiceStatus, filter string) bool {
 	switch filter {
 	case "healthy":
-		return service.Status == "healthy"
+		return service.Status == services.StatusHealthy
 	case "unhealthy":
-		return service.Status == "unhealthy" || service.Status == "degraded"
+		return service.Status == services.StatusUnhealthy || service.Status == services.StatusDegraded
 	case "running":
-		return service.Status != "stopped"
+		return service.Status != services.StatusStopped
 	case "stopped":
-		return service.Status == "stopped"
+		return service.Status == services.StatusStopped
 	default: // "all"
 		return true
 	}

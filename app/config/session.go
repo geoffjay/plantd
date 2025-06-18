@@ -20,7 +20,7 @@ type sessionConfig struct {
 	CookieName string `mapstructure:"cookie-name"`
 	MaxAge     int    `mapstructure:"max-age"`
 	Secure     bool   `mapstructure:"secure"`
-	HttpOnly   bool   `mapstructure:"http-only"`
+	HTTPOnly   bool   `mapstructure:"http-only"`
 }
 
 func (c *sessionConfig) ToSessionConfig() session.Config {

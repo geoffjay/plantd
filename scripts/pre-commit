@@ -49,11 +49,15 @@ run_config_check() {
         -not -path "./vendor/*" \
         -not -path "./.git/*" \
         -not -path "./node_modules/*" \
+        -not -path "./app/node_modules/*" \
+        -not -path "./*/node_modules/*" \
         -not -path "./tmp/*" \
         -not -path "./test-results/*" \
         -not -path "./playwright-report/*" \
         -not -path "./coverage/*" \
-        -not -path "./app/node_modules/*" 2>/dev/null | head -20)
+        -not -path "./build/*" \
+        -not -path "./.cache/*" \
+        -not -path "./dist/*" 2>/dev/null | head -20)
     
     if [ -z "$files" ]; then
         echo -e "${GREEN}✅ PASSED${NC} (no files found)"

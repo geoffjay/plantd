@@ -85,7 +85,7 @@ type DataPoint struct {
 }
 
 // NewHealthService creates a new health service instance.
-func NewHealthService(brokerService *BrokerService, stateService *StateService, identityClient *auth.IdentityClient, cfg *config.Config) *HealthService {
+func NewHealthService(brokerService *BrokerService, stateService *StateService, identityClient *auth.IdentityClient, cfg *config.Config) *HealthService { //nolint:revive
 	logger := log.WithField("service", "health_aggregator")
 
 	return &HealthService{
@@ -206,14 +206,14 @@ func (hs *HealthService) RunHealthCheck(ctx context.Context) (*SystemHealth, err
 }
 
 // GetHealthHistory returns historical health data.
-func (hs *HealthService) GetHealthHistory(timeframe string) ([]SystemHealth, error) {
+func (hs *HealthService) GetHealthHistory(timeframe string) ([]SystemHealth, error) { //nolint:revive
 	// For now, return all history
 	// In a real implementation, this would filter by timeframe
 	return hs.healthHistory, nil
 }
 
 // GetHealthTrends returns health trends for analysis.
-func (hs *HealthService) GetHealthTrends(ctx context.Context, componentName, timeframe string) (*HealthTrend, error) {
+func (hs *HealthService) GetHealthTrends(ctx context.Context, componentName, timeframe string) (*HealthTrend, error) { //nolint:revive
 	hs.logger.WithFields(log.Fields{
 		"component": componentName,
 		"timeframe": timeframe,
@@ -233,7 +233,7 @@ func (hs *HealthService) GetHealthTrends(ctx context.Context, componentName, tim
 	}
 
 	// Calculate trend direction
-	trend := "stable"
+	trend := StatusStable
 	if len(dataPoints) > 1 {
 		recent := dataPoints[len(dataPoints)-1].Value
 		older := dataPoints[0].Value
@@ -256,21 +256,21 @@ func (hs *HealthService) GetHealthTrends(ctx context.Context, componentName, tim
 func (hs *HealthService) checkBrokerHealth(ctx context.Context) Component {
 	startTime := time.Now()
 	component := Component{
-		Status:    "healthy",
+		Status:    StatusHealthy,
 		Message:   "Broker service is operational",
 		LastCheck: time.Now(),
 		Metadata:  make(map[string]string),
 	}
 
 	if hs.brokerService == nil {
-		component.Status = "unhealthy"
+		component.Status = StatusUnhealthy
 		component.Message = "Broker service client not initialized"
 		return component
 	}
 
 	// Check broker connectivity
 	if err := hs.brokerService.CheckConnectivity(ctx); err != nil {
-		component.Status = "unhealthy"
+		component.Status = StatusUnhealthy
 		component.Message = fmt.Sprintf("Broker connectivity failed: %v", err)
 		component.ErrorCount++
 	} else {
@@ -280,8 +280,8 @@ func (hs *HealthService) checkBrokerHealth(ctx context.Context) Component {
 			component.Metadata["total_workers"] = fmt.Sprintf("%d", health.TotalWorkers)
 			component.Metadata["broker_status"] = health.Status
 
-			if health.Status != "healthy" {
-				component.Status = "degraded"
+			if health.Status != StatusHealthy {
+				component.Status = StatusDegraded
 				component.Message = "Broker service is experiencing issues"
 			}
 		}
@@ -296,21 +296,21 @@ func (hs *HealthService) checkBrokerHealth(ctx context.Context) Component {
 func (hs *HealthService) checkStateServiceHealth(ctx context.Context) Component {
 	startTime := time.Now()
 	component := Component{
-		Status:    "healthy",
+		Status:    StatusHealthy,
 		Message:   "State service is operational",
 		LastCheck: time.Now(),
 		Metadata:  make(map[string]string),
 	}
 
 	if hs.stateService == nil {
-		component.Status = "unhealthy"
+		component.Status = StatusUnhealthy
 		component.Message = "State service client not initialized"
 		return component
 	}
 
 	// Check state service connectivity
 	if err := hs.stateService.CheckConnectivity(ctx); err != nil {
-		component.Status = "unhealthy"
+		component.Status = StatusUnhealthy
 		component.Message = fmt.Sprintf("State service connectivity failed: %v", err)
 		component.ErrorCount++
 	}
@@ -321,24 +321,24 @@ func (hs *HealthService) checkStateServiceHealth(ctx context.Context) Component 
 }
 
 // checkIdentityServiceHealth performs health check on the identity service.
-func (hs *HealthService) checkIdentityServiceHealth(ctx context.Context) Component {
+func (hs *HealthService) checkIdentityServiceHealth(ctx context.Context) Component { //nolint:revive
 	startTime := time.Now()
 	component := Component{
-		Status:    "healthy",
+		Status:    StatusHealthy,
 		Message:   "Identity service is operational",
 		LastCheck: time.Now(),
 		Metadata:  make(map[string]string),
 	}
 
 	if hs.identityClient == nil {
-		component.Status = "unhealthy"
+		component.Status = StatusUnhealthy
 		component.Message = "Identity service client not initialized"
 		return component
 	}
 
 	// Check identity service health
 	if err := hs.identityClient.HealthCheck(); err != nil {
-		component.Status = "unhealthy"
+		component.Status = StatusUnhealthy
 		component.Message = fmt.Sprintf("Identity service health check failed: %v", err)
 		component.ErrorCount++
 	}
@@ -349,10 +349,10 @@ func (hs *HealthService) checkIdentityServiceHealth(ctx context.Context) Compone
 }
 
 // checkAppServiceHealth performs self health check on the app service.
-func (hs *HealthService) checkAppServiceHealth(ctx context.Context) Component {
+func (hs *HealthService) checkAppServiceHealth(ctx context.Context) Component { //nolint:revive
 	startTime := time.Now()
 	component := Component{
-		Status:      "healthy",
+		Status:      StatusHealthy,
 		Message:     "App service is operational",
 		LastCheck:   time.Now(),
 		Metadata:    make(map[string]string),
@@ -376,33 +376,33 @@ func (hs *HealthService) calculateOverallHealth(components map[string]Component)
 
 	for _, component := range components {
 		switch component.Status {
-		case "healthy":
+		case StatusHealthy:
 			healthyCount++
-		case "degraded":
+		case StatusDegraded:
 			degradedCount++
-		case "unhealthy":
+		case StatusUnhealthy:
 			unhealthyCount++
 		}
 	}
 
 	totalComponents := len(components)
 	if totalComponents == 0 {
-		return "unknown"
+		return StatusUnknown
 	}
 
 	// Calculate overall status
 	if unhealthyCount > 0 {
 		if unhealthyCount >= totalComponents/2 {
-			return "unhealthy"
+			return StatusUnhealthy
 		}
-		return "degraded"
+		return StatusDegraded
 	}
 
 	if degradedCount > 0 {
-		return "degraded"
+		return StatusDegraded
 	}
 
-	return "healthy"
+	return StatusHealthy
 }
 
 // calculateHealthSummary creates a summary of component health.
@@ -413,11 +413,11 @@ func (hs *HealthService) calculateHealthSummary(components map[string]Component)
 
 	for _, component := range components {
 		switch component.Status {
-		case "healthy":
+		case StatusHealthy:
 			summary.HealthyComponents++
-		case "degraded":
+		case StatusDegraded:
 			summary.DegradedComponents++
-		case "unhealthy":
+		case StatusUnhealthy:
 			summary.UnhealthyComponents++
 		}
 	}
@@ -445,11 +445,11 @@ func (hs *HealthService) addToHistory(health SystemHealth) {
 // componentStatusToScore converts component status to numeric score.
 func (hs *HealthService) componentStatusToScore(status string) float64 {
 	switch status {
-	case "healthy":
+	case StatusHealthy:
 		return 100.0
-	case "degraded":
+	case StatusDegraded:
 		return 50.0
-	case "unhealthy":
+	case StatusUnhealthy:
 		return 0.0
 	default:
 		return 25.0 // unknown

@@ -73,9 +73,9 @@ func TestCircuitBreaker(t *testing.T) {
 func TestNewBrokerService(t *testing.T) {
 	t.Run("successful creation with valid config", func(t *testing.T) {
 		cfg := &config.Config{}
-		cfg.Services.BrokerEndpoint = "tcp://127.0.0.1:9797"
+		cfg.Services.BrokerEndpoint = TestBrokerEndpoint
 		cfg.Services.StateEndpoint = "tcp://127.0.0.1:9798"
-		cfg.Services.Timeout = "30s"
+		cfg.Services.Timeout = TestTimeout
 
 		bs, err := NewBrokerService(cfg)
 
@@ -94,7 +94,7 @@ func TestNewBrokerService(t *testing.T) {
 	t.Run("creation with invalid broker endpoint", func(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Services.BrokerEndpoint = "invalid://endpoint"
-		cfg.Services.Timeout = "30s"
+		cfg.Services.Timeout = TestTimeout
 
 		bs, err := NewBrokerService(cfg)
 
@@ -108,7 +108,7 @@ func TestNewBrokerService(t *testing.T) {
 	t.Run("creation with empty broker endpoint", func(t *testing.T) {
 		cfg := &config.Config{}
 		cfg.Services.BrokerEndpoint = ""
-		cfg.Services.Timeout = "30s"
+		cfg.Services.Timeout = TestTimeout
 
 		bs, err := NewBrokerService(cfg)
 
@@ -124,7 +124,7 @@ func TestNewBrokerService(t *testing.T) {
 
 	t.Run("creation with invalid timeout", func(t *testing.T) {
 		cfg := &config.Config{}
-		cfg.Services.BrokerEndpoint = "tcp://127.0.0.1:9797"
+		cfg.Services.BrokerEndpoint = TestBrokerEndpoint
 		cfg.Services.Timeout = "invalid"
 
 		bs, err := NewBrokerService(cfg)
@@ -174,7 +174,7 @@ func TestBrokerService_IsAvailable(t *testing.T) {
 func TestBrokerService_GetStatus(t *testing.T) {
 	t.Run("status when available", func(t *testing.T) {
 		cfg := &config.Config{}
-		cfg.Services.BrokerEndpoint = "tcp://127.0.0.1:9797"
+		cfg.Services.BrokerEndpoint = TestBrokerEndpoint
 
 		client := &mdp.Client{} // Mock client
 		bs := &BrokerService{

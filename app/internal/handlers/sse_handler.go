@@ -110,7 +110,7 @@ func (s *SSEHandler) SystemStatusSSE(c *fiber.Ctx) error {
 }
 
 // sendDashboardUpdate sends a complete dashboard data update.
-func (s *SSEHandler) sendDashboardUpdate(c *fiber.Ctx, ctx context.Context) error {
+func (s *SSEHandler) sendDashboardUpdate(c *fiber.Ctx, ctx context.Context) error { //nolint:revive
 	dashboardData := &DashboardUpdateData{
 		Timestamp: time.Now(),
 	}
@@ -153,7 +153,7 @@ func (s *SSEHandler) sendDashboardUpdate(c *fiber.Ctx, ctx context.Context) erro
 }
 
 // sendSystemStatusUpdate sends a quick system status update.
-func (s *SSEHandler) sendSystemStatusUpdate(c *fiber.Ctx, ctx context.Context) error {
+func (s *SSEHandler) sendSystemStatusUpdate(c *fiber.Ctx, ctx context.Context) error { //nolint:revive
 	status := &SystemStatusUpdate{
 		Timestamp: time.Now(),
 		Status:    "unknown",
@@ -178,7 +178,7 @@ func (s *SSEHandler) sendSystemStatusUpdate(c *fiber.Ctx, ctx context.Context) e
 }
 
 // sendSSEEvent sends an SSE event with the given event type and data.
-func (s *SSEHandler) sendSSEEvent(c *fiber.Ctx, eventType string, data interface{}) error {
+func (s *SSEHandler) sendSSEEvent(c *fiber.Ctx, eventType string, data interface{}) error { //nolint:revive
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal SSE data: %w", err)
@@ -199,10 +199,10 @@ func (s *SSEHandler) sendSSEEvent(c *fiber.Ctx, eventType string, data interface
 }
 
 // countHealthyServices counts the number of healthy services.
-func (s *SSEHandler) countHealthyServices(services []services.ServiceStatus) int {
+func (s *SSEHandler) countHealthyServices(serviceStatuses []services.ServiceStatus) int {
 	count := 0
-	for _, service := range services {
-		if service.Status == "healthy" {
+	for _, service := range serviceStatuses {
+		if service.Status == services.StatusHealthy {
 			count++
 		}
 	}

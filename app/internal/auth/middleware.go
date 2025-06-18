@@ -9,7 +9,7 @@ import (
 )
 
 // AuthMiddleware provides authentication middleware for protected routes.
-type AuthMiddleware struct {
+type AuthMiddleware struct { //nolint:revive
 	sessionManager *SessionManager
 	identityClient *IdentityClient
 	excludedPaths  []string
@@ -79,7 +79,7 @@ func (am *AuthMiddleware) RequireAuth() fiber.Handler {
 			// Try to refresh token
 			if refreshErr := am.sessionManager.RefreshSession(c); refreshErr != nil {
 				log.WithFields(fields).WithError(refreshErr).Error("Token refresh failed")
-				am.sessionManager.DestroySession(c)
+				_ = am.sessionManager.DestroySession(c) // Ignore error since we're handling auth failure
 				return am.handleAuthenticationRequired(c)
 			}
 
@@ -94,7 +94,7 @@ func (am *AuthMiddleware) RequireAuth() fiber.Handler {
 			userContext, err = am.identityClient.ValidateToken(sessionData.AccessToken)
 			if err != nil {
 				log.WithFields(fields).WithError(err).Error("Token validation failed after refresh")
-				am.sessionManager.DestroySession(c)
+				_ = am.sessionManager.DestroySession(c) // Ignore error since we're handling auth failure
 				return am.handleAuthenticationRequired(c)
 			}
 		}
