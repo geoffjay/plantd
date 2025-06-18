@@ -2,23 +2,23 @@ package pages
 
 import (
 	"fmt"
-	"github.com/geoffjay/plantd/app/views/layouts"
 	"github.com/geoffjay/plantd/app/views/components"
+	"github.com/geoffjay/plantd/app/views/layouts"
 )
 
 // DashboardData represents the data structure for dashboard rendering.
 // This is defined here to match the handler expectations.
 type DashboardData struct {
-	User             interface{}               `json:"user"`
-	SystemHealth     interface{}               `json:"system_health"`
-	Services         []interface{}             `json:"services"`
-	Metrics          interface{}               `json:"metrics"`
-	ServiceCount     int                       `json:"service_count"`
-	HealthStatus     string                    `json:"health_status"`
-	RequestRate      string                    `json:"request_rate"`
-	Uptime           string                    `json:"uptime"`
-	HealthComponents map[string]interface{}    `json:"health_components"`
-	PerformanceData  interface{}               `json:"performance_data"`
+	User             interface{}            `json:"user"`
+	SystemHealth     interface{}            `json:"system_health"`
+	Services         []interface{}          `json:"services"`
+	Metrics          interface{}            `json:"metrics"`
+	ServiceCount     int                    `json:"service_count"`
+	HealthStatus     string                 `json:"health_status"`
+	RequestRate      string                 `json:"request_rate"`
+	Uptime           string                 `json:"uptime"`
+	HealthComponents map[string]interface{} `json:"health_components"`
+	PerformanceData  interface{}            `json:"performance_data"`
 }
 
 templ Dashboard(data *DashboardData) {
@@ -28,14 +28,11 @@ templ Dashboard(data *DashboardData) {
 templ dashboardContents(data *DashboardData) {
 	<div class="min-h-screen bg-gray-50">
 		@components.Header()
-		
 		<div class="flex">
 			@components.Sidenav()
-			
 			<main class="flex-1 p-6" data-testid="main-nav">
 				<!-- Connection Status Indicator -->
 				<div id="connection-status" class="connection-indicator disconnected">Connecting...</div>
-				
 				<div class="mb-6 flex items-center justify-between">
 					<div>
 						<h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
@@ -45,7 +42,6 @@ templ dashboardContents(data *DashboardData) {
 						<span id="last-updated">Last updated: Loading...</span>
 					</div>
 				</div>
-				
 				<!-- Metrics Cards -->
 				<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
 					<div class="bg-white rounded-lg shadow p-6" data-testid="metric-services">
@@ -63,7 +59,6 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 						</div>
 					</div>
-					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -79,7 +74,6 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 						</div>
 					</div>
-					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -95,7 +89,6 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 						</div>
 					</div>
-					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -112,7 +105,6 @@ templ dashboardContents(data *DashboardData) {
 						</div>
 					</div>
 				</div>
-				
 				<!-- Services and Health Section -->
 				<div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
 					<!-- Service Status -->
@@ -139,7 +131,6 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 						}
 					</div>
-					
 					<!-- System Health -->
 					<div class="bg-white rounded-lg shadow p-6">
 						<h3 class="text-lg font-medium text-gray-900 mb-4">System Health</h3>
@@ -150,7 +141,6 @@ templ dashboardContents(data *DashboardData) {
 									{ data.HealthStatus }
 								</span>
 							</div>
-							
 							if data.HealthComponents != nil && len(data.HealthComponents) > 0 {
 								for name, _ := range data.HealthComponents {
 									<div class="flex items-center justify-between">
@@ -166,7 +156,6 @@ templ dashboardContents(data *DashboardData) {
 						</div>
 					</div>
 				</div>
-				
 				<!-- Real-time Metrics -->
 				<div class="mt-8">
 					<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 mb-8">
@@ -192,7 +181,6 @@ templ dashboardContents(data *DashboardData) {
 						</div>
 					</div>
 				</div>
-				
 				<!-- Performance Metrics Chart Area -->
 				<div class="mt-8">
 					<div class="bg-white rounded-lg shadow p-6">
@@ -205,4 +193,4 @@ templ dashboardContents(data *DashboardData) {
 			</main>
 		</div>
 	</div>
-} 
+}

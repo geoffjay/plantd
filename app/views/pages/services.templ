@@ -2,26 +2,26 @@ package pages
 
 import (
 	"fmt"
-	"github.com/geoffjay/plantd/app/views/layouts"
 	"github.com/geoffjay/plantd/app/views/components"
+	"github.com/geoffjay/plantd/app/views/layouts"
 )
 
 // ServicesData represents the data structure for services page rendering.
 type ServicesData struct {
-	User         interface{}     `json:"user"`
-	Services     []interface{}   `json:"services"`
-	ServiceCount int             `json:"service_count"`
-	Filter       string          `json:"filter"`
-	Sort         string          `json:"sort"`
+	User         interface{}   `json:"user"`
+	Services     []interface{} `json:"services"`
+	ServiceCount int           `json:"service_count"`
+	Filter       string        `json:"filter"`
+	Sort         string        `json:"sort"`
 }
 
 // ServiceDetailsData represents the data structure for service details page rendering.
 type ServiceDetailsData struct {
-	User          interface{}     `json:"user"`
-	ServiceName   string          `json:"service_name"`
-	ServiceData   interface{}     `json:"service_data"`
-	HealthData    interface{}     `json:"health_data"`
-	WorkerActions []string        `json:"worker_actions"`
+	User          interface{} `json:"user"`
+	ServiceName   string      `json:"service_name"`
+	ServiceData   interface{} `json:"service_data"`
+	HealthData    interface{} `json:"health_data"`
+	WorkerActions []string    `json:"worker_actions"`
 }
 
 templ Services(data *ServicesData) {
@@ -31,10 +31,8 @@ templ Services(data *ServicesData) {
 templ servicesContents(data *ServicesData) {
 	<div class="min-h-screen bg-gray-50">
 		@components.Header()
-		
 		<div class="flex">
 			@components.Sidenav()
-			
 			<main class="flex-1 p-6">
 				<div class="mb-6 flex items-center justify-between">
 					<div>
@@ -47,7 +45,6 @@ templ servicesContents(data *ServicesData) {
 						</button>
 					</div>
 				</div>
-
 				<!-- Filter and Search Controls -->
 				<div class="bg-white rounded-lg shadow mb-6 p-4">
 					<div class="flex items-center justify-between">
@@ -77,13 +74,11 @@ templ servicesContents(data *ServicesData) {
 						</div>
 					</div>
 				</div>
-
 				<!-- Services List -->
 				<div class="bg-white rounded-lg shadow">
 					<div class="px-6 py-4 border-b border-gray-200">
 						<h3 class="text-lg font-medium text-gray-900">Service Status</h3>
 					</div>
-					
 					if len(data.Services) > 0 {
 						<div class="divide-y divide-gray-200">
 							for i, _ := range data.Services {
@@ -134,7 +129,6 @@ templ servicesContents(data *ServicesData) {
 						</div>
 					}
 				</div>
-
 				<!-- Service Actions Modal (Hidden by default) -->
 				<div id="service-action-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
 					<div class="bg-white rounded-lg p-6 w-96">
@@ -155,7 +149,6 @@ templ servicesContents(data *ServicesData) {
 			</main>
 		</div>
 	</div>
-	
 	<!-- Services Management JavaScript -->
 	<script src="/static/js/services.js"></script>
 }
@@ -167,10 +160,8 @@ templ ServiceDetails(data *ServiceDetailsData) {
 templ serviceDetailsContents(data *ServiceDetailsData) {
 	<div class="min-h-screen bg-gray-50">
 		@components.Header()
-		
 		<div class="flex">
 			@components.Sidenav()
-			
 			<main class="flex-1 p-6">
 				<div class="mb-6 flex items-center justify-between">
 					<div class="flex items-center">
@@ -196,7 +187,6 @@ templ serviceDetailsContents(data *ServiceDetailsData) {
 						</button>
 					</div>
 				</div>
-
 				<!-- Service Overview Cards -->
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
 					<div class="bg-white rounded-lg shadow p-6">
@@ -212,7 +202,6 @@ templ serviceDetailsContents(data *ServiceDetailsData) {
 							</div>
 						</div>
 					</div>
-					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -228,7 +217,6 @@ templ serviceDetailsContents(data *ServiceDetailsData) {
 							</div>
 						</div>
 					</div>
-					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -245,7 +233,6 @@ templ serviceDetailsContents(data *ServiceDetailsData) {
 						</div>
 					</div>
 				</div>
-
 				<!-- Service Details and Logs -->
 				<div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
 					<!-- Service Configuration -->
@@ -270,7 +257,6 @@ templ serviceDetailsContents(data *ServiceDetailsData) {
 							</div>
 						</div>
 					</div>
-
 					<!-- Recent Logs -->
 					<div class="bg-white rounded-lg shadow p-6">
 						<h3 class="text-lg font-medium text-gray-900 mb-4">Recent Logs</h3>
@@ -289,4 +275,4 @@ templ serviceDetailsContents(data *ServiceDetailsData) {
 			</main>
 		</div>
 	</div>
-} 
+}
