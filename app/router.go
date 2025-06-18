@@ -71,7 +71,7 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/static")
 
 	csrfConfig := csrf.Config{
-		KeyLookup:      "form:csrf",
+		KeyLookup:      "form:_csrf",
 		CookieName:     "__Host-csrf",
 		CookieSameSite: "Lax",
 		CookieSecure:   true,

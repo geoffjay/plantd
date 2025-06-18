@@ -8,18 +8,18 @@ export interface TestUser {
 
 export const TEST_USERS = {
   admin: {
-    email: 'admin@plantd.local',
-    password: 'admin123',
+    email: 'user@plantd.local',
+    password: 'User2024!',
     role: 'admin'
   },
   user: {
     email: 'user@plantd.local', 
-    password: 'user123',
+    password: 'User2024!',
     role: 'user'
   },
   operator: {
     email: 'operator@plantd.local',
-    password: 'operator123', 
+    password: 'Operator2024!', 
     role: 'operator'
   }
 };

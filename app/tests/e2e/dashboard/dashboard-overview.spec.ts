@@ -28,6 +28,19 @@ test.describe('Dashboard Overview', () => {
   });
 
   test('should have working navigation links', async ({ page }) => {
+    // First check if sidebar is hidden and needs to be opened
+    const sidebar = page.locator('#sidenav');
+    const isHidden = await sidebar.getAttribute('class');
+    
+    if (isHidden?.includes('hidden')) {
+      // Click hamburger menu to open sidebar
+      const menuButton = page.locator('i[class*="fa-bars"]').first();
+      if (await menuButton.count() > 0) {
+        await menuButton.click();
+        await page.waitForTimeout(300); // Wait for animation
+      }
+    }
+    
     // Test navigation to services if link exists
     const servicesLink = page.locator('a[href="/services"]');
     if (await servicesLink.count() > 0) {

@@ -11,8 +11,8 @@ test.describe('Authentication Flow', () => {
     await expect(page.locator('input[name="password"]')).toBeVisible();
     
     // Fill in login credentials (using placeholder credentials)
-    await page.fill('input[name="email"]', 'admin@plantd.local');
-    await page.fill('input[name="password"]', 'password123');
+    await page.fill('input[name="email"]', 'user@plantd.local');
+    await page.fill('input[name="password"]', 'User2024!');
     
     // Submit the form
     await page.click('button[type="submit"]');
@@ -28,8 +28,8 @@ test.describe('Authentication Flow', () => {
   test('should show error for invalid credentials', async ({ page }) => {
     await page.goto('/login');
     
-    await page.fill('input[name="email"]', 'invalid@example.com');
-    await page.fill('input[name="password"]', 'wrongpassword');
+    await page.fill('input[name="email"]', 'nonexistent@invalid.test');
+    await page.fill('input[name="password"]', 'definitelyinvalidpassword123');
     await page.click('button[type="submit"]');
     
     // Should stay on login page and show error
@@ -42,7 +42,7 @@ test.describe('Authentication Flow', () => {
     await page.goto('/login');
     
     // Verify CSRF token is present in the form (may be hidden)
-    const csrfInput = page.locator('input[name="csrf"]');
+    const csrfInput = page.locator('input[name="_csrf"]');
     await expect(csrfInput).toBeAttached(); // Just check it exists
     
     const csrfValue = await csrfInput.getAttribute('value');
