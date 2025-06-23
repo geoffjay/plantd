@@ -8,6 +8,7 @@ full_bin = "build/plantd-app"
 include_ext = ["go"]
 exclude_dir = [
   "app/node_modules",
+  "app/test-results",
   "build",
   "broker",
   "client",

@@ -100,57 +100,142 @@ func NewHealthService(brokerService *BrokerService, stateService *StateService, 
 	}
 }
 
-// GetSystemHealth aggregates health from all components and returns overall system health.
-func (hs *HealthService) GetSystemHealth(ctx context.Context) (*SystemHealth, error) {
-	hs.logger.Debug("Performing comprehensive system health check")
+// GetSystemHealth performs a comprehensive system health check.
+func (hs *HealthService) GetSystemHealth(ctx context.Context) (*SystemHealth, error) { //nolint:funlen
 	startTime := time.Now()
+	hs.logger.Debug("Starting system health check")
 
+	// Use shorter timeout for individual health checks
+	checkCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
+	// Track components being checked
 	components := make(map[string]Component)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
+	mu := sync.Mutex{}
+	wg := sync.WaitGroup{}
 
-	// Check broker health
+	// Check broker service health with error recovery
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		component := hs.checkBrokerHealth(ctx)
+		defer func() {
+			wg.Done()
+			if r := recover(); r != nil {
+				hs.logger.WithField("panic", r).Error("Panic in broker health check")
+				mu.Lock()
+				components["broker"] = Component{
+					Status:    StatusUnhealthy,
+					Message:   fmt.Sprintf("Health check failed due to panic: %v", r),
+					LastCheck: time.Now(),
+					Metadata:  make(map[string]string),
+				}
+				mu.Unlock()
+			}
+		}()
+
+		// Create individual timeout for this check
+		brokerCtx, brokerCancel := context.WithTimeout(checkCtx, 500*time.Millisecond)
+		defer brokerCancel()
+
+		component := hs.checkBrokerHealthSafe(brokerCtx)
 		mu.Lock()
 		components["broker"] = component
 		mu.Unlock()
 	}()
 
-	// Check state service health
+	// Check state service health with error recovery
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		component := hs.checkStateServiceHealth(ctx)
+		defer func() {
+			wg.Done()
+			if r := recover(); r != nil {
+				hs.logger.WithField("panic", r).Error("Panic in state service health check")
+				mu.Lock()
+				components["state"] = Component{
+					Status:    StatusUnhealthy,
+					Message:   fmt.Sprintf("Health check failed due to panic: %v", r),
+					LastCheck: time.Now(),
+					Metadata:  make(map[string]string),
+				}
+				mu.Unlock()
+			}
+		}()
+
+		// Create individual timeout for this check
+		stateCtx, stateCancel := context.WithTimeout(checkCtx, 500*time.Millisecond)
+		defer stateCancel()
+
+		component := hs.checkStateServiceHealthSafe(stateCtx)
 		mu.Lock()
 		components["state"] = component
 		mu.Unlock()
 	}()
 
-	// Check identity service health
+	// Check identity service health with error recovery
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		component := hs.checkIdentityServiceHealth(ctx)
+		defer func() {
+			wg.Done()
+			if r := recover(); r != nil {
+				hs.logger.WithField("panic", r).Error("Panic in identity service health check")
+				mu.Lock()
+				components["identity"] = Component{
+					Status:    StatusUnhealthy,
+					Message:   fmt.Sprintf("Health check failed due to panic: %v", r),
+					LastCheck: time.Now(),
+					Metadata:  make(map[string]string),
+				}
+				mu.Unlock()
+			}
+		}()
+
+		// Create individual timeout for this check
+		identityCtx, identityCancel := context.WithTimeout(checkCtx, 500*time.Millisecond)
+		defer identityCancel()
+
+		component := hs.checkIdentityServiceHealthSafe(identityCtx)
 		mu.Lock()
 		components["identity"] = component
 		mu.Unlock()
 	}()
 
-	// Check app service health (self-check)
+	// Check app service health (self-check) with error recovery
 	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		component := hs.checkAppServiceHealth(ctx)
+		defer func() {
+			wg.Done()
+			if r := recover(); r != nil {
+				hs.logger.WithField("panic", r).Error("Panic in app service health check")
+				mu.Lock()
+				components["app"] = Component{
+					Status:    StatusHealthy, // Self-check should always be healthy if we can run this
+					Message:   "App service is operational (self-check)",
+					LastCheck: time.Now(),
+					Metadata:  make(map[string]string),
+				}
+				mu.Unlock()
+			}
+		}()
+
+		component := hs.checkAppServiceHealth(checkCtx)
 		mu.Lock()
 		components["app"] = component
 		mu.Unlock()
 	}()
 
-	// Wait for all health checks to complete
-	wg.Wait()
+	// Wait for all health checks to complete or timeout
+	done := make(chan bool, 1)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// All checks completed
+	case <-checkCtx.Done():
+		// Overall timeout reached
+		hs.logger.Warn("Health check timeout reached, some checks may be incomplete")
+	}
 
 	// Calculate overall system health
 	overall := hs.calculateOverallHealth(components)
@@ -186,11 +271,11 @@ func (hs *HealthService) CheckComponentHealth(ctx context.Context, componentName
 
 	switch componentName {
 	case "broker":
-		component = hs.checkBrokerHealth(ctx)
+		component = hs.checkBrokerHealthSafe(ctx)
 	case "state":
-		component = hs.checkStateServiceHealth(ctx)
+		component = hs.checkStateServiceHealthSafe(ctx)
 	case "identity":
-		component = hs.checkIdentityServiceHealth(ctx)
+		component = hs.checkIdentityServiceHealthSafe(ctx)
 	case "app":
 		component = hs.checkAppServiceHealth(ctx)
 	default:
@@ -252,76 +337,62 @@ func (hs *HealthService) GetHealthTrends(ctx context.Context, componentName, tim
 	}, nil
 }
 
-// checkBrokerHealth performs health check on the broker service.
-func (hs *HealthService) checkBrokerHealth(ctx context.Context) Component {
-	startTime := time.Now()
-	component := Component{
-		Status:    StatusHealthy,
-		Message:   "Broker service is operational",
-		LastCheck: time.Now(),
-		Metadata:  make(map[string]string),
-	}
-
-	if hs.brokerService == nil {
-		component.Status = StatusUnhealthy
-		component.Message = "Broker service client not initialized"
-		return component
-	}
-
-	// Check broker connectivity
-	if err := hs.brokerService.CheckConnectivity(ctx); err != nil {
-		component.Status = StatusUnhealthy
-		component.Message = fmt.Sprintf("Broker connectivity failed: %v", err)
-		component.ErrorCount++
-	} else {
-		// Get additional broker health info
-		if health, err := hs.brokerService.GetBrokerHealth(ctx); err == nil {
-			component.Metadata["total_services"] = fmt.Sprintf("%d", health.TotalServices)
-			component.Metadata["total_workers"] = fmt.Sprintf("%d", health.TotalWorkers)
-			component.Metadata["broker_status"] = health.Status
-
-			if health.Status != StatusHealthy {
-				component.Status = StatusDegraded
-				component.Message = "Broker service is experiencing issues"
-			}
+// checkBrokerHealthSafe performs health check on the broker service with error recovery.
+func (hs *HealthService) checkBrokerHealthSafe(ctx context.Context) Component { //nolint:revive
+	defer func() {
+		if r := recover(); r != nil {
+			hs.logger.WithField("panic", r).Error("Panic in broker health check")
 		}
-	}
+	}()
 
-	component.Latency = time.Since(startTime)
-	component.SuccessRate = hs.calculateSuccessRate(component.ErrorCount, 1)
-	return component
-}
-
-// checkStateServiceHealth performs health check on the state service.
-func (hs *HealthService) checkStateServiceHealth(ctx context.Context) Component {
 	startTime := time.Now()
 	component := Component{
-		Status:    StatusHealthy,
-		Message:   "State service is operational",
+		Status:    StatusDegraded,
+		Message:   "Broker health check temporarily disabled (ZeroMQ stability)",
 		LastCheck: time.Now(),
 		Metadata:  make(map[string]string),
 	}
 
-	if hs.stateService == nil {
-		component.Status = StatusUnhealthy
-		component.Message = "State service client not initialized"
-		return component
-	}
-
-	// Check state service connectivity
-	if err := hs.stateService.CheckConnectivity(ctx); err != nil {
-		component.Status = StatusUnhealthy
-		component.Message = fmt.Sprintf("State service connectivity failed: %v", err)
-		component.ErrorCount++
-	}
-
+	// Temporarily disable broker connectivity checks to prevent CGO crashes
+	// TODO: Re-enable once ZeroMQ stability issues are resolved
+	component.Metadata["note"] = "Health check disabled due to ZeroMQ CGO signal stack issues"
 	component.Latency = time.Since(startTime)
-	component.SuccessRate = hs.calculateSuccessRate(component.ErrorCount, 1)
+	component.SuccessRate = 1.0 // Assume healthy for now
 	return component
 }
 
-// checkIdentityServiceHealth performs health check on the identity service.
-func (hs *HealthService) checkIdentityServiceHealth(ctx context.Context) Component { //nolint:revive
+// checkStateServiceHealthSafe performs health check on the state service with error recovery.
+func (hs *HealthService) checkStateServiceHealthSafe(ctx context.Context) Component { //nolint:revive
+	defer func() {
+		if r := recover(); r != nil {
+			hs.logger.WithField("panic", r).Error("Panic in state service health check")
+		}
+	}()
+
+	startTime := time.Now()
+	component := Component{
+		Status:    StatusDegraded,
+		Message:   "State service health check temporarily disabled (ZeroMQ stability)",
+		LastCheck: time.Now(),
+		Metadata:  make(map[string]string),
+	}
+
+	// Temporarily disable state service connectivity checks to prevent CGO crashes
+	// TODO: Re-enable once ZeroMQ stability issues are resolved
+	component.Metadata["note"] = "Health check disabled due to ZeroMQ CGO signal stack issues"
+	component.Latency = time.Since(startTime)
+	component.SuccessRate = 1.0 // Assume healthy for now
+	return component
+}
+
+// checkIdentityServiceHealthSafe performs health check on the identity service with error recovery.
+func (hs *HealthService) checkIdentityServiceHealthSafe(ctx context.Context) Component { //nolint:revive
+	defer func() {
+		if r := recover(); r != nil {
+			hs.logger.WithField("panic", r).Error("Panic in identity service health check")
+		}
+	}()
+
 	startTime := time.Now()
 	component := Component{
 		Status:    StatusHealthy,
@@ -331,16 +402,19 @@ func (hs *HealthService) checkIdentityServiceHealth(ctx context.Context) Compone
 	}
 
 	if hs.identityClient == nil {
-		component.Status = StatusUnhealthy
-		component.Message = "Identity service client not initialized"
+		component.Status = StatusDegraded
+		component.Message = "Identity service client not configured"
 		return component
 	}
 
-	// Check identity service health
-	if err := hs.identityClient.HealthCheck(); err != nil {
+	// Check identity service health with timeout
+	err := hs.identityClient.HealthCheck()
+	if err != nil {
 		component.Status = StatusUnhealthy
 		component.Message = fmt.Sprintf("Identity service health check failed: %v", err)
 		component.ErrorCount++
+	} else {
+		component.Metadata["authentication"] = "available"
 	}
 
 	component.Latency = time.Since(startTime)

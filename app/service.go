@@ -90,15 +90,19 @@ func (s *service) run(ctx context.Context, wg *sync.WaitGroup) {
 		"context": "service.run",
 	}).Debug("starting")
 
+	// Temporarily disable metrics collection to prevent ZeroMQ crashes
 	// Start metrics collection
-	if s.metricsService != nil {
-		go s.metricsService.StartCollection(ctx)
-	}
+	// if s.metricsService != nil {
+	// 	go s.metricsService.StartCollection(ctx)
+	// }
 
 	wg.Add(1)
 	go s.runApp(ctx, wg)
 
 	<-ctx.Done()
+
+	// Cleanup SSE connections first to prevent goroutine leaks
+	CleanupSSEHandler()
 
 	// Stop metrics collection
 	if s.metricsService != nil {

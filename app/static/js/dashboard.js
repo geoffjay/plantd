@@ -41,6 +41,7 @@ class DashboardUpdater {
         this.eventSource.addEventListener('dashboard-update', (event) => {
             try {
                 const data = JSON.parse(event.data);
+                console.log('Received dashboard update:', data);
                 this.updateDashboard(data);
             } catch (error) {
                 console.error('Error parsing dashboard update:', error);
@@ -66,6 +67,7 @@ class DashboardUpdater {
         this.statusEventSource.addEventListener('status-update', (event) => {
             try {
                 const data = JSON.parse(event.data);
+                console.log('Received status update:', data);
                 this.updateSystemStatus(data);
             } catch (error) {
                 console.error('Error parsing status update:', error);
@@ -123,38 +125,38 @@ class DashboardUpdater {
     updateSystemHealth(health) {
         // Update health status
         const statusElement = document.getElementById('health-status');
-        if (statusElement) {
+        if (statusElement && health.status) {
             statusElement.textContent = this.formatHealthStatus(health.status);
-            statusElement.className = `inline-flex px-2 py-1 text-xs font-semibold rounded-full ${this.getHealthStatusClass(health.status)}`;
+            statusElement.className = `text-2xl font-semibold text-gray-900 capitalize`;
         }
 
         // Update uptime
         const uptimeElement = document.getElementById('system-uptime');
-        if (uptimeElement) {
-            uptimeElement.textContent = health.uptime || 'Unknown';
+        if (uptimeElement && health.uptime) {
+            uptimeElement.textContent = health.uptime;
         }
 
-        // Update components count
+        // Update components count (if we have an element for it)
         const componentsElement = document.getElementById('health-components');
-        if (componentsElement) {
-            componentsElement.textContent = health.components || 0;
+        if (componentsElement && health.components !== undefined) {
+            componentsElement.textContent = health.components;
         }
     }
 
     updateServicesOverview(services) {
         // Update service count
         const countElement = document.getElementById('service-count');
-        if (countElement) {
-            countElement.textContent = services.count || 0;
+        if (countElement && services.count !== undefined) {
+            countElement.textContent = services.count;
         }
 
         // Update healthy services
         const healthyElement = document.getElementById('healthy-services');
-        if (healthyElement) {
-            healthyElement.textContent = services.healthy || 0;
+        if (healthyElement && services.healthy !== undefined) {
+            healthyElement.textContent = services.healthy;
         }
 
-        // Update service health percentage
+        // Update service health percentage (if we have an element for it)
         const percentage = services.count > 0 ? Math.round((services.healthy / services.count) * 100) : 0;
         const percentageElement = document.getElementById('service-health-percentage');
         if (percentageElement) {
@@ -165,31 +167,31 @@ class DashboardUpdater {
     updateMetrics(metrics) {
         // Update request rate
         const requestRateElement = document.getElementById('request-rate');
-        if (requestRateElement) {
+        if (requestRateElement && metrics.request_rate !== undefined) {
             requestRateElement.textContent = this.formatRequestRate(metrics.request_rate);
         }
 
         // Update response time
         const responseTimeElement = document.getElementById('response-time');
-        if (responseTimeElement) {
+        if (responseTimeElement && metrics.response_time_ms !== undefined) {
             responseTimeElement.textContent = `${metrics.response_time_ms}ms`;
         }
 
         // Update error rate
         const errorRateElement = document.getElementById('error-rate');
-        if (errorRateElement) {
+        if (errorRateElement && metrics.error_rate !== undefined) {
             errorRateElement.textContent = `${(metrics.error_rate * 100).toFixed(1)}%`;
         }
 
         // Update memory usage
         const memoryElement = document.getElementById('memory-usage');
-        if (memoryElement) {
+        if (memoryElement && metrics.memory_mb !== undefined) {
             memoryElement.textContent = `${metrics.memory_mb.toFixed(1)} MB`;
         }
 
         // Update CPU usage
         const cpuElement = document.getElementById('cpu-usage');
-        if (cpuElement) {
+        if (cpuElement && metrics.cpu_percent !== undefined) {
             cpuElement.textContent = `${metrics.cpu_percent.toFixed(1)}%`;
         }
     }
@@ -197,9 +199,15 @@ class DashboardUpdater {
     updateSystemStatus(status) {
         // This is for quick status updates (every 2 seconds)
         const quickStatusElement = document.getElementById('quick-status');
-        if (quickStatusElement) {
+        if (quickStatusElement && status.status) {
             quickStatusElement.textContent = this.formatHealthStatus(status.status);
             quickStatusElement.className = `quick-status ${this.getHealthStatusClass(status.status)}`;
+        }
+        
+        // Also update the main health status if available
+        const healthStatusElement = document.getElementById('health-status');
+        if (healthStatusElement && status.status) {
+            healthStatusElement.textContent = this.formatHealthStatus(status.status);
         }
     }
 
@@ -262,6 +270,9 @@ class DashboardUpdater {
     }
 
     formatRequestRate(rate) {
+        if (rate === undefined || rate === null) {
+            return '-';
+        }
         if (rate < 1) {
             return '< 1/sec';
         }

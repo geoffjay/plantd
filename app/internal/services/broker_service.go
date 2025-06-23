@@ -399,8 +399,12 @@ func (bs *BrokerService) CheckConnectivity(ctx context.Context) error {
 		bs.logger.Debug("Checking broker connectivity")
 	}
 
-	// Try to query broker status
-	response, err := bs.queryMMI(ctx, "mmi.status")
+	// Create timeout context for this specific check
+	timeoutCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+	defer cancel()
+
+	// Try to query broker status with timeout
+	response, err := bs.queryMMIWithTimeout(timeoutCtx, "mmi.status")
 	if err != nil {
 		return fmt.Errorf("broker connectivity check failed: %w", err)
 	}
@@ -419,9 +423,13 @@ func (bs *BrokerService) CheckConnectivity(ctx context.Context) error {
 func (bs *BrokerService) RestartService(ctx context.Context, serviceName string) error {
 	bs.logger.WithField("service", serviceName).Info("Attempting to restart service")
 
+	// Create timeout context for this specific operation
+	timeoutCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+
 	// This would typically send a management command to the service
 	// For now, this is a placeholder implementation
-	response, err := bs.queryService(ctx, serviceName, "restart")
+	response, err := bs.queryServiceWithTimeout(timeoutCtx, serviceName, "restart")
 	if err != nil {
 		return fmt.Errorf("failed to restart service %s: %w", serviceName, err)
 	}
@@ -431,8 +439,8 @@ func (bs *BrokerService) RestartService(ctx context.Context, serviceName string)
 	return nil
 }
 
-// queryMMI queries the broker's Management Interface (MMI).
-func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, error) { //nolint:revive
+// queryMMIWithTimeout queries the broker's Management Interface (MMI) with timeout protection.
+func (bs *BrokerService) queryMMIWithTimeout(ctx context.Context, query string) ([]string, error) {
 	bs.mutex.RLock()
 	disabled := bs.disabled
 	lastError := bs.lastError
@@ -447,24 +455,66 @@ func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, 
 		return nil, fmt.Errorf("broker client is not initialized")
 	}
 
-	bs.logger.WithField("query", query).Trace("Sending MMI query")
+	bs.logger.WithField("query", query).Trace("Sending MMI query with timeout")
 
 	var response []string
 	err := bs.circuitBreaker.Call(func() error {
-		// Send MMI query to broker
-		err := client.Send(query)
-		if err != nil {
-			return fmt.Errorf("failed to send MMI query: %w", err)
+		// Create a result channel for safe goroutine communication
+		type mdpResult struct {
+			response []string
+			err      error
 		}
 
-		// Receive response
-		resp, err := client.Recv()
-		if err != nil {
-			return fmt.Errorf("failed to receive MMI response: %w", err)
-		}
+		resultChan := make(chan mdpResult, 1)
 
-		response = resp
-		return nil
+		// Run MDP operation in isolated goroutine with panic recovery
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					bs.logger.WithField("panic", r).Error("Panic in MMI query")
+					resultChan <- mdpResult{
+						response: nil,
+						err:      fmt.Errorf("MMI query panicked: %v", r),
+					}
+				}
+			}()
+
+			// Send MMI query to broker
+			if err := client.Send(query); err != nil {
+				resultChan <- mdpResult{
+					response: nil,
+					err:      fmt.Errorf("failed to send MMI query: %w", err),
+				}
+				return
+			}
+
+			// Receive response
+			resp, err := client.Recv()
+			if err != nil {
+				resultChan <- mdpResult{
+					response: nil,
+					err:      fmt.Errorf("failed to receive MMI response: %w", err),
+				}
+				return
+			}
+
+			resultChan <- mdpResult{
+				response: resp,
+				err:      nil,
+			}
+		}()
+
+		// Wait for either completion or timeout
+		select {
+		case result := <-resultChan:
+			if result.err != nil {
+				return result.err
+			}
+			response = result.response
+			return nil
+		case <-ctx.Done():
+			return fmt.Errorf("MMI query timed out: %w", ctx.Err())
+		}
 	})
 
 	if err != nil {
@@ -488,36 +538,86 @@ func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, 
 	return response, nil
 }
 
-// queryService sends a query to a specific service.
-func (bs *BrokerService) queryService(ctx context.Context, serviceName string, command string, args ...string) ([]string, error) { //nolint:revive
+// queryServiceWithTimeout sends a query to a specific service with timeout protection.
+func (bs *BrokerService) queryServiceWithTimeout(ctx context.Context, serviceName string, command string, args ...string) ([]string, error) {
 	bs.logger.WithFields(log.Fields{
 		"service": serviceName,
 		"command": command,
 		"args":    args,
-	}).Trace("Sending service query")
+	}).Trace("Sending service query with timeout")
 
 	// Prepare message
 	message := append([]string{command}, args...)
 
-	// Send service query
-	err := bs.client.Send(serviceName, message...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send service query: %w", err)
+	// Create a result channel for safe goroutine communication
+	type mdpResult struct {
+		response []string
+		err      error
 	}
 
-	// Receive response
-	response, err := bs.client.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive service response: %w", err)
+	resultChan := make(chan mdpResult, 1)
+
+	// Run MDP operation in isolated goroutine with panic recovery
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				bs.logger.WithField("panic", r).Error("Panic in service query")
+				resultChan <- mdpResult{
+					response: nil,
+					err:      fmt.Errorf("service query panicked: %v", r),
+				}
+			}
+		}()
+
+		// Send service query
+		if err := bs.client.Send(serviceName, message...); err != nil {
+			resultChan <- mdpResult{
+				response: nil,
+				err:      fmt.Errorf("failed to send service query: %w", err),
+			}
+			return
+		}
+
+		// Receive response
+		resp, err := bs.client.Recv()
+		if err != nil {
+			resultChan <- mdpResult{
+				response: nil,
+				err:      fmt.Errorf("failed to receive service response: %w", err),
+			}
+			return
+		}
+
+		resultChan <- mdpResult{
+			response: resp,
+			err:      nil,
+		}
+	}()
+
+	// Wait for either completion or timeout
+	select {
+	case result := <-resultChan:
+		if result.err != nil {
+			return nil, result.err
+		}
+		bs.logger.WithFields(log.Fields{
+			"service":  serviceName,
+			"command":  command,
+			"response": result.response,
+		}).Trace("Received service response")
+		return result.response, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("service query timed out: %w", ctx.Err())
 	}
+}
 
-	bs.logger.WithFields(log.Fields{
-		"service":  serviceName,
-		"command":  command,
-		"response": response,
-	}).Trace("Received service response")
+// Legacy methods for compatibility
+func (bs *BrokerService) queryMMI(ctx context.Context, query string) ([]string, error) {
+	return bs.queryMMIWithTimeout(ctx, query)
+}
 
-	return response, nil
+func (bs *BrokerService) queryService(ctx context.Context, serviceName string, command string, args ...string) ([]string, error) { //nolint:unused
+	return bs.queryServiceWithTimeout(ctx, serviceName, command, args...)
 }
 
 // GetMetrics retrieves real-time performance metrics from the broker.

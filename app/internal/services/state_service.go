@@ -438,25 +438,84 @@ func (ss *StateService) sendRequest(ctx context.Context, service string, args ..
 		"args":    len(args),
 	}).Trace("Sending state service request")
 
-	// Send request
-	err := ss.client.Send(service, args...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send state service request: %w", err)
+	// Create a timeout for the entire operation
+	opCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	defer cancel()
+
+	// Use a channel to handle the MDP operation safely
+	type result struct {
+		response []string
+		err      error
 	}
 
-	// Receive response
-	response, err := ss.client.Recv()
-	if err != nil {
-		return nil, fmt.Errorf("failed to receive state service response: %w", err)
+	resultChan := make(chan result, 1)
+
+	// Run the MDP operation in a separate goroutine with panic recovery
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				ss.logger.WithField("panic", r).Error("Panic in state service request")
+				resultChan <- result{
+					response: nil,
+					err:      fmt.Errorf("state service request panicked: %v", r),
+				}
+			}
+		}()
+
+		// Check if client is available
+		if ss.client == nil {
+			resultChan <- result{
+				response: nil,
+				err:      fmt.Errorf("state service client not initialized"),
+			}
+			return
+		}
+
+		// Send request with error handling
+		err := ss.client.Send(service, args...)
+		if err != nil {
+			resultChan <- result{
+				response: nil,
+				err:      fmt.Errorf("failed to send state service request: %w", err),
+			}
+			return
+		}
+
+		// Receive response with error handling
+		response, err := ss.client.Recv()
+		if err != nil {
+			resultChan <- result{
+				response: nil,
+				err:      fmt.Errorf("failed to receive state service response: %w", err),
+			}
+			return
+		}
+
+		resultChan <- result{
+			response: response,
+			err:      nil,
+		}
+	}()
+
+	// Wait for either completion or timeout
+	select {
+	case res := <-resultChan:
+		if res.err != nil {
+			return nil, res.err
+		}
+
+		ss.logger.WithFields(log.Fields{
+			"service":  service,
+			"command":  command,
+			"response": res.response,
+		}).Trace("Received state service response")
+
+		return res.response, nil
+
+	case <-opCtx.Done():
+		ss.logger.WithError(opCtx.Err()).WithField("command", command).Warn("State service request timed out")
+		return nil, fmt.Errorf("state service request timed out: %w", opCtx.Err())
 	}
-
-	ss.logger.WithFields(log.Fields{
-		"service":  service,
-		"command":  command,
-		"response": response,
-	}).Trace("Received state service response")
-
-	return response, nil
 }
 
 // HealthCheck performs a comprehensive health check of the state service.

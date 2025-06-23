@@ -29,6 +29,9 @@ const (
 	Development = "development"
 )
 
+// Global SSE handler for cleanup
+var globalSSEHandler *internalHandlers.SSEHandler
+
 func csrfErrorHandler(c *fiber.Ctx, err error) error {
 	// Log the error so we can track who is trying to perform CSRF attacks
 	// customize this to your needs
@@ -67,6 +70,14 @@ func httpHandler(f http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(f)
 }
 
+// CleanupSSEHandler performs cleanup of SSE connections
+func CleanupSSEHandler() {
+	if globalSSEHandler != nil {
+		log.Info("Cleaning up SSE handler connections")
+		globalSSEHandler.CleanupActiveStreams()
+	}
+}
+
 func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authMiddleware *auth.AuthMiddleware, service *service, sessionStore *session.Store) { //nolint:revive
 	staticContents := util.Getenv("PLANTD_APP_PUBLIC_PATH", "./app/static")
 
@@ -93,12 +104,13 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 		service.metricsService,
 	)
 
-	// Create SSE handler for real-time updates
+	// Create SSE handler for real-time updates and store globally for cleanup
 	sseHandler := internalHandlers.NewSSEHandler(
 		service.brokerService,
 		service.healthService,
 		service.metricsService,
 	)
+	globalSSEHandler = sseHandler // Store for cleanup
 
 	// Create services handler
 	servicesHandler := internalHandlers.NewServicesHandler(
@@ -118,9 +130,9 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 	app.Get("/dashboard", authMiddleware.RequireAuth(), csrfMiddleware, dashboardHandler.ShowDashboard)
 	app.Get("/services", authMiddleware.RequireAuth(), csrfMiddleware, servicesHandler.ShowServices)
 
-	// Real-time update routes (SSE)
-	app.Get("/dashboard/sse", authMiddleware.RequireAuth(), sseHandler.DashboardSSE)
-	app.Get("/system/status/sse", authMiddleware.RequireAuth(), sseHandler.SystemStatusSSE)
+	// Real-time update routes (SSE) with timeout middleware
+	app.Get("/dashboard/sse", authMiddleware.RequireAuth(), sseTimeoutMiddleware, sseHandler.DashboardSSE)
+	app.Get("/system/status/sse", authMiddleware.RequireAuth(), sseTimeoutMiddleware, sseHandler.SystemStatusSSE)
 
 	app.Get("/sse", handlers.ReloadSSE)
 
@@ -149,6 +161,17 @@ func initializeRouter(app *fiber.App, authHandlers *handlers.AuthHandlers, authM
 	initializeDevRoutes(app)
 
 	app.Use(handlers.NotFound)
+}
+
+// sseTimeoutMiddleware adds timeout handling for SSE endpoints
+func sseTimeoutMiddleware(c *fiber.Ctx) error {
+	// Set reasonable timeouts for SSE connections
+	c.Set("X-Accel-Buffering", "no") // Disable nginx buffering
+	c.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	c.Set("Pragma", "no-cache")
+	c.Set("Expires", "0")
+
+	return c.Next()
 }
 
 func initializeBrokerRoutes(app *fiber.Router) {
