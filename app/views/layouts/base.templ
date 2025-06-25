@@ -13,18 +13,13 @@ templ head(title string) {
 		<link rel="icon" href="/public/favicon.ico"/>
 		<link rel="manifest" href="/public/manifest.json"/>
 		<link href="/public/css/tailwind.css" rel="stylesheet"/>
-		<script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
-		<script src="https://unpkg.com/hyperscript.org@0.9.12" crossorigin></script>
-		<script src="https://unpkg.com/hyperscript.org@0.9.12/dist/eventsource.js" crossorigin></script>
+		<!-- Datastar - replaces HTMX and Alpine.js -->
+		<script type="module" src="https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"></script>
 		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@animxyz/core"/>
 		<!-- shoelace web components -->
 		<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.13.1/cdn/themes/light.css"/>
 		<script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.13.1/cdn/shoelace-autoloader.js"></script>
-		<!-- htmx extensions -->
-		<script src="https://unpkg.com/htmx.org/dist/ext/sse.js" crossorigin></script>
-		<script src="https://unpkg.com/htmx.org/dist/ext/ws.js" crossorigin></script>
-		<script src="/public/js/htmx.ext.shoelace.js"></script>
 		if title != "" {
 			<title>Plantd - { title }</title>
 		} else {
@@ -67,14 +62,8 @@ templ Base(contents templ.Component) {
 	<!DOCTYPE html>
 	<html lang="en">
 		@head(title(ctx))
-		<body
-			class="h-screen"
-			hx-ext="shoelace"
-		>
+		<body class="h-screen">
 			@contents
-			<button _="on click call ReloadEvents.open()">Connect</button>
-			<button _="on click call ReloadEvents.close()">Disconnect</button>
 		</body>
-		@hotReload()
 	</html>
 }

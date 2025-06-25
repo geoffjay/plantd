@@ -29,7 +29,17 @@ templ Services(data *ServicesData) {
 }
 
 templ servicesContents(data *ServicesData) {
-	<div class="min-h-screen bg-gray-50">
+	<div 
+		class="min-h-screen bg-gray-50"
+		data-signals="{
+			services: $services || [],
+			serviceCount: $serviceCount || 0,
+			filter: $filter || 'all',
+			sort: $sort || 'name',
+			selectedService: $selectedService || null,
+			modalVisible: $modalVisible || false
+		}"
+	>
 		@components.Header()
 		<div class="flex">
 			@components.Sidenav()
@@ -40,18 +50,29 @@ templ servicesContents(data *ServicesData) {
 						<p class="text-gray-600">Monitor and manage system services</p>
 					</div>
 					<div class="flex items-center space-x-4">
-						<button onclick="refreshServices()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium">
-							Refresh
+						<button 
+							class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
+							data-on-click="@get('/services/refresh')"
+							data-indicator-refreshing
+						>
+							<span data-show="!$refreshing">Refresh</span>
+							<span data-show="$refreshing">Refreshing...</span>
 						</button>
 					</div>
 				</div>
+				
 				<!-- Filter and Search Controls -->
 				<div class="bg-white rounded-lg shadow mb-6 p-4">
 					<div class="flex items-center justify-between">
 						<div class="flex items-center space-x-4">
 							<div>
 								<label for="filter" class="block text-sm font-medium text-gray-700 mb-1">Filter</label>
-								<select id="filter" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+								<select 
+									id="filter" 
+									class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+									data-bind-filter
+									data-on-change="@get('/services/filter?filter=' + $filter)"
+								>
 									<option value="all">All Services</option>
 									<option value="healthy">Healthy</option>
 									<option value="unhealthy">Unhealthy</option>
@@ -61,7 +82,12 @@ templ servicesContents(data *ServicesData) {
 							</div>
 							<div>
 								<label for="sort" class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-								<select id="sort" class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+								<select 
+									id="sort" 
+									class="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+									data-bind-sort
+									data-on-change="@get('/services/sort?sort=' + $sort)"
+								>
 									<option value="name">Name</option>
 									<option value="status">Status</option>
 									<option value="uptime">Uptime</option>
@@ -70,15 +96,17 @@ templ servicesContents(data *ServicesData) {
 							</div>
 						</div>
 						<div class="text-sm text-gray-500">
-							Total: { fmt.Sprintf("%d", data.ServiceCount) } services
+							<span data-text="'Total: ' + $serviceCount + ' services'">Total: { fmt.Sprintf("%d", data.ServiceCount) } services</span>
 						</div>
 					</div>
 				</div>
+				
 				<!-- Services List -->
 				<div class="bg-white rounded-lg shadow">
 					<div class="px-6 py-4 border-b border-gray-200">
 						<h3 class="text-lg font-medium text-gray-900">Service Status</h3>
 					</div>
+					
 					if len(data.Services) > 0 {
 						<div class="divide-y divide-gray-200">
 							for i, _ := range data.Services {
@@ -100,19 +128,14 @@ templ servicesContents(data *ServicesData) {
 												Healthy
 											</span>
 											<div class="relative">
-												<button class="text-gray-400 hover:text-gray-600 focus:outline-none" onclick="toggleServiceMenu(this)" data-service-index={ fmt.Sprintf("%d", i) }>
+												<button 
+													class="text-gray-400 hover:text-gray-600 focus:outline-none" 
+													data-on-click="$modalVisible = true"
+												>
 													<svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
 														<path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"></path>
 													</svg>
 												</button>
-												<div id={ fmt.Sprintf("service-menu-%d", i) } class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 hidden">
-													<div class="py-1">
-														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">View Details</a>
-														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Restart</a>
-														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Stop</a>
-														<a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Scale</a>
-													</div>
-												</div>
 											</div>
 										</div>
 									</div>
@@ -129,18 +152,32 @@ templ servicesContents(data *ServicesData) {
 						</div>
 					}
 				</div>
-				<!-- Service Actions Modal (Hidden by default) -->
-				<div id="service-action-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-					<div class="bg-white rounded-lg p-6 w-96">
-						<h3 id="modal-title" class="text-lg font-medium text-gray-900 mb-4">Service Action</h3>
-						<div id="modal-content" class="mb-4">
-							<!-- Content will be inserted by JavaScript -->
+				
+				<!-- Service Actions Modal -->
+				<div 
+					class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+					data-show="$modalVisible"
+					data-on-click="$modalVisible = false"
+				>
+					<div 
+						class="bg-white rounded-lg p-6 w-96"
+						data-on-click="event.stopPropagation()"
+					>
+						<h3 class="text-lg font-medium text-gray-900 mb-4">Service Action</h3>
+						<div class="mb-4">
+							<p class="text-sm text-gray-600">Select an action for the service:</p>
 						</div>
 						<div class="flex justify-end space-x-3">
-							<button onclick="closeServiceModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md">
+							<button 
+								class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
+								data-on-click="$modalVisible = false"
+							>
 								Cancel
 							</button>
-							<button id="modal-confirm" onclick="confirmServiceAction()" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">
+							<button 
+								class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+								data-on-click="@post('/services/action'); $modalVisible = false"
+							>
 								Confirm
 							</button>
 						</div>
@@ -149,8 +186,6 @@ templ servicesContents(data *ServicesData) {
 			</main>
 		</div>
 	</div>
-	<!-- Services Management JavaScript -->
-	<script src="/static/js/services.js"></script>
 }
 
 templ ServiceDetails(data *ServiceDetailsData) {

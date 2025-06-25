@@ -26,22 +26,48 @@ templ Dashboard(data *DashboardData) {
 }
 
 templ dashboardContents(data *DashboardData) {
-	<div class="min-h-screen bg-gray-50">
+	<div 
+		class="min-h-screen bg-gray-50"
+		data-signals="{
+			serviceCount: $serviceCount || 0,
+			healthStatus: $healthStatus || 'unknown',
+			requestRate: $requestRate || '0/sec',
+			uptime: $uptime || 'Unknown',
+			healthyServices: $healthyServices || 0,
+			responseTime: $responseTime || '-',
+			errorRate: $errorRate || '-',
+			memoryUsage: $memoryUsage || '-',
+			cpuUsage: $cpuUsage || '-',
+			lastUpdated: $lastUpdated || 'Loading...',
+			connectionStatus: $connectionStatus || 'connecting'
+		}"
+		data-on-load="@get('/dashboard/sse')"
+	>
 		@components.Header()
 		<div class="flex">
 			@components.Sidenav()
 			<main class="flex-1 p-6" data-testid="main-nav">
 				<!-- Connection Status Indicator -->
-				<div id="connection-status" class="connection-indicator disconnected">Connecting...</div>
+				<div 
+					class="connection-indicator"
+					data-class="{
+						'connected': $connectionStatus === 'connected',
+						'disconnected': $connectionStatus === 'disconnected',
+						'connecting': $connectionStatus === 'connecting'
+					}"
+					data-text="$connectionStatus === 'connected' ? 'Live' : $connectionStatus === 'disconnected' ? 'Offline' : 'Connecting...'"
+				></div>
+				
 				<div class="mb-6 flex items-center justify-between">
 					<div>
 						<h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
 						<p class="text-gray-600">System overview and status</p>
 					</div>
 					<div class="text-sm text-gray-500">
-						<span id="last-updated">Last updated: Loading...</span>
+						<span data-text="'Last updated: ' + $lastUpdated">Last updated: Loading...</span>
 					</div>
 				</div>
+				
 				<!-- Metrics Cards -->
 				<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
 					<div class="bg-white rounded-lg shadow p-6" data-testid="metric-services">
@@ -55,10 +81,11 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Services</p>
-								<p id="service-count" class="text-2xl font-semibold text-gray-900" data-testid="metric-value">{ fmt.Sprintf("%d", data.ServiceCount) }</p>
+								<p class="text-2xl font-semibold text-gray-900" data-testid="metric-value" data-text="$serviceCount">{ fmt.Sprintf("%d", data.ServiceCount) }</p>
 							</div>
 						</div>
 					</div>
+					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -70,10 +97,11 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Health</p>
-								<p id="health-status" class="text-2xl font-semibold text-gray-900 capitalize">{ data.HealthStatus }</p>
+								<p class="text-2xl font-semibold text-gray-900 capitalize" data-text="$healthStatus">{ data.HealthStatus }</p>
 							</div>
 						</div>
 					</div>
+					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -85,10 +113,11 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Requests/sec</p>
-								<p id="request-rate" class="text-2xl font-semibold text-gray-900">{ data.RequestRate }</p>
+								<p class="text-2xl font-semibold text-gray-900" data-text="$requestRate">{ data.RequestRate }</p>
 							</div>
 						</div>
 					</div>
+					
 					<div class="bg-white rounded-lg shadow p-6">
 						<div class="flex items-center">
 							<div class="flex-shrink-0">
@@ -100,11 +129,12 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 							<div class="ml-4">
 								<p class="text-sm font-medium text-gray-500">Uptime</p>
-								<p id="system-uptime" class="text-2xl font-semibold text-gray-900">{ data.Uptime }</p>
+								<p class="text-2xl font-semibold text-gray-900" data-text="$uptime">{ data.Uptime }</p>
 							</div>
 						</div>
 					</div>
 				</div>
+				
 				<!-- Services and Health Section -->
 				<div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
 					<!-- Service Status -->
@@ -131,13 +161,14 @@ templ dashboardContents(data *DashboardData) {
 							</div>
 						}
 					</div>
+					
 					<!-- System Health -->
 					<div class="bg-white rounded-lg shadow p-6">
 						<h3 class="text-lg font-medium text-gray-900 mb-4">System Health</h3>
 						<div class="space-y-4">
 							<div class="flex items-center justify-between">
 								<span class="text-sm font-medium text-gray-500">Overall Status</span>
-								<span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full capitalize">
+								<span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full capitalize" data-text="$healthStatus">
 									{ data.HealthStatus }
 								</span>
 							</div>
@@ -156,31 +187,33 @@ templ dashboardContents(data *DashboardData) {
 						</div>
 					</div>
 				</div>
+				
 				<!-- Real-time Metrics -->
 				<div class="mt-8">
 					<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-6 mb-8">
 						<div class="bg-white rounded-lg shadow p-4">
 							<div class="text-sm font-medium text-gray-500">Response Time</div>
-							<div id="response-time" class="text-2xl font-semibold text-gray-900 mt-1">-</div>
+							<div class="text-2xl font-semibold text-gray-900 mt-1" data-text="$responseTime">-</div>
 						</div>
 						<div class="bg-white rounded-lg shadow p-4">
 							<div class="text-sm font-medium text-gray-500">Error Rate</div>
-							<div id="error-rate" class="text-2xl font-semibold text-gray-900 mt-1">-</div>
+							<div class="text-2xl font-semibold text-gray-900 mt-1" data-text="$errorRate">-</div>
 						</div>
 						<div class="bg-white rounded-lg shadow p-4">
 							<div class="text-sm font-medium text-gray-500">Memory Usage</div>
-							<div id="memory-usage" class="text-2xl font-semibold text-gray-900 mt-1">-</div>
+							<div class="text-2xl font-semibold text-gray-900 mt-1" data-text="$memoryUsage">-</div>
 						</div>
 						<div class="bg-white rounded-lg shadow p-4">
 							<div class="text-sm font-medium text-gray-500">CPU Usage</div>
-							<div id="cpu-usage" class="text-2xl font-semibold text-gray-900 mt-1">-</div>
+							<div class="text-2xl font-semibold text-gray-900 mt-1" data-text="$cpuUsage">-</div>
 						</div>
 						<div class="bg-white rounded-lg shadow p-4">
 							<div class="text-sm font-medium text-gray-500">Healthy Services</div>
-							<div id="healthy-services" class="text-2xl font-semibold text-gray-900 mt-1">-</div>
+							<div class="text-2xl font-semibold text-gray-900 mt-1" data-text="$healthyServices">-</div>
 						</div>
 					</div>
 				</div>
+				
 				<!-- Performance Metrics Chart Area -->
 				<div class="mt-8">
 					<div class="bg-white rounded-lg shadow p-6">
@@ -193,7 +226,4 @@ templ dashboardContents(data *DashboardData) {
 			</main>
 		</div>
 	</div>
-	
-	<!-- Dashboard JavaScript for Real-time Updates -->
-	<script src="/public/js/dashboard.js"></script>
 }
