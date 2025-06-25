@@ -1,33 +1,246 @@
 #!/bin/bash
 
-function _check {
-  if [ $1 -ne 0 ]; then
-    echo "$2 must complete on project $3 before commit"
-    exit 1
-  fi
+# Colors and emoji for better output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Global arrays to track results
+declare -a CHECKS_RUNNING=()
+declare -a CHECKS_PASSED=()
+declare -a CHECKS_FAILED=()
+
+# Function to run a command and capture output
+run_check() {
+    local name="$1"
+    local emoji="$2"
+    local cmd="$3"
+    local project="$4"
+    local check_id="${name}:${project}"
+    
+    CHECKS_RUNNING+=("$check_id")
+    echo -ne "${YELLOW}$emoji $name ($project)${NC} ... "
+    
+    if eval "$cmd" > "/tmp/precommit_${name}_${project}.log" 2>&1; then
+        echo -e "${GREEN}✅ PASSED${NC}"
+        CHECKS_PASSED+=("$check_id")
+        return 0
+    else
+        echo -e "${RED}❌ FAILED${NC}"
+        CHECKS_FAILED+=("$check_id")
+        return 1
+    fi
 }
 
-echo "Running pre-commit hooks"
+# Function to run config file checks
+run_config_check() {
+    local name="$1"
+    local emoji="$2"
+    local pattern="$3"
+    local cmd="$4"
+    local check_id="${name}:config"
+    
+    CHECKS_RUNNING+=("$check_id")
+    echo -ne "${YELLOW}$emoji $name (config files)${NC} ... "
+    
+    local files=$(find . -name "$pattern" \
+        -not -path "./vendor/*" \
+        -not -path "./.git/*" \
+        -not -path "./node_modules/*" \
+        -not -path "./app/node_modules/*" \
+        -not -path "./*/node_modules/*" \
+        -not -path "./tmp/*" \
+        -not -path "./test-results/*" \
+        -not -path "./playwright-report/*" \
+        -not -path "./coverage/*" \
+        -not -path "./build/*" \
+        -not -path "./.cache/*" \
+        -not -path "./dist/*" 2>/dev/null | head -20)
+    
+    if [ -z "$files" ]; then
+        echo -e "${GREEN}✅ PASSED${NC} (no files found)"
+        CHECKS_PASSED+=("$check_id")
+        return 0
+    fi
+    
+    local failed=0
+    local output_file="/tmp/precommit_${name}_config.log"
+    echo "Checking $name files..." > "$output_file"
+    echo "Files found: $(echo "$files" | wc -l | tr -d ' ')" >> "$output_file"
+    echo "" >> "$output_file"
+    
+    for file in $files; do
+        echo "Checking $file..." >> "$output_file"
+        if ! eval "$cmd \"$file\"" >> "$output_file" 2>&1; then
+            failed=1
+            break  # Stop on first failure to avoid overwhelming output
+        fi
+    done
+    
+    if [ $failed -eq 0 ]; then
+        echo -e "${GREEN}✅ PASSED${NC}"
+        CHECKS_PASSED+=("$check_id")
+        return 0
+    else
+        echo -e "${RED}❌ FAILED${NC}"
+        CHECKS_FAILED+=("$check_id")
+        return 1
+    fi
+}
 
-./scripts/utility go-lint app
-_check $? "golangci-lint" "app"
+echo -e "${BLUE}🚀 Running pre-commit hooks...${NC}"
+echo ""
 
-templ fmt app/views/
+# Clean up any previous temp files
+rm -f /tmp/precommit_*.log
 
-./scripts/utility go-lint broker
-_check $? "golangci-lint" "broker"
+# Start time
+start_time=$(date +%s)
 
-./scripts/utility go-lint core
-_check $? "golangci-lint" "core"
+# Go projects to check
+projects=("app" "broker" "core" "identity" "logger" "proxy" "state" "client")
 
-./scripts/utility go-lint identity
-_check $? "golangci-lint" "identity"
+# Run Go checks - must be sequential for golangci-lint
+echo -e "${BLUE}🔍 Running Go lint checks...${NC}"
+for project in "${projects[@]}"; do
+    if [ -d "$project" ]; then
+        # golangci-lint (sequential to avoid conflicts)
+        run_check "golangci-lint" "🔍" "./scripts/utility go-lint $project" "$project"
+    fi
+done
 
-./scripts/utility go-lint logger
-_check $? "golangci-lint" "logger"
+echo ""
+echo -e "${BLUE}📝 Running Go format checks...${NC}"
+for project in "${projects[@]}"; do
+    if [ -d "$project" ]; then
+        # gofmt check
+        run_check "gofmt" "📝" "test -z \"\$(gofmt -l $project/ 2>/dev/null | grep -v vendor | head -10)\"" "$project"
+        
+        # go mod tidy check
+        run_check "go-mod-tidy" "📦" "cd $project && go mod tidy && git diff --exit-code go.mod go.sum" "$project"
+    fi
+done
 
-./scripts/utility go-lint proxy
-_check $? "golangci-lint" "proxy"
+# Run templ formatting
+if [ -d "app/views" ]; then
+    echo ""
+    echo -e "${BLUE}🎨 Running template formatting...${NC}"
+    echo -ne "${YELLOW}🎨 templ-fmt (app)${NC} ... "
+    
+    if templ fmt app/views/ > "/tmp/precommit_templ-fmt_app.log" 2>&1; then
+        # Check if any files were modified
+        if git diff --exit-code app/views/ > "/tmp/precommit_templ-fmt_app.log" 2>&1; then
+            echo -e "${GREEN}✅ PASSED${NC}"
+            CHECKS_PASSED+=("templ-fmt:app")
+        else
+            echo -e "${RED}❌ FAILED${NC} (files modified)"
+            echo "templ fmt modified files - please commit the changes" > "/tmp/precommit_templ-fmt_app.log"
+            git diff app/views/ >> "/tmp/precommit_templ-fmt_app.log"
+            CHECKS_FAILED+=("templ-fmt:app")
+        fi
+    else
+        echo -e "${RED}❌ FAILED${NC}"
+        CHECKS_FAILED+=("templ-fmt:app")
+    fi
+fi
 
-./scripts/utility go-lint state
-_check $? "golangci-lint" "state"
+# Run configuration file checks
+echo ""
+echo -e "${BLUE}📋 Running configuration file checks...${NC}"
+
+# Create yamllint config if it doesn't exist
+if [ ! -f ".yamllint.yml" ]; then
+    cat > .yamllint.yml << 'EOF'
+extends: default
+rules:
+  line-length:
+    max: 120
+  comments:
+    min-spaces-from-content: 1
+  document-start: disable
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off', 'yes', 'no']
+EOF
+fi
+
+# YAML files
+if command -v yamllint >/dev/null 2>&1; then
+    run_config_check "yamllint" "📄" "*.yml" "yamllint -c .yamllint.yml"
+    run_config_check "yamllint" "📄" "*.yaml" "yamllint -c .yamllint.yml"
+else
+    echo -e "${YELLOW}⚠️  yamllint not found, skipping YAML linting${NC}"
+fi
+
+# JSON files (excluding node_modules and large directories)
+if command -v jq >/dev/null 2>&1; then
+    run_config_check "json-lint" "📋" "*.json" "jq empty"
+else
+    echo -e "${YELLOW}⚠️  jq not found, skipping JSON linting${NC}"
+fi
+
+# TOML files
+if command -v toml-test >/dev/null 2>&1; then
+    run_config_check "toml-lint" "📑" "*.toml" "toml-test"
+elif command -v taplo >/dev/null 2>&1; then
+    run_config_check "toml-lint" "📑" "*.toml" "taplo check"
+else
+    echo -e "${YELLOW}⚠️  toml linting tool not found, skipping TOML linting${NC}"
+fi
+
+# Calculate timing and show results
+echo ""
+echo "========================="
+
+end_time=$(date +%s)
+duration=$((end_time - start_time))
+total_checks=${#CHECKS_RUNNING[@]}
+passed_checks=${#CHECKS_PASSED[@]}
+failed_checks=${#CHECKS_FAILED[@]}
+
+if [ ${#CHECKS_FAILED[@]} -eq 0 ]; then
+    echo -e "${GREEN}🎉 All checks passed! ($passed_checks/$total_checks) - ${duration}s${NC}"
+    echo ""
+    
+    # Clean up temp files
+    rm -f /tmp/precommit_*.log .yamllint.yml
+    exit 0
+else
+    echo -e "${RED}💥 $failed_checks check(s) failed out of $total_checks total - ${duration}s${NC}"
+    echo ""
+    echo -e "${RED}Failed checks:${NC}"
+    
+    for failed in "${CHECKS_FAILED[@]}"; do
+        IFS=':' read -r name project <<< "$failed"
+        echo -e "${RED}  ❌ $name ($project)${NC}"
+    done
+    
+    echo ""
+    echo -e "${YELLOW}📋 Detailed failure output:${NC}"
+    echo "================================="
+    
+    # Show detailed output for failed checks
+    for failed in "${CHECKS_FAILED[@]}"; do
+        IFS=':' read -r name project <<< "$failed"
+        log_file="/tmp/precommit_${name}_${project}.log"
+        
+        if [ -f "$log_file" ]; then
+            echo ""
+            echo -e "${RED}❌ $name ($project) output:${NC}"
+            echo "-----------------------------------"
+            head -50 "$log_file"  # Limit output to prevent overwhelming
+            if [ $(wc -l < "$log_file") -gt 50 ]; then
+                echo "... (output truncated, see full log at $log_file)"
+            fi
+            echo "-----------------------------------"
+        fi
+    done
+    
+    echo ""
+    echo -e "${RED}💡 Please fix the above issues before committing.${NC}"
+    
+    # Don't clean up temp files so they can be inspected
+    rm -f .yamllint.yml
+    exit 1
+fi

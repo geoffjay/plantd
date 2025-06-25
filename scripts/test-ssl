@@ -1,0 +1,170 @@
+#!/bin/bash
+
+# PlantD App SSL/TLS Test Script
+# This script helps test the SSL certificate and connection functionality
+
+set -e
+
+echo "🔒 PlantD App SSL/TLS Test Script"
+echo "================================="
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Default values
+HOST="localhost"
+HTTPS_PORT="8443"
+HTTP_PORT="8080"
+CERT_PATH="cert/app-cert.pem"
+
+echo ""
+echo "📋 Current Configuration:"
+echo "  HTTPS URL: https://${HOST}:${HTTPS_PORT}"
+echo "  HTTP URL:  http://${HOST}:${HTTP_PORT}"
+echo "  Certificate: ${CERT_PATH}"
+echo ""
+
+# Function to test HTTPS connection
+test_https() {
+    echo "🔐 Testing HTTPS Connection..."
+    
+    if [ ! -f "${CERT_PATH}" ]; then
+        echo -e "${RED}❌ Certificate not found at ${CERT_PATH}${NC}"
+        return 1
+    fi
+    
+    # Check certificate validity
+    echo "📜 Certificate Information:"
+    openssl x509 -in "${CERT_PATH}" -text -noout | grep -E "(Not Before|Not After|Subject Alternative Name)" -A 1
+    
+    echo ""
+    echo "🌐 Testing HTTPS connection (accepting self-signed cert)..."
+    
+    if curl -k -s -o /dev/null -w "%{http_code}" "https://${HOST}:${HTTPS_PORT}/" | grep -q "200\|302"; then
+        echo -e "${GREEN}✅ HTTPS connection successful${NC}"
+        
+        # Test SSE endpoints
+        echo "📡 Testing SSE endpoints..."
+        if timeout 3 curl -k -s "https://${HOST}:${HTTPS_PORT}/sse" >/dev/null 2>&1; then
+            echo -e "${GREEN}✅ SSE endpoint accessible${NC}"
+        else
+            echo -e "${YELLOW}⚠️  SSE endpoint test timed out (may require authentication)${NC}"
+        fi
+    else
+        echo -e "${RED}❌ HTTPS connection failed${NC}"
+        return 1
+    fi
+}
+
+# Function to test HTTP connection
+test_http() {
+    echo "🌐 Testing HTTP Connection..."
+    
+    if curl -s -o /dev/null -w "%{http_code}" "http://${HOST}:${HTTP_PORT}/" | grep -q "200\|302"; then
+        echo -e "${GREEN}✅ HTTP connection successful${NC}"
+    else
+        echo -e "${RED}❌ HTTP connection failed (service may not be running in HTTP mode)${NC}"
+        return 1
+    fi
+}
+
+# Function to show browser instructions
+show_browser_instructions() {
+    echo ""
+    echo "🌐 Browser Instructions:"
+    echo "========================"
+    echo ""
+    echo "For HTTPS (recommended):"
+    echo "  1. Open: https://${HOST}:${HTTPS_PORT}"
+    echo "  2. You'll see a security warning about the self-signed certificate"
+    echo "  3. Click 'Advanced' then 'Proceed to ${HOST} (unsafe)'"
+    echo "  4. The certificate is safe for development - it's self-signed by plantd"
+    echo ""
+    echo "For HTTP (if enabled):"
+    echo "  1. Set: export PLANTD_APP_USE_HTTP=true"
+    echo "  2. Restart: overmind restart app"
+    echo "  3. Open: http://${HOST}:${HTTP_PORT}"
+    echo ""
+}
+
+# Function to show troubleshooting tips
+show_troubleshooting() {
+    echo "🔧 Troubleshooting Tips:"
+    echo "======================="
+    echo ""
+    echo "If you're still getting certificate errors:"
+    echo ""
+    echo "1. 🔄 Regenerate certificates:"
+    echo "   rm cert/app-*.pem && overmind restart app"
+    echo ""
+    echo "2. 🌐 Use HTTP mode for development:"
+    echo "   export PLANTD_APP_USE_HTTP=true"
+    echo "   overmind restart app"
+    echo ""
+    echo "3. 🛠️  Use mkcert for trusted certificates:"
+    echo "   brew install mkcert  # or your package manager"
+    echo "   mkcert -install"
+    echo "   mkcert localhost 127.0.0.1 ::1"
+    echo "   mv localhost+2.pem cert/app-cert.pem"
+    echo "   mv localhost+2-key.pem cert/app-key.pem"
+    echo "   overmind restart app"
+    echo ""
+    echo "4. 🔍 Check service status:"
+    echo "   overmind status"
+    echo ""
+    echo "5. 📋 View app logs:"
+    echo "   overmind echo app"
+    echo ""
+}
+
+# Main execution
+case "${1:-test}" in
+    "https")
+        test_https
+        ;;
+    "http")
+        test_http
+        ;;
+    "test")
+        echo "🧪 Running comprehensive SSL/TLS tests..."
+        echo ""
+        
+        # Test HTTPS first
+        if test_https; then
+            echo -e "${GREEN}✅ HTTPS tests passed${NC}"
+        else
+            echo -e "${RED}❌ HTTPS tests failed${NC}"
+        fi
+        
+        echo ""
+        
+        # Test HTTP if available
+        if test_http; then
+            echo -e "${GREEN}✅ HTTP tests passed${NC}"
+        else
+            echo -e "${YELLOW}ℹ️  HTTP mode not enabled (use PLANTD_APP_USE_HTTP=true)${NC}"
+        fi
+        
+        show_browser_instructions
+        ;;
+    "help"|"-h"|"--help")
+        echo "Usage: $0 [command]"
+        echo ""
+        echo "Commands:"
+        echo "  test     Run comprehensive SSL/TLS tests (default)"
+        echo "  https    Test HTTPS connection only"
+        echo "  http     Test HTTP connection only"
+        echo "  help     Show this help message"
+        echo ""
+        show_troubleshooting
+        ;;
+    *)
+        echo -e "${RED}❌ Unknown command: $1${NC}"
+        echo "Use '$0 help' for usage information"
+        exit 1
+        ;;
+esac 

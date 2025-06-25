@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"strconv"
 	"sync"
@@ -17,7 +18,8 @@ import (
 
 	conf "github.com/geoffjay/plantd/app/config"
 	"github.com/geoffjay/plantd/app/handlers"
-	"github.com/geoffjay/plantd/app/repository"
+	"github.com/geoffjay/plantd/app/internal/auth"
+	"github.com/geoffjay/plantd/app/internal/services"
 	"github.com/geoffjay/plantd/app/views"
 	"github.com/geoffjay/plantd/core/util"
 
@@ -34,7 +36,13 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type service struct{}
+type service struct {
+	// Service integrations
+	brokerService  *services.BrokerService
+	stateService   *services.StateService
+	healthService  *services.HealthService
+	metricsService *services.MetricsService
+}
 
 func (s *service) init() {
 	log.WithFields(log.Fields{
@@ -42,8 +50,36 @@ func (s *service) init() {
 		"context": "service.init",
 	}).Debug("initializing")
 
-	// TODO: remove this once there's a database.
-	repository.Initialize()
+	config := conf.GetConfig()
+
+	// Initialize Broker Service
+	log.Debug("Initializing Broker Service")
+	brokerService, err := services.NewBrokerService(config)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to initialize Broker Service")
+	}
+	s.brokerService = brokerService
+
+	// Initialize State Service
+	log.Debug("Initializing State Service")
+	stateService, err := services.NewStateService(config)
+	if err != nil {
+		log.WithError(err).Fatal("Failed to initialize State Service")
+	}
+	s.stateService = stateService
+
+	// Initialize Health Service (depends on broker and state services)
+	log.Debug("Initializing Health Service")
+	s.healthService = services.NewHealthService(s.brokerService, s.stateService, nil, config)
+
+	// Initialize Metrics Service (depends on broker and state services)
+	log.Debug("Initializing Metrics Service")
+	s.metricsService = services.NewMetricsService(s.brokerService, s.stateService, config)
+
+	log.WithFields(log.Fields{
+		"service": "app",
+		"context": "service.init",
+	}).Info("All services initialized successfully")
 }
 
 func (s *service) run(ctx context.Context, wg *sync.WaitGroup) {
@@ -54,10 +90,24 @@ func (s *service) run(ctx context.Context, wg *sync.WaitGroup) {
 		"context": "service.run",
 	}).Debug("starting")
 
+	// Temporarily disable metrics collection to prevent ZeroMQ crashes
+	// Start metrics collection
+	// if s.metricsService != nil {
+	// 	go s.metricsService.StartCollection(ctx)
+	// }
+
 	wg.Add(1)
 	go s.runApp(ctx, wg)
 
 	<-ctx.Done()
+
+	// Cleanup SSE connections first to prevent goroutine leaks
+	CleanupSSEHandler()
+
+	// Stop metrics collection
+	if s.metricsService != nil {
+		s.metricsService.StopCollection()
+	}
 
 	log.WithFields(log.Fields{
 		"service": "app",
@@ -77,6 +127,16 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		log.WithFields(fields).Fatal(err)
 	}
 
+	// Check if HTTP mode is enabled for development
+	useHTTP := util.Getenv("PLANTD_APP_USE_HTTP", "false") == "true"
+	if useHTTP && config.Env != "production" {
+		// Use default HTTP port if not specified and using HTTP
+		if util.Getenv("PLANTD_APP_BIND_PORT", "") == "" {
+			bindPort = 8080
+		}
+		log.WithFields(fields).Info("Running in HTTP mode (development only)")
+	}
+
 	log.WithFields(fields).Debug("starting server")
 
 	go func() {
@@ -93,7 +153,31 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 			JSONDecoder: json.Unmarshal,
 		})
 
-		handlers.SessionStore = session.New(config.Session.ToSessionConfig())
+		// Initialize authentication components
+		identityClient, err := auth.NewIdentityClient(config)
+		if err != nil {
+			log.WithFields(fields).WithError(err).Fatal("Failed to initialize Identity Service client")
+		}
+
+		sessionManager, err := auth.NewSessionManager(config, identityClient)
+		if err != nil {
+			log.WithFields(fields).WithError(err).Fatal("Failed to initialize session manager")
+		}
+
+		// Set global session manager for handlers
+		handlers.SessionManager = sessionManager
+
+		authHandlers := handlers.NewAuthHandlers(identityClient, sessionManager)
+		authMiddleware := auth.NewAuthMiddleware(sessionManager, identityClient)
+
+		// Update health service with identity client now that it's available
+		if s.healthService != nil {
+			// Pass identity client to health service for health checks
+			s.healthService = services.NewHealthService(s.brokerService, s.stateService, identityClient, config)
+		}
+
+		sessionStore := session.New(config.Session.ToSessionConfig())
+		handlers.SessionStore = sessionStore
 
 		app.Use(helmet.New())
 		app.Use(cors.New(config.Cors.ToCorsConfig()))
@@ -101,22 +185,47 @@ func (s *service) runApp(ctx context.Context, wg *sync.WaitGroup) {
 		app.Use(recover.New())
 		app.Use(etag.New())
 		app.Use(limiter.New(limiter.Config{
-			Expiration: 30 * time.Second,
-			Max:        50,
+			Expiration: 1 * time.Minute,
+			Max:        300,
+			KeyGenerator: func(c *fiber.Ctx) string {
+				return c.IP()
+			},
+			LimitReached: func(c *fiber.Ctx) error {
+				log.WithFields(log.Fields{
+					"service": "app",
+					"context": "rate_limiter",
+					"ip":      c.IP(),
+					"path":    c.Path(),
+				}).Warn("Rate limit exceeded")
+				return c.Status(fiber.StatusTooManyRequests).JSON(fiber.Map{
+					"error": "Too many requests, please try again later",
+				})
+			},
+			SkipFailedRequests:     true,
+			SkipSuccessfulRequests: false,
 		}))
 
-		initializeRouter(app)
+		// Initialize router with services
+		initializeRouter(app, authHandlers, authMiddleware, s, sessionStore)
 
-		cert := initializeCert()
-		tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 		address := fmt.Sprintf("%s:%d", bindAddress, bindPort)
 
-		ln, err := tls.Listen("tcp", address, tlsConfig)
-		if err != nil {
-			panic(err)
-		}
+		// Start server with or without TLS
+		if useHTTP && config.Env != "production" {
+			log.WithFields(fields).WithField("address", address).Info("Starting HTTP server (development only)")
+			log.WithFields(fields).Fatal(app.Listen(address))
+		} else {
+			cert := initializeCert()
+			tlsConfig := &tls.Config{Certificates: []tls.Certificate{cert}}
 
-		log.WithFields(fields).Fatal(app.Listener(ln))
+			ln, err := tls.Listen("tcp", address, tlsConfig)
+			if err != nil {
+				panic(err)
+			}
+
+			log.WithFields(fields).WithField("address", address).Info("Starting HTTPS server")
+			log.WithFields(fields).Fatal(app.Listener(ln))
+		}
 	}()
 
 	<-ctx.Done()
@@ -167,15 +276,32 @@ func generateSelfSignedCert(certFile string, keyFile string) error {
 	template := x509.Certificate{
 		SerialNumber: big.NewInt(1),
 		Subject: pkix.Name{
-			Organization: []string{"Plantd Org"},
+			Organization:  []string{"Plantd Development"},
+			Country:       []string{"US"},
+			Province:      []string{""},
+			Locality:      []string{""},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
 		},
 		NotBefore: time.Now(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 180),
+		NotAfter:  time.Now().Add(time.Hour * 24 * 365), // 1 year validity
 
 		KeyUsage: x509.KeyUsageKeyEncipherment |
 			x509.KeyUsageDigitalSignature,
 		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		BasicConstraintsValid: true,
+
+		// Add Subject Alternative Names for proper localhost support
+		DNSNames: []string{
+			"localhost",
+			"*.localhost",
+			"plantd.local",
+			"*.plantd.local",
+		},
+		IPAddresses: []net.IP{
+			net.IPv4(127, 0, 0, 1), // 127.0.0.1
+			net.IPv6loopback,       // ::1
+		},
 	}
 
 	derBytes, err := x509.CreateCertificate(

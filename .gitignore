@@ -21,6 +21,9 @@ cert/*.pem
 /vendor/
 
 # generated files
+/app/node_modules/
+/app/playwright-report/
+/app/test-results/
 /app/views/**/*_templ.go
 /app/views/**/*_templ.txt
 
