@@ -1,0 +1,15 @@
+Integration Test Report - Fri Jun 27 13:24:38 PDT 2025
+============================================
+
+Test Summary:
+  Total Tests: 15
+  Passed: 5
+  Failed: 8
+  Success Rate: 33.33%
+
+Status: ❌ SOME TESTS FAILED
+
+Test Environment:
+  Traefik Endpoint: http://localhost:8080
+  gRPC Client: ./build/plant-grpc
+  Test Timestamp: 2025-06-27T13:24:38-07:00

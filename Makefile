@@ -17,6 +17,43 @@ deps: ; $(info $(M) Installing dependencies...)
 hooks: ; $(info $(M) Installing commit hooks...)
 	@./scripts/install-hooks
 
+proto-gen: ; $(info $(M) Generating protocol buffers...)
+	@PATH="$$HOME/.asdf/shims:$$(go env GOPATH)/bin:$$PATH" buf generate
+
+proto-lint: ; $(info $(M) Linting protocol buffers...)
+	@PATH="$$HOME/.asdf/shims:$$(go env GOPATH)/bin:$$PATH" buf lint
+
+proto-breaking: ; $(info $(M) Checking for breaking changes...)
+	@PATH="$$HOME/.asdf/shims:$$(go env GOPATH)/bin:$$PATH" buf breaking --against '.git#branch=main'
+
+proto-clean: ; $(info $(M) Cleaning generated protocol buffers...)
+	@rm -rf gen/proto
+
+# Add proto validation to CI
+ci-proto: proto-lint proto-gen ; $(info $(M) Protocol buffer validation complete)
+	@echo "Protocol buffer validation complete"
+
+# Traefik gateway development
+.PHONY: traefik-dev-start traefik-dev-stop traefik-dev-restart traefik-dev-status traefik-dev-test traefik-dev-logs
+
+traefik-dev-start: ; $(info $(M) Starting Traefik gateway environment...)
+	@./scripts/traefik-dev.sh start
+
+traefik-dev-stop: ; $(info $(M) Stopping Traefik gateway environment...)
+	@./scripts/traefik-dev.sh stop
+
+traefik-dev-restart: ; $(info $(M) Restarting Traefik gateway environment...)
+	@./scripts/traefik-dev.sh restart
+
+traefik-dev-status: ; $(info $(M) Checking Traefik gateway status...)
+	@./scripts/traefik-dev.sh status
+
+traefik-dev-test: ; $(info $(M) Testing Traefik gateway functionality...)
+	@./scripts/traefik-dev.sh test
+
+traefik-dev-logs: ; $(info $(M) Showing Traefik gateway logs...)
+	@./scripts/traefik-dev.sh logs
+
 lint: ; $(info $(M) Lint projects...)
 	@./scripts/utility go-lint app
 	@./scripts/utility go-lint broker
@@ -26,7 +63,11 @@ lint: ; $(info $(M) Lint projects...)
 	@./scripts/utility go-lint proxy
 	@./scripts/utility go-lint state
 
-build: build-pre build-app build-broker build-client build-identity build-logger build-proxy build-state
+build: build-pre proto-gen build-app build-broker build-client build-identity build-logger build-proxy build-state
+
+build-grpc: build-pre proto-gen build-state-grpc
+
+build-all: build build-grpc build-client-grpc
 
 build-pre: ; $(info $(M) Building projects...)
 	@mkdir -p build/
@@ -41,10 +82,14 @@ build-broker: ; $(info $(M) Building broker service...)
 	go build -o ../build/plantd-broker $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-client: ; $(info $(M) Building client utlity...)
-	@pushd client >/dev/null; \
-	go build -o ../build/plant $(BUILD_ARGS) .; \
-	popd >/dev/null
+build-client: ; $(info $(M) Building client...)
+	@cd client && go build -o ../build/plant main.go
+
+build-client-grpc: proto-gen client-deps ; $(info $(M) Building client with gRPC support...)
+	@cd client && go mod tidy && go build -o ../build/plant-grpc main.go
+
+client-deps: ; $(info $(M) Installing client dependencies...)
+	@cd client && go mod tidy
 
 build-identity: ; $(info $(M) Building identity service...)
 	@pushd identity >/dev/null; \
@@ -64,6 +109,11 @@ build-proxy: ; $(info $(M) Building proxy service...)
 build-state: ; $(info $(M) Building state service...)
 	@pushd state >/dev/null; \
 	go build -o ../build/plantd-state $(BUILD_ARGS) .; \
+	popd >/dev/null
+
+build-state-grpc: ; $(info $(M) Building state gRPC service...)
+	@pushd state >/dev/null; \
+	go build -o ../build/plantd-state-grpc $(BUILD_ARGS) ./grpc_main.go ./grpc_server.go ./mdp_compat.go ./store.go; \
 	popd >/dev/null
 
 build-module-echo: ; $(info $(M) Building echo module...)
@@ -181,4 +231,43 @@ clean: ; $(info $(M) Removing build files...)
 	@rm -rf build/
 	@rm -rf coverage/
 
+# Test targets
+.PHONY: test-grpc-client
+
+test-grpc-client: build-client-grpc ; $(info $(M) Testing gRPC client implementation...)
+	@chmod +x scripts/test-grpc-client.sh
+	@./scripts/test-grpc-client.sh
+
+# Phase 6: Integration Testing targets
+.PHONY: test-integration test-load test-load-custom test-failure-scenarios test-migration-compatibility test-phase6
+
+test-integration: build-client-grpc ; $(info $(M) Running integration tests...)
+	@chmod +x scripts/test-integration.sh
+	@./scripts/test-integration.sh
+
+test-load: build-client-grpc ; $(info $(M) Running load tests...)
+	@chmod +x scripts/test-load.sh
+	@./scripts/test-load.sh
+
+test-load-custom: build-client-grpc ; $(info $(M) Running custom load tests...)
+	@chmod +x scripts/test-load.sh
+	@./scripts/test-load.sh --users $(or $(USERS),10) --operations $(or $(OPERATIONS),100) --ramp-up $(or $(RAMP_UP),10) --think-time $(or $(THINK_TIME),0.1)
+
+test-failure-scenarios: build-client-grpc ; $(info $(M) Running failure scenario tests...)
+	@chmod +x scripts/test-failure-scenarios.sh
+	@./scripts/test-failure-scenarios.sh
+
+test-migration-compatibility: build-client-grpc ; $(info $(M) Testing migration compatibility...)
+	@chmod +x scripts/test-migration-compatibility.sh
+	@./scripts/test-migration-compatibility.sh
+
+test-phase6: test-integration test-load test-failure-scenarios test-migration-compatibility ; $(info $(M) Phase 6 Integration Testing Complete)
+	@echo ""
+	@echo "Results available in:"
+	@echo "  - test-results/integration/"
+	@echo "  - test-results/load/"
+	@echo "  - test-results/failure/"
+	@echo "  - test-results/migration/"
+
 .PHONY: all build clean
+.PHONY: proto-gen proto-lint proto-breaking proto-clean ci-proto

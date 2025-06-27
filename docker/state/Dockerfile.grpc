@@ -1,0 +1,65 @@
+# Build stage
+FROM golang:1.21-alpine AS builder
+
+# Install dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Set working directory
+WORKDIR /build
+
+# Copy go mod files
+COPY go.work go.work.sum ./
+COPY state/go.mod state/go.sum ./state/
+COPY gen/proto/go/go.mod gen/proto/go/go.sum ./gen/proto/go/
+
+# Download dependencies
+RUN cd state && go mod download
+
+# Copy source code
+COPY state/ ./state/
+COPY gen/proto/go/ ./gen/proto/go/
+
+# Build the gRPC service
+RUN cd state && \
+    CGO_ENABLED=1 GOOS=linux go build \
+    -a -installsuffix cgo \
+    -ldflags '-extldflags "-static"' \
+    -o plantd-state-grpc \
+    ./grpc_main.go ./grpc_server.go ./mdp_compat.go ./store.go
+
+# Runtime stage
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates sqlite curl
+
+# Create app user
+RUN addgroup -g 1001 -S plantd && \
+    adduser -u 1001 -S plantd -G plantd
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder
+COPY --from=builder /build/state/plantd-state-grpc .
+
+# Create data directory
+RUN mkdir -p /data && \
+    chown -R plantd:plantd /app /data
+
+# Switch to app user
+USER plantd
+
+# Set environment variables
+ENV PLANTD_STATE_DB_PATH=/data/state.db
+ENV PLANTD_STATE_GRPC_PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the service
+CMD ["./plantd-state-grpc"] 

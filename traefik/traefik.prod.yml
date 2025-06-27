@@ -1,0 +1,120 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# API and dashboard configuration (disabled in production)
+api:
+  dashboard: false
+  debug: false
+  insecure: false
+
+# Entry points
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        options: default
+
+  grpc:
+    address: ":8080"
+
+  grpc-secure:
+    address: ":8443"
+    http:
+      tls:
+        options: default
+
+# Providers
+providers:
+  # File provider for static configuration
+  file:
+    directory: /etc/traefik/config
+    watch: true
+  
+  # Docker provider for dynamic service discovery
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: "plantd"
+    watch: true
+
+# Certificate resolvers
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@plantd.dev
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+      caServer: https://acme-v02.api.letsencrypt.org/directory
+
+# TLS Options
+tls:
+  options:
+    default:
+      sslProtocols:
+        - "TLSv1.2"
+        - "TLSv1.3"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256"
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+
+    mintls13:
+      minVersion: "VersionTLS13"
+
+# Logging
+log:
+  level: INFO
+  filepath: /var/log/traefik/traefik.log
+  format: json
+
+accessLog:
+  filepath: /var/log/traefik/access.log
+  format: json
+  fields:
+    headers:
+      defaultMode: drop
+      names:
+        User-Agent: keep
+        Authorization: drop
+        Content-Type: keep
+
+# Metrics
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
+
+# Tracing
+tracing:
+  jaeger:
+    samplingType: const
+    samplingParam: 1.0
+    localAgentHostPort: jaeger:6831
+
+# Security
+serversTransport:
+  insecureSkipVerify: false
+  
+# Rate limiting (global)
+global:
+  rateLimiter:
+    burst: 100
+    average: 50 

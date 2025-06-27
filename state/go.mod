@@ -1,14 +1,17 @@
 module github.com/geoffjay/plantd/state
 
-go 1.24
+go 1.24.4
 
 require (
+	connectrpc.com/connect v1.18.1
 	github.com/geoffjay/plantd/core v0.0.0-20250608024831-6d6af927872f
+	github.com/geoffjay/plantd/gen/proto/go v0.0.0-00010101000000-000000000000
 	github.com/geoffjay/plantd/identity v0.0.0-00010101000000-000000000000
 	github.com/nelkinda/health-go v0.0.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
 	go.etcd.io/bbolt v1.3.10
+	google.golang.org/protobuf v1.36.6
 )
 
 require (
@@ -22,7 +25,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.14.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
-	github.com/google/uuid v1.5.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
@@ -44,11 +46,13 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/yukitsune/lokirus v1.0.1 // indirect
 	github.com/zeromq/goczmq/v4 v4.2.1-0.20210413114303-4e50cfc0edc9 // indirect
-	golang.org/x/crypto v0.37.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/crypto v0.39.0 // indirect
+	golang.org/x/net v0.41.0 // indirect
+	golang.org/x/sys v0.33.0 // indirect
+	golang.org/x/text v0.26.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/grpc v1.73.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
@@ -57,3 +61,5 @@ require (
 )
 
 replace github.com/geoffjay/plantd/identity => ../identity
+
+replace github.com/geoffjay/plantd/gen/proto/go => ../gen/proto/go

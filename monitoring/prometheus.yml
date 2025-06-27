@@ -1,0 +1,43 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Traefik metrics
+  - job_name: 'traefik'
+    static_configs:
+      - targets: ['traefik:8080']
+    metrics_path: /metrics
+
+  # State service
+  - job_name: 'state-service'
+    static_configs:
+      - targets: ['state:8080']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Identity service
+  - job_name: 'identity-service'
+    static_configs:
+      - targets: ['identity:8080']
+    metrics_path: /metrics
+    scrape_interval: 30s
+
+  # Health check endpoints
+  - job_name: 'health-checks'
+    static_configs:
+      - targets: 
+          - 'state:8080'
+          - 'identity:8080'
+          - 'traefik:8080'
+    metrics_path: /health
+    scrape_interval: 10s 

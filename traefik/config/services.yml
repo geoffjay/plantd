@@ -1,0 +1,205 @@
+http:
+  # Middlewares
+  middlewares:
+    # Authentication middleware
+    auth-forward:
+      forwardAuth:
+        address: "http://identity:8080/auth/validate"
+        authResponseHeaders:
+          - "X-User-ID"
+          - "X-User-Email" 
+          - "X-User-Roles"
+        trustForwardHeader: true
+
+    # Retry middleware
+    retry-policy:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    # Rate limiting
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m
+
+    # CORS middleware
+    cors-policy:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - "http://localhost:3000"
+          - "http://localhost:8080"
+        accessControlAllowHeaders:
+          - "Content-Type"
+          - "Authorization"
+          - "X-Requested-With"
+          - "Connect-Protocol-Version"
+          - "Connect-Timeout-Ms"
+        accessControlExposeHeaders:
+          - "Connect-Protocol-Version"
+        accessControlAllowCredentials: true
+        accessControlMaxAge: 100
+        addVaryHeader: true
+
+    # Compression
+    compression:
+      compress: {}
+
+    # Security headers
+    security-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+
+  # Services
+  services:
+    state-service:
+      loadBalancer:
+        servers:
+          - url: "h2c://state:8080"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 5s
+
+    identity-service:
+      loadBalancer:
+        servers:
+          - url: "h2c://identity:8080"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 5s
+
+    broker-service:
+      loadBalancer:
+        servers:
+          - url: "h2c://broker:8080"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 5s
+
+    app-service:
+      loadBalancer:
+        servers:
+          - url: "http://app:8080"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 5s
+
+  # Routers
+  routers:
+    # State service gRPC routes
+    state-grpc:
+      rule: "PathPrefix(`/plantd.state.v1.StateService/`)"
+      service: state-service
+      entryPoints:
+        - grpc
+      middlewares:
+        - auth-forward
+        - retry-policy
+        - rate-limit
+        - compression
+
+    # State service MDP compatibility routes
+    state-mdp:
+      rule: "PathPrefix(`/mdp/`)"
+      service: state-service
+      entryPoints:
+        - grpc
+      middlewares:
+        - auth-forward
+        - retry-policy
+        - cors-policy
+
+    # Identity service gRPC routes
+    identity-grpc:
+      rule: "PathPrefix(`/plantd.identity.v1.IdentityService/`)"
+      service: identity-service
+      entryPoints:
+        - grpc
+      middlewares:
+        - retry-policy
+        - rate-limit
+        - compression
+
+    # Identity auth routes (no auth required)
+    identity-auth:
+      rule: "PathPrefix(`/auth/`)"
+      service: identity-service
+      entryPoints:
+        - grpc
+      middlewares:
+        - retry-policy
+        - cors-policy
+
+    # Broker service routes
+    broker-grpc:
+      rule: "PathPrefix(`/plantd.broker.v1.BrokerService/`)"
+      service: broker-service
+      entryPoints:
+        - grpc
+      middlewares:
+        - auth-forward
+        - retry-policy
+        - compression
+
+    # App service routes
+    app-web:
+      rule: "PathPrefix(`/`)"
+      service: app-service
+      entryPoints:
+        - web
+      middlewares:
+        - security-headers
+        - compression
+      priority: 1  # Lower priority for catch-all
+
+    # Health and status routes (public)
+    health-routes:
+      rule: "Path(`/health`, `/status`, `/metrics`)"
+      service: state-service
+      entryPoints:
+        - grpc
+      priority: 100  # High priority
+
+# TCP routers for gRPC over TLS
+tcp:
+  routers:
+    state-grpc-tls:
+      rule: "HostSNI(`state.plantd.dev`)"
+      service: state-service-tcp
+      entryPoints:
+        - grpc-secure
+      tls:
+        certResolver: letsencrypt
+
+    identity-grpc-tls:
+      rule: "HostSNI(`identity.plantd.dev`)"
+      service: identity-service-tcp
+      entryPoints:
+        - grpc-secure
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    state-service-tcp:
+      loadBalancer:
+        servers:
+          - address: "state:8080"
+
+    identity-service-tcp:
+      loadBalancer:
+        servers:
+          - address: "identity:8080" 
