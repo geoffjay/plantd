@@ -4,7 +4,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-COMPOSE_FILE="$PROJECT_ROOT/docker-compose.traefik.yml"
+COMPOSE_FILE="$PROJECT_ROOT/docker/docker-compose.traefik.yml"
 
 # Colors for output
 RED='\033[0;31m'
@@ -36,7 +36,7 @@ check_dependencies() {
         exit 1
     fi
 
-    if ! command -v docker-compose &> /dev/null; then
+    if ! command -v docker compose &> /dev/null; then
         log_error "Docker Compose is not installed or not in PATH"
         exit 1
     fi
@@ -60,7 +60,7 @@ start_gateway() {
     
     # Start services
     cd "$PROJECT_ROOT"
-    docker-compose -f "$COMPOSE_FILE" up -d
+    docker compose -f "$COMPOSE_FILE" up -d
     
     log_success "Traefik gateway environment started"
     
@@ -75,7 +75,7 @@ start_gateway() {
 stop_gateway() {
     log_info "Stopping Traefik gateway environment..."
     cd "$PROJECT_ROOT"
-    docker-compose -f "$COMPOSE_FILE" down
+    docker compose -f "$COMPOSE_FILE" down
     log_success "Traefik gateway environment stopped"
 }
 
@@ -91,10 +91,10 @@ show_logs() {
     
     if [ -n "$service" ]; then
         log_info "Showing logs for service: $service"
-        docker-compose -f "$COMPOSE_FILE" logs -f "$service"
+        docker compose -f "$COMPOSE_FILE" logs -f "$service"
     else
         log_info "Showing logs for all services"
-        docker-compose -f "$COMPOSE_FILE" logs -f
+        docker compose -f "$COMPOSE_FILE" logs -f
     fi
 }
 
@@ -105,7 +105,7 @@ show_status() {
     echo "==============="
     
     # Check if services are running
-    docker-compose -f "$COMPOSE_FILE" ps
+    docker compose -f "$COMPOSE_FILE" ps
     
     echo ""
     log_info "Gateway Endpoints:"
@@ -178,7 +178,7 @@ clean_gateway() {
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         cd "$PROJECT_ROOT"
-        docker-compose -f "$COMPOSE_FILE" down -v --remove-orphans
+        docker compose -f "$COMPOSE_FILE" down -v --remove-orphans
         docker system prune -f
         log_success "Traefik gateway environment cleaned"
     else

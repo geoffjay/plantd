@@ -375,7 +375,7 @@ proxy:
 ##### 1. Service Replication
 ```yaml
 # Docker Compose scaling
-docker-compose up --scale plantd-broker=3 --scale plantd-state=2
+docker compose up --scale plantd-broker=3 --scale plantd-state=2
 ```
 
 ##### 2. Load Balancing

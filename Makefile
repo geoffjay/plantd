@@ -331,11 +331,11 @@ monitor-production: ; $(info $(M) Starting production monitoring...)
 
 # SSL certificate management
 ssl-cert-check: ; $(info $(M) Checking SSL certificate status...)
-	@docker-compose -f docker-compose.production.yml exec traefik \
+	@docker compose -f docker/docker-compose.production.yml exec traefik \
 		sh -c "find /letsencrypt -name '*.json' -exec cat {} \;" | jq -r '.Certificates[] | select(.domain.main) | "\(.domain.main): \(.certificate | @base64d | fromjson | .NotAfter)"' 2>/dev/null || echo "No certificates found or jq not available"
 
 ssl-cert-renew: ; $(info $(M) Renewing SSL certificates...)
-	@docker-compose -f docker-compose.production.yml restart traefik
+	@docker compose -f docker/docker-compose.production.yml restart traefik
 
 # Production testing
 test-production: build-client-grpc ; $(info $(M) Running production tests...)

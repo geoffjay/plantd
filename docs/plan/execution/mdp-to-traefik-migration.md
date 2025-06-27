@@ -1027,7 +1027,7 @@ http:
 
 #### 4.1.2 Docker Compose Integration
 
-**docker-compose.plantd.yml:**
+**docker/docker-compose.plantd.yml:**
 ```yaml
 version: '3.8'
 
@@ -1177,7 +1177,7 @@ fi
 mkdir -p data/{state,postgres,letsencrypt}
 
 # Start services
-docker-compose -f docker-compose.plantd.yml up -d
+docker compose -f docker/docker-compose.plantd.yml up -d
 
 echo "Services starting..."
 echo "- Traefik Dashboard: http://localhost:8081"

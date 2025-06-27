@@ -46,7 +46,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 # Verify installations
 docker --version
-docker-compose --version
+docker compose --version
 ```
 
 ### Domain Requirements
@@ -258,7 +258,7 @@ make deploy-production-logs SERVICE=identity-primary
 sleep 60
 
 # Create initial admin user (replace with your details)
-docker-compose -f docker-compose.production.yml exec identity-primary \
+docker compose -f docker/docker-compose.production.yml exec identity-primary \
     /app/plantd-identity create-user \
     --email admin@plantd.com \
     --name "System Administrator" \
@@ -283,7 +283,7 @@ make ssl-cert-check
 make ssl-cert-renew
 
 # Monitor certificate logs
-docker-compose -f docker-compose.production.yml logs traefik | grep -i "certificate"
+docker compose -f docker/docker-compose.production.yml logs traefik | grep -i "certificate"
 ```
 
 ### Manual SSL Certificate Installation
@@ -487,7 +487,7 @@ git checkout v1.1.0  # New version
 make deploy-production-blue-green
 
 # Update Docker images
-docker-compose -f docker-compose.production.yml pull
+docker compose -f docker/docker-compose.production.yml pull
 make deploy-production-blue-green
 
 # Update system packages
@@ -524,15 +524,15 @@ make ssl-cert-check
 
 ```bash
 # Database backup verification
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     pg_dump -U plantd plantd_identity | gzip > identity_backup.sql.gz
 
 # Database statistics
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT schemaname,tablename,n_tup_ins,n_tup_upd,n_tup_del FROM pg_stat_user_tables;"
 
 # Vacuum and analyze
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "VACUUM ANALYZE;"
 ```
 
@@ -563,7 +563,7 @@ df -h
 make ssl-cert-check
 
 # Check Let's Encrypt logs
-docker-compose -f docker-compose.production.yml logs traefik | grep -i acme
+docker compose -f docker/docker-compose.production.yml logs traefik | grep -i acme
 
 # Manual certificate renewal
 make ssl-cert-renew
@@ -576,7 +576,7 @@ make ssl-cert-renew
 make deploy-production-logs SERVICE=identity-primary
 
 # Test database connection
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT 1;"
 
 # Verify JWT secret
@@ -591,7 +591,7 @@ htop
 docker stats
 
 # Check database performance
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT * FROM pg_stat_activity;"
 
 # Review Grafana dashboards for bottlenecks
@@ -609,17 +609,17 @@ make deploy-production-rollback BACKUP_PATH=backups/LATEST
 make deploy-production-stop
 
 # Restart specific service
-docker-compose -f docker-compose.production.yml restart SERVICE_NAME
+docker compose -f docker/docker-compose.production.yml restart SERVICE_NAME
 ```
 
 #### Service Recovery
 
 ```bash
 # Restart failed service
-docker-compose -f docker-compose.production.yml restart state-primary
+docker compose -f docker/docker-compose.production.yml restart state-primary
 
 # Scale services if needed
-docker-compose -f docker-compose.production.yml up -d --scale state-primary=2
+docker compose -f docker/docker-compose.production.yml up -d --scale state-primary=2
 
 # Health check after recovery
 make deploy-production-health

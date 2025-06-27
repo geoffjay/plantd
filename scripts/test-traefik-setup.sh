@@ -34,7 +34,7 @@ log_info "Testing file structure..."
 required_files=(
     "config/traefik/traefik.yml"
     "config/traefik/config/services.yml"
-    "docker-compose.traefik.yml"
+    "docker/docker-compose.traefik.yml"
     "docker/state/Dockerfile.grpc"
     "scripts/traefik-dev.sh"
     "config/monitoring/prometheus.yml"
@@ -74,8 +74,8 @@ fi
 # Test 3: Validate Docker Compose syntax
 log_info "Validating Docker Compose configuration..."
 
-if command -v docker-compose &> /dev/null; then
-    if docker-compose -f docker-compose.traefik.yml config &> /dev/null; then
+if command -v docker compose &> /dev/null; then
+    if docker compose -f docker/docker-compose.traefik.yml config &> /dev/null; then
         log_success "✅ Docker Compose configuration is valid"
     else
         log_error "❌ Docker Compose configuration has syntax errors"
@@ -146,7 +146,7 @@ done
 # Test 8: Verify Docker networking configuration
 log_info "Checking Docker network configuration..."
 
-if grep -q "network.*plantd" docker-compose.traefik.yml; then
+if grep -q "network.*plantd" docker/docker-compose.traefik.yml; then
     log_success "✅ Docker network 'plantd' configured"
 else
     log_error "❌ Docker network 'plantd' not configured"
@@ -164,7 +164,7 @@ expected_ports=(
 )
 
 for port in "${expected_ports[@]}"; do
-    if grep -q "\"$port\"" docker-compose.traefik.yml; then
+    if grep -q "\"$port\"" docker/docker-compose.traefik.yml; then
         log_success "✅ Port mapping '$port' configured"
     else
         log_error "❌ Port mapping '$port' not found"
@@ -175,7 +175,7 @@ done
 # Test 10: Verify health check configuration
 log_info "Checking health check configuration..."
 
-if grep -q "curl.*health" docker-compose.traefik.yml; then
+if grep -q "curl.*health" docker/docker-compose.traefik.yml; then
     log_success "✅ Health checks configured with curl"
 else
     log_error "❌ Health checks not properly configured"

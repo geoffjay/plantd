@@ -332,7 +332,7 @@ func executeWithAuth(operation func(token string) error) error {
 ### Test Environment Setup
 ```bash
 # Start test services
-docker-compose -f tests/docker-compose.test.yml up -d
+docker compose -f docker/tests/docker-compose.test.yml up -d
 
 # Test complete workflow
 plant auth login --email=test@example.com --password=testpass

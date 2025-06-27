@@ -28,18 +28,18 @@ State Service (First Authenticated Service)
 
 ### Option 1: Docker Compose (Recommended for Development)
 
-Use the provided `docker-compose.plantd.yml` configuration:
+Use the provided `docker/docker-compose.plantd.yml` configuration:
 
 ```bash
 # Start all services with authentication
-docker-compose -f docker-compose.plantd.yml up -d
+docker compose -f docker/docker-compose.plantd.yml up -d
 
 # Check service health
-docker-compose -f docker-compose.plantd.yml ps
+docker compose -f docker/docker-compose.plantd.yml ps
 
 # View logs for specific service
-docker-compose -f docker-compose.plantd.yml logs state
-docker-compose -f docker-compose.plantd.yml logs identity
+docker compose -f docker/docker-compose.plantd.yml logs state
+docker compose -f docker/docker-compose.plantd.yml logs identity
 ```
 
 ### Option 2: Manual Service Deployment
@@ -234,24 +234,24 @@ docker logs plantd-identity
 **Solutions:**
 ```bash
 # Use proper dependency management
-docker-compose -f docker-compose.plantd.yml up --wait
+docker compose -f docker/docker-compose.plantd.yml up --wait
 
 # Manual startup with delays
-docker-compose -f docker-compose.plantd.yml up broker
+docker compose -f docker/docker-compose.plantd.yml up broker
 sleep 10
-docker-compose -f docker-compose.plantd.yml up identity
+docker compose -f docker/docker-compose.plantd.yml up identity
 sleep 10
-docker-compose -f docker-compose.plantd.yml up state
+docker compose -f docker/docker-compose.plantd.yml up state
 ```
 
 ### Debugging Commands
 
 ```bash
 # Check all service status
-docker-compose -f docker-compose.plantd.yml ps
+docker compose -f docker/docker-compose.plantd.yml ps
 
 # View real-time logs
-docker-compose -f docker-compose.plantd.yml logs -f
+docker compose -f docker/docker-compose.plantd.yml logs -f
 
 # Test service health
 curl http://localhost:8080/health  # Identity
@@ -287,7 +287,7 @@ All services support structured JSON logging:
 
 ```bash
 # View logs in JSON format
-docker-compose -f docker-compose.plantd.yml logs --json
+docker compose -f docker/docker-compose.plantd.yml logs --json
 
 # Integration with log aggregation systems
 # (Loki, ELK stack, etc.)

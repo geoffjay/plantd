@@ -93,7 +93,7 @@ start_services() {
     fi
     
     # Start services
-    if docker-compose up -d; then
+    if docker compose up -d; then
         log_success "Services started successfully"
     else
         log_error "Failed to start services"
@@ -121,18 +121,18 @@ check_health() {
     
     log_error "Service health check failed after $max_attempts attempts"
     log_info "Checking service logs..."
-    docker-compose logs identity
+    docker compose logs identity
     return 1
 }
 
 # Function to show service status
 show_status() {
     log_info "Service status:"
-    docker-compose ps
+    docker compose ps
     
     echo ""
     log_info "Service logs (last 20 lines):"
-    docker-compose logs --tail=20 identity
+    docker compose logs --tail=20 identity
 }
 
 # Function to stop services
@@ -141,7 +141,7 @@ stop_services() {
     
     cd "$PROJECT_DIR"
     
-    if docker-compose down; then
+    if docker compose down; then
         log_success "Services stopped successfully"
     else
         log_error "Failed to stop services"
@@ -155,7 +155,7 @@ cleanup() {
     
     cd "$PROJECT_DIR"
     
-    docker-compose down -v --remove-orphans
+    docker compose down -v --remove-orphans
     docker system prune -f
     
     log_success "Cleanup completed"
@@ -192,7 +192,7 @@ main() {
         "deploy")
             log_info "Starting full deployment..."
             check_command docker
-            check_command docker-compose
+            check_command docker compose
             check_command curl
             check_environment
             build_image
@@ -206,30 +206,30 @@ main() {
             build_image
             ;;
         "start")
-            check_command docker-compose
+            check_command docker compose
             check_environment
             start_services
             check_health
             ;;
         "stop")
-            check_command docker-compose
+            check_command docker compose
             stop_services
             ;;
         "restart")
-            check_command docker-compose
+            check_command docker compose
             stop_services
             start_services
             check_health
             ;;
         "status")
-            check_command docker-compose
+            check_command docker compose
             show_status
             ;;
         "health")
             check_health
             ;;
         "cleanup")
-            check_command docker-compose
+            check_command docker compose
             cleanup
             ;;
         "help"|"-h"|"--help")

@@ -70,10 +70,10 @@ docker stats --no-stream
 
 # 3. Review recent changes
 git log --oneline -10
-docker-compose -f docker-compose.production.yml logs --since="1h"
+docker compose -f docker/docker-compose.production.yml logs --since="1h"
 
 # 4. Scale services if needed
-docker-compose -f docker-compose.production.yml up -d --scale state-primary=2
+docker compose -f docker/docker-compose.production.yml up -d --scale state-primary=2
 ```
 
 ## Service Health Diagnostics
@@ -86,17 +86,17 @@ docker-compose -f docker-compose.production.yml up -d --scale state-primary=2
 
 ```bash
 # Check State service logs
-docker-compose -f docker-compose.production.yml logs state-primary | tail -100
+docker compose -f docker/docker-compose.production.yml logs state-primary | tail -100
 
 # Test gRPC endpoint directly
 plant-grpc state state-grpc get test-key --service=test --grpc-endpoint=http://localhost:8080
 
 # Check BoltDB file integrity
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     ls -la /app/data/state.db
 
 # Check file permissions
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     stat /app/data/state.db
 ```
 
@@ -111,7 +111,7 @@ docker-compose -f docker-compose.production.yml exec state-primary \
 2. **Permission Issues**:
    ```bash
    # Fix file permissions
-   docker-compose -f docker-compose.production.yml exec state-primary \
+   docker compose -f docker/docker-compose.production.yml exec state-primary \
        chown -R app:app /app/data/
    ```
 
@@ -133,11 +133,11 @@ docker-compose -f docker-compose.production.yml exec state-primary \
 docker stats state-primary --no-stream
 
 # Check for memory leaks
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     ps aux | grep plantd-state
 
 # Review configuration
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     cat /app/config.yml
 ```
 
@@ -145,7 +145,7 @@ docker-compose -f docker-compose.production.yml exec state-primary \
 
 1. **Memory Limit Configuration**:
    ```bash
-   # Update docker-compose.production.yml
+   # Update docker/docker-compose.production.yml
    services:
      state-primary:
        deploy:
@@ -156,7 +156,7 @@ docker-compose -f docker-compose.production.yml exec state-primary \
 
 2. **Restart Service**:
    ```bash
-   docker-compose -f docker-compose.production.yml restart state-primary
+   docker compose -f docker/docker-compose.production.yml restart state-primary
    ```
 
 ### Identity Service Issues
@@ -167,10 +167,10 @@ docker-compose -f docker-compose.production.yml exec state-primary \
 
 ```bash
 # Check Identity service logs
-docker-compose -f docker-compose.production.yml logs identity-primary | grep -i error
+docker compose -f docker/docker-compose.production.yml logs identity-primary | grep -i error
 
 # Test database connection
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT COUNT(*) FROM users;"
 
 # Check JWT secret
@@ -187,10 +187,10 @@ curl -X POST https://auth.plantd.com/auth/login \
 1. **Database Connection Issues**:
    ```bash
    # Check database status
-   docker-compose -f docker-compose.production.yml ps postgres-primary
+   docker compose -f docker/docker-compose.production.yml ps postgres-primary
    
    # Restart database
-   docker-compose -f docker-compose.production.yml restart postgres-primary
+   docker compose -f docker/docker-compose.production.yml restart postgres-primary
    ```
 
 2. **JWT Secret Problems**:
@@ -199,7 +199,7 @@ curl -X POST https://auth.plantd.com/auth/login \
    openssl rand -base64 32
    
    # Update .env.production and restart
-   docker-compose -f docker-compose.production.yml restart identity-primary
+   docker compose -f docker/docker-compose.production.yml restart identity-primary
    ```
 
 #### Problem: Token Validation Errors
@@ -208,7 +208,7 @@ curl -X POST https://auth.plantd.com/auth/login \
 
 ```bash
 # Check token expiry settings
-docker-compose -f docker-compose.production.yml exec identity-primary \
+docker compose -f docker/docker-compose.production.yml exec identity-primary \
     cat /app/config.yml | grep -i token
 
 # Test token validation
@@ -248,10 +248,10 @@ curl -X POST https://auth.plantd.com/auth/validate \
   -H "Authorization: Bearer $TOKEN" | jq '.user.permissions'
 
 # 2. Check required permissions for endpoint
-docker-compose -f docker-compose.production.yml logs traefik | grep -i "403"
+docker compose -f docker/docker-compose.production.yml logs traefik | grep -i "403"
 
 # 3. Review RBAC configuration
-docker-compose -f docker-compose.production.yml exec identity-primary \
+docker compose -f docker/docker-compose.production.yml exec identity-primary \
     psql -U plantd -d plantd_identity -c "SELECT * FROM role_permissions;"
 ```
 
@@ -260,7 +260,7 @@ docker-compose -f docker-compose.production.yml exec identity-primary \
 1. **Update User Permissions**:
    ```bash
    # Add permission to user role
-   docker-compose -f docker-compose.production.yml exec identity-primary \
+   docker compose -f docker/docker-compose.production.yml exec identity-primary \
        /app/plantd-identity add-permission \
        --user-email="user@example.com" \
        --permission="state:data:write"
@@ -328,7 +328,7 @@ time curl -X POST https://api.plantd.com/plantd.state.v1.StateService/Get \
   -d '{"key": "test", "service": "test"}'
 
 # 4. Check database performance
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT * FROM pg_stat_activity WHERE state = 'active';"
 ```
 
@@ -337,20 +337,20 @@ docker-compose -f docker-compose.production.yml exec postgres-primary \
 1. **Scale Services**:
    ```bash
    # Scale up State service
-   docker-compose -f docker-compose.production.yml up -d --scale state-primary=3
+   docker compose -f docker/docker-compose.production.yml up -d --scale state-primary=3
    
    # Scale up Identity service
-   docker-compose -f docker-compose.production.yml up -d --scale identity-primary=2
+   docker compose -f docker/docker-compose.production.yml up -d --scale identity-primary=2
    ```
 
 2. **Database Optimization**:
    ```bash
    # Vacuum and analyze database
-   docker-compose -f docker-compose.production.yml exec postgres-primary \
+   docker compose -f docker/docker-compose.production.yml exec postgres-primary \
        psql -U plantd -d plantd_identity -c "VACUUM ANALYZE;"
    
    # Check slow queries
-   docker-compose -f docker-compose.production.yml exec postgres-primary \
+   docker compose -f docker/docker-compose.production.yml exec postgres-primary \
        psql -U plantd -d plantd_identity -c "SELECT query, calls, total_time, mean_time FROM pg_stat_statements ORDER BY total_time DESC LIMIT 10;"
    ```
 
@@ -374,7 +374,7 @@ docker-compose -f docker-compose.production.yml exec postgres-primary \
 
 ```bash
 # 1. Check error logs
-docker-compose -f docker-compose.production.yml logs | grep -i error | tail -50
+docker compose -f docker/docker-compose.production.yml logs | grep -i error | tail -50
 
 # 2. Monitor error rate
 curl -s https://monitoring.plantd.com/api/v1/query?query=rate(http_requests_total{status=~"5.."}[5m])
@@ -397,7 +397,7 @@ git log --oneline --since="24 hours ago"
 2. **Restart Failing Services**:
    ```bash
    # Identify and restart failing service
-   docker-compose -f docker-compose.production.yml restart SERVICE_NAME
+   docker compose -f docker/docker-compose.production.yml restart SERVICE_NAME
    ```
 
 3. **Circuit Breaker**:
@@ -419,7 +419,7 @@ git log --oneline --since="24 hours ago"
 openssl s_client -connect api.plantd.com:443 -servername api.plantd.com < /dev/null 2>/dev/null | openssl x509 -noout -dates
 
 # 2. Check Let's Encrypt logs
-docker-compose -f docker-compose.production.yml logs traefik | grep -i acme
+docker compose -f docker/docker-compose.production.yml logs traefik | grep -i acme
 
 # 3. Check certificate files
 ls -la config/traefik/letsencrypt/
@@ -430,10 +430,10 @@ ls -la config/traefik/letsencrypt/
 1. **Renew Let's Encrypt Certificate**:
    ```bash
    # Force certificate renewal
-   docker-compose -f docker-compose.production.yml restart traefik
+   docker compose -f docker/docker-compose.production.yml restart traefik
    
    # Check renewal logs
-   docker-compose -f docker-compose.production.yml logs traefik | grep -i certificate
+   docker compose -f docker/docker-compose.production.yml logs traefik | grep -i certificate
    ```
 
 2. **Manual Certificate Renewal**:
@@ -442,7 +442,7 @@ ls -la config/traefik/letsencrypt/
    rm -rf config/traefik/letsencrypt/acme.json
    
    # Restart Traefik to obtain new certificates
-   docker-compose -f docker-compose.production.yml restart traefik
+   docker compose -f docker/docker-compose.production.yml restart traefik
    ```
 
 ### Certificate Chain Issues
@@ -486,17 +486,17 @@ curl -s "https://api.ssllabs.com/api/v3/analyze?host=api.plantd.com"
 
 ```bash
 # 1. Check PostgreSQL status
-docker-compose -f docker-compose.production.yml ps postgres-primary
+docker compose -f docker/docker-compose.production.yml ps postgres-primary
 
 # 2. Check database logs
-docker-compose -f docker-compose.production.yml logs postgres-primary | tail -50
+docker compose -f docker/docker-compose.production.yml logs postgres-primary | tail -50
 
 # 3. Test connection
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT 1;"
 
 # 4. Check database size and connections
-docker-compose -f docker-compose.production.yml exec postgres-primary \
+docker compose -f docker/docker-compose.production.yml exec postgres-primary \
     psql -U plantd -d plantd_identity -c "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database;"
 ```
 
@@ -505,27 +505,27 @@ docker-compose -f docker-compose.production.yml exec postgres-primary \
 1. **Restart Database**:
    ```bash
    # Restart PostgreSQL
-   docker-compose -f docker-compose.production.yml restart postgres-primary
+   docker compose -f docker/docker-compose.production.yml restart postgres-primary
    
    # Check startup logs
-   docker-compose -f docker-compose.production.yml logs postgres-primary
+   docker compose -f docker/docker-compose.production.yml logs postgres-primary
    ```
 
 2. **Check Connection Limits**:
    ```bash
    # Check current connections
-   docker-compose -f docker-compose.production.yml exec postgres-primary \
+   docker compose -f docker/docker-compose.production.yml exec postgres-primary \
        psql -U plantd -d plantd_identity -c "SELECT count(*) FROM pg_stat_activity;"
    
    # Check max connections
-   docker-compose -f docker-compose.production.yml exec postgres-primary \
+   docker compose -f docker/docker-compose.production.yml exec postgres-primary \
        psql -U plantd -d plantd_identity -c "SHOW max_connections;"
    ```
 
 3. **Database Corruption**:
    ```bash
    # Check for corruption
-   docker-compose -f docker-compose.production.yml exec postgres-primary \
+   docker compose -f docker/docker-compose.production.yml exec postgres-primary \
        psql -U plantd -d plantd_identity -c "SELECT * FROM pg_stat_database WHERE datname = 'plantd_identity';"
    
    # Restore from backup if needed
@@ -540,15 +540,15 @@ docker-compose -f docker-compose.production.yml exec postgres-primary \
 
 ```bash
 # 1. Check BoltDB file
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     ls -la /app/data/state.db
 
 # 2. Check file integrity
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     file /app/data/state.db
 
 # 3. Check disk space
-docker-compose -f docker-compose.production.yml exec state-primary \
+docker compose -f docker/docker-compose.production.yml exec state-primary \
     df -h /app/data/
 ```
 
@@ -557,14 +557,14 @@ docker-compose -f docker-compose.production.yml exec state-primary \
 1. **Fix File Permissions**:
    ```bash
    # Correct ownership
-   docker-compose -f docker-compose.production.yml exec state-primary \
+   docker compose -f docker/docker-compose.production.yml exec state-primary \
        chown -R app:app /app/data/
    ```
 
 2. **Restore from Backup**:
    ```bash
    # Stop service
-   docker-compose -f docker-compose.production.yml stop state-primary
+   docker compose -f docker/docker-compose.production.yml stop state-primary
    
    # Restore backup
    make deploy-production-rollback BACKUP_PATH=backups/LATEST
@@ -588,7 +588,7 @@ docker network ls
 docker network inspect plantd_default
 
 # 3. Test internal service communication
-docker-compose -f docker-compose.production.yml exec traefik \
+docker compose -f docker/docker-compose.production.yml exec traefik \
     nslookup state-primary
 ```
 
@@ -597,9 +597,9 @@ docker-compose -f docker-compose.production.yml exec traefik \
 1. **Restart Docker Network**:
    ```bash
    # Recreate network
-   docker-compose -f docker-compose.production.yml down
+   docker compose -f docker/docker-compose.production.yml down
    docker network prune -f
-   docker-compose -f docker-compose.production.yml up -d
+   docker compose -f docker/docker-compose.production.yml up -d
    ```
 
 2. **Check DNS Configuration**:
@@ -642,7 +642,7 @@ telnet api.plantd.com 443
 2. **Check Docker Port Mapping**:
    ```bash
    # Verify port mappings
-   docker-compose -f docker-compose.production.yml ps
+   docker compose -f docker/docker-compose.production.yml ps
    ```
 
 ## Monitoring and Alerting
@@ -661,7 +661,7 @@ curl -f https://monitoring.plantd.com/-/healthy
 curl -s https://monitoring.plantd.com/api/v1/targets | jq '.data.activeTargets[].health'
 
 # 3. Check configuration
-docker-compose -f docker-compose.production.yml exec prometheus \
+docker compose -f docker/docker-compose.production.yml exec prometheus \
     cat /etc/prometheus/prometheus.yml
 ```
 
@@ -669,7 +669,7 @@ docker-compose -f docker-compose.production.yml exec prometheus \
 
 1. **Restart Prometheus**:
    ```bash
-   docker-compose -f docker-compose.production.yml restart prometheus
+   docker compose -f docker/docker-compose.production.yml restart prometheus
    ```
 
 2. **Fix Configuration**:
@@ -689,7 +689,7 @@ docker-compose -f docker-compose.production.yml exec prometheus \
 curl -f https://dashboard.plantd.com/api/health
 
 # 2. Check Grafana logs
-docker-compose -f docker-compose.production.yml logs grafana
+docker compose -f docker/docker-compose.production.yml logs grafana
 
 # 3. Check admin password
 echo $GRAFANA_PASSWORD
@@ -700,14 +700,14 @@ echo $GRAFANA_PASSWORD
 1. **Reset Admin Password**:
    ```bash
    # Reset Grafana admin password
-   docker-compose -f docker-compose.production.yml exec grafana \
+   docker compose -f docker/docker-compose.production.yml exec grafana \
        grafana-cli admin reset-admin-password newpassword
    ```
 
 2. **Check Configuration**:
    ```bash
    # Verify Grafana configuration
-   docker-compose -f docker-compose.production.yml exec grafana \
+   docker compose -f docker/docker-compose.production.yml exec grafana \
        cat /etc/grafana/grafana.ini
    ```
 
@@ -766,13 +766,13 @@ file backups/BACKUP_NAME/*.sql.gz
 1. **Manual Restore**:
    ```bash
    # Stop services
-   docker-compose -f docker-compose.production.yml down
+   docker compose -f docker/docker-compose.production.yml down
    
    # Restore manually
    # [specific restore commands based on backup type]
    
    # Start services
-   docker-compose -f docker-compose.production.yml up -d
+   docker compose -f docker/docker-compose.production.yml up -d
    ```
 
 ## Log Analysis
@@ -785,14 +785,14 @@ file backups/BACKUP_NAME/*.sql.gz
 
 ```bash
 # 1. Check Fluent Bit status
-docker-compose -f docker-compose.production.yml ps fluent-bit
+docker compose -f docker/docker-compose.production.yml ps fluent-bit
 
 # 2. Check log files
 ls -la logs/
 du -sh logs/*
 
 # 3. Check Fluent Bit configuration
-docker-compose -f docker-compose.production.yml exec fluent-bit \
+docker compose -f docker/docker-compose.production.yml exec fluent-bit \
     cat /fluent-bit/etc/fluent-bit.conf
 ```
 
@@ -800,7 +800,7 @@ docker-compose -f docker-compose.production.yml exec fluent-bit \
 
 1. **Restart Log Aggregation**:
    ```bash
-   docker-compose -f docker-compose.production.yml restart fluent-bit
+   docker compose -f docker/docker-compose.production.yml restart fluent-bit
    ```
 
 2. **Check Log Rotation**:

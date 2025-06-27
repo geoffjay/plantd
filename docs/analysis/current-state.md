@@ -424,7 +424,7 @@ Phase 7 successfully implemented production-ready deployment infrastructure for 
 - **High Availability**: Load balancing with health checks and sticky sessions
 
 #### High Availability Deployment
-- **Docker Compose Production**: `docker-compose.production.yml` with full stack deployment
+- **Docker Compose Production**: `docker/docker-compose.production.yml` with full stack deployment
 - **Service Redundancy**: Primary/secondary instances for State and Identity services
 - **Database High Availability**: PostgreSQL with optimized configuration
 - **Resource Management**: CPU and memory limits/reservations for all services

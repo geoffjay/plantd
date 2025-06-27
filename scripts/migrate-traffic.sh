@@ -239,7 +239,7 @@ http:
 EOF
         
         # Reload Traefik configuration
-        docker-compose -f docker-compose.production.yml exec traefik \
+        docker compose -f docker/docker-compose.production.yml exec traefik \
             kill -USR1 1 2>/dev/null || log "WARNING" "Could not reload Traefik config"
     fi
     
@@ -309,7 +309,7 @@ validate_prerequisites() {
     # Check if services are running
     local services=("traefik" "state-primary" "state-secondary" "identity-primary")
     for service in "${services[@]}"; do
-        if ! docker-compose -f docker-compose.production.yml ps "$service" | grep -q "Up"; then
+        if ! docker compose -f docker/docker-compose.production.yml ps "$service" | grep -q "Up"; then
             log "ERROR" "Service $service is not running"
             return 1
         fi
@@ -407,10 +407,10 @@ cleanup_mdp() {
     log "INFO" "Starting MDP component cleanup..."
     
     # Stop MDP broker if running
-    if docker-compose ps broker 2>/dev/null | grep -q "Up"; then
+    if docker compose ps broker 2>/dev/null | grep -q "Up"; then
         log "INFO" "Stopping MDP broker..."
-        docker-compose stop broker
-        docker-compose rm -f broker
+        docker compose stop broker
+        docker compose rm -f broker
     fi
     
     # Remove MDP-specific configurations

@@ -58,7 +58,7 @@ check_prerequisites() {
     fi
     
     # Check if Docker Compose is available
-    if ! command -v docker-compose &> /dev/null; then
+    if ! command -v docker compose &> /dev/null; then
         log "ERROR" "Docker Compose is not installed or not in PATH"
         return 1
     fi
@@ -242,7 +242,7 @@ blue_green_deploy() {
     local new_stack="green"
     
     # Check if there's a current deployment
-    if docker-compose -f docker-compose.production.yml ps | grep -q "Up"; then
+    if docker compose -f docker/docker-compose.production.yml ps | grep -q "Up"; then
         log "INFO" "Existing deployment detected"
         current_stack="green"
         new_stack="blue"
@@ -251,8 +251,8 @@ blue_green_deploy() {
     log "INFO" "Deploying to $new_stack environment..."
     
     # Deploy new stack
-    COMPOSE_PROJECT_NAME="plantd-$new_stack" docker-compose \
-        -f docker-compose.production.yml \
+    COMPOSE_PROJECT_NAME="plantd-$new_stack" docker compose \
+        -f docker/docker-compose.production.yml \
         --env-file "$DEPLOY_CONFIG" \
         up -d --build --remove-orphans
     
@@ -270,8 +270,8 @@ blue_green_deploy() {
         # Stop old stack
         if [[ "$current_stack" != "$new_stack" ]]; then
             log "INFO" "Stopping $current_stack stack..."
-            COMPOSE_PROJECT_NAME="plantd-$current_stack" docker-compose \
-                -f docker-compose.production.yml \
+            COMPOSE_PROJECT_NAME="plantd-$current_stack" docker compose \
+                -f docker/docker-compose.production.yml \
                 down --remove-orphans
         fi
         
@@ -281,8 +281,8 @@ blue_green_deploy() {
         log "INFO" "Rolling back..."
         
         # Stop failed stack
-        COMPOSE_PROJECT_NAME="plantd-$new_stack" docker-compose \
-            -f docker-compose.production.yml \
+        COMPOSE_PROJECT_NAME="plantd-$new_stack" docker compose \
+            -f docker/docker-compose.production.yml \
             down --remove-orphans
         
         return 1
@@ -296,7 +296,7 @@ standard_deploy() {
     cd "$PROJECT_ROOT"
     
     # Deploy services
-    docker-compose -f docker-compose.production.yml \
+    docker compose -f docker/docker-compose.production.yml \
         --env-file "$DEPLOY_CONFIG" \
         up -d --build --remove-orphans
     
@@ -319,7 +319,7 @@ rollback() {
     
     # Stop current services
     log "INFO" "Stopping current services..."
-    docker-compose -f docker-compose.production.yml down --remove-orphans
+    docker compose -f docker/docker-compose.production.yml down --remove-orphans
     
     # Restore data volumes
     if [[ -f "$backup_path/state-data-primary.tar.gz" ]]; then
@@ -347,7 +347,7 @@ rollback() {
     
     # Restart services
     log "INFO" "Restarting services..."
-    docker-compose -f docker-compose.production.yml \
+    docker compose -f docker/docker-compose.production.yml \
         --env-file "$backup_path/.env.production" \
         up -d
     
@@ -365,7 +365,7 @@ deployment_status() {
     
     # Docker Compose status
     echo "Services Status:"
-    docker-compose -f docker-compose.production.yml ps
+    docker compose -f docker/docker-compose.production.yml ps
     echo
     
     # Health checks
@@ -448,16 +448,16 @@ main() {
         
         "stop")
             log "INFO" "Stopping production services..."
-            docker-compose -f docker-compose.production.yml down --remove-orphans
+            docker compose -f docker/docker-compose.production.yml down --remove-orphans
             log "SUCCESS" "Services stopped"
             ;;
         
         "logs")
             local service="${2:-}"
             if [[ -n "$service" ]]; then
-                docker-compose -f docker-compose.production.yml logs -f "$service"
+                docker compose -f docker/docker-compose.production.yml logs -f "$service"
             else
-                docker-compose -f docker-compose.production.yml logs -f
+                docker compose -f docker/docker-compose.production.yml logs -f
             fi
             ;;
         

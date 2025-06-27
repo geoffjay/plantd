@@ -172,7 +172,7 @@ Access: `GET http://localhost:8081/health`
 
 ```bash
 # Start all services with Docker Compose
-docker-compose -f docker-compose.plantd.yml up -d
+docker compose -f docker/docker-compose.plantd.yml up -d
 
 # Or start manually (ensure Identity Service is running)
 make run-state

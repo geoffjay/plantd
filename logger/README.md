@@ -439,7 +439,7 @@ make migrate-create name=add_new_table
 docker build -t plantd-logger .
 
 # Run with Docker Compose
-docker-compose up logger
+docker compose up logger
 ```
 
 ### Production Configuration
