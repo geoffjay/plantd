@@ -1,9 +1,11 @@
 module github.com/geoffjay/plantd/client
 
-go 1.24
+go 1.24.4
 
 require (
+	connectrpc.com/connect v1.18.1
 	github.com/geoffjay/plantd/core v0.0.0-20250608040042-47ac2c0f29bb
+	github.com/geoffjay/plantd/gen/proto/go v0.0.0
 	github.com/geoffjay/plantd/identity v0.0.0-20250616210328-5317820bc755
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.3.0
@@ -43,6 +45,9 @@ require (
 	golang.org/x/sys v0.33.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250324211829-b45e905df463 // indirect
+	google.golang.org/grpc v1.73.0 // indirect
+	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -50,3 +55,5 @@ require (
 )
 
 replace github.com/geoffjay/plantd/identity => ../identity
+
+replace github.com/geoffjay/plantd/gen/proto/go => ../gen/proto/go

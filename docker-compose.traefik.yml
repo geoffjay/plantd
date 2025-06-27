@@ -1,0 +1,119 @@
+version: '3.8'
+
+networks:
+  plantd:
+    driver: bridge
+
+volumes:
+  traefik-ssl:
+  state-data:
+  identity-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+  # Traefik Gateway
+  traefik:
+    image: traefik:v3.0
+    container_name: plantd-traefik
+    ports:
+      - "80:80"       # HTTP
+      - "443:443"     # HTTPS
+      - "8080:8080"   # gRPC
+      - "8443:8443"   # gRPC over TLS
+      - "9000:8080"   # Traefik dashboard (mapped to different port)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/config:/etc/traefik/config:ro
+      - traefik-ssl:/letsencrypt
+    networks:
+      - plantd
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # State Service (gRPC)
+  state:
+    build:
+      context: .
+      dockerfile: docker/state/Dockerfile.grpc
+    container_name: plantd-state-grpc
+    environment:
+      - PLANTD_STATE_DB_PATH=/data/state.db
+      - PLANTD_STATE_GRPC_PORT=8080
+    volumes:
+      - state-data:/data
+    networks:
+      - plantd
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd"
+      - "traefik.http.routers.state-grpc.rule=PathPrefix(`/plantd.state.v1.StateService/`)"
+      - "traefik.http.routers.state-grpc.entrypoints=grpc"
+      - "traefik.http.services.state-grpc.loadbalancer.server.scheme=h2c"
+      - "traefik.http.services.state-grpc.loadbalancer.server.port=8080"
+
+  # Identity Service
+  identity:
+    build:
+      context: .
+      dockerfile: identity/Dockerfile
+    container_name: plantd-identity
+    environment:
+      - PLANTD_IDENTITY_PORT=8080
+      - PLANTD_IDENTITY_DB_HOST=postgres
+      - PLANTD_IDENTITY_DB_PORT=5432
+      - PLANTD_IDENTITY_DB_NAME=identity
+      - PLANTD_IDENTITY_DB_USER=identity
+      - PLANTD_IDENTITY_DB_PASSWORD=identity_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - plantd
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd"
+
+  # PostgreSQL for Identity Service
+  postgres:
+    image: postgres:15-alpine
+    container_name: plantd-postgres
+    environment:
+      - POSTGRES_DB=identity
+      - POSTGRES_USER=identity
+      - POSTGRES_PASSWORD=identity_password
+    volumes:
+      - identity-data:/var/lib/postgresql/data
+    networks:
+      - plantd
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity -d identity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Monitoring (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: plantd-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus-data:/prometheus
+    networks:
+      - plantd
+    restart: unless-stopped 

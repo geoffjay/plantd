@@ -1,0 +1,67 @@
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# API and dashboard configuration
+api:
+  dashboard: true
+  debug: true
+  insecure: true  # For development - disable in production
+
+# Entry points
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+  grpc:
+    address: ":8080"
+  grpc-secure:
+    address: ":8443"
+
+# Providers
+providers:
+  # File provider for static configuration
+  file:
+    directory: /etc/traefik/config
+    watch: true
+  
+  # Docker provider for dynamic service discovery
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: "plantd"
+    watch: true
+
+# Certificate resolvers (for production)
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: admin@plantd.dev
+      storage: /letsencrypt/acme.json
+      httpChallenge:
+        entryPoint: web
+      # Uncomment for production
+      # caServer: https://acme-v02.api.letsencrypt.org/directory
+
+# Logging
+log:
+  level: INFO
+  filepath: /var/log/traefik/traefik.log
+
+accessLog:
+  filepath: /var/log/traefik/access.log
+
+# Metrics (optional)
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+
+# Tracing (optional)
+tracing:
+  jaeger:
+    samplingType: const
+    samplingParam: 1.0
+    localAgentHostPort: jaeger:6831 
