@@ -85,13 +85,13 @@ else
     log_warning "⚠️  Docker Compose not installed, skipping syntax validation"
 fi
 
-# Test 4: Check if gRPC service can be built
-log_info "Testing gRPC service build..."
+# Test 4: Check if unified state service can be built
+log_info "Testing unified state service build..."
 
-if make build-state-grpc &> /dev/null; then
-    log_success "✅ State gRPC service builds successfully"
+if make build-state &> /dev/null; then
+    log_success "✅ State service (with gRPC support) builds successfully"
 else
-    log_error "❌ State gRPC service build failed"
+    log_error "❌ State service build failed"
     exit 1
 fi
 

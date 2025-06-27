@@ -5,9 +5,9 @@ set -e
 echo "Testing State gRPC Service"
 echo "========================="
 
-# Start the service in the background
-echo "Starting State gRPC service..."
-./build/plantd-state-grpc &
+# Start the service in the background with gRPC transport enabled
+echo "Starting State service with gRPC transport..."
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=false PLANTD_STATE_GRPC_PORT=8080 ./build/plantd-state &
 GRPC_PID=$!
 
 # Wait for service to start

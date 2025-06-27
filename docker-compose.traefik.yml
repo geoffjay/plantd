@@ -41,9 +41,11 @@ services:
     build:
       context: .
       dockerfile: docker/state/Dockerfile.grpc
-    container_name: plantd-state-grpc
+    container_name: plantd-state
     environment:
       - PLANTD_STATE_DB_PATH=/data/state.db
+      - PLANTD_STATE_ENABLE_GRPC=true
+      - PLANTD_STATE_ENABLE_MDP=false
       - PLANTD_STATE_GRPC_PORT=8080
     volumes:
       - state-data:/data

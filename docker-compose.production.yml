@@ -88,7 +88,7 @@ services:
     build:
       context: .
       dockerfile: docker/state/Dockerfile.grpc
-    command: ["./build/plantd-state-grpc"]
+    command: ["./build/plantd-state"]
     volumes:
       - state-data-primary:/app/data
       - ./config/state.yml:/app/config.yml:ro
@@ -97,6 +97,9 @@ services:
       - PLANTD_ENV=production
       - PLANTD_LOG_LEVEL=info
       - PLANTD_STATE_DATA_PATH=/app/data
+      - PLANTD_STATE_ENABLE_GRPC=true
+      - PLANTD_STATE_ENABLE_MDP=false
+      - PLANTD_STATE_GRPC_PORT=8080
       - PLANTD_GRPC_ADDR=0.0.0.0:8080
       - PLANTD_HTTP_ADDR=0.0.0.0:8081
       - PLANTD_INSTANCE_ID=primary
@@ -133,7 +136,7 @@ services:
     build:
       context: .
       dockerfile: docker/state/Dockerfile.grpc
-    command: ["./build/plantd-state-grpc"]
+    command: ["./build/plantd-state"]
     volumes:
       - state-data-secondary:/app/data
       - ./config/state.yml:/app/config.yml:ro
@@ -142,6 +145,9 @@ services:
       - PLANTD_ENV=production
       - PLANTD_LOG_LEVEL=info
       - PLANTD_STATE_DATA_PATH=/app/data
+      - PLANTD_STATE_ENABLE_GRPC=true
+      - PLANTD_STATE_ENABLE_MDP=false
+      - PLANTD_STATE_GRPC_PORT=8080
       - PLANTD_GRPC_ADDR=0.0.0.0:8080
       - PLANTD_HTTP_ADDR=0.0.0.0:8081
       - PLANTD_INSTANCE_ID=secondary
