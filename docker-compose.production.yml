@@ -1,0 +1,457 @@
+# PlantD Production Docker Compose Configuration
+# Phase 7: Production Deployment with High Availability
+
+version: '3.8'
+
+networks:
+  plantd-production:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  # Persistent Storage
+  state-data-primary:
+    driver: local
+  state-data-secondary:
+    driver: local
+  identity-db-primary:
+    driver: local
+  identity-db-secondary:
+    driver: local
+  
+  # SSL/TLS Certificates
+  letsencrypt-data:
+    driver: local
+  traefik-certs:
+    driver: local
+  
+  # Monitoring Data
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+  
+  # Logging
+  traefik-logs:
+    driver: local
+  app-logs:
+    driver: local
+
+services:
+  # Traefik Production Gateway
+  traefik:
+    image: traefik:v3.0
+    container_name: plantd-traefik-prod
+    restart: unless-stopped
+    command:
+      - --configfile=/etc/traefik/traefik.prod.yml
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"   # gRPC
+      - "8443:8443"   # gRPC Secure
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./config/traefik/traefik.prod.yml:/etc/traefik/traefik.prod.yml:ro
+      - ./config/traefik/config:/etc/traefik/dynamic:ro
+      - letsencrypt-data:/letsencrypt
+      - traefik-certs:/etc/traefik/certs
+      - traefik-logs:/var/log/traefik
+    environment:
+      - TRAEFIK_LOG_LEVEL=INFO
+    networks:
+      - plantd-production
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    labels:
+      - "traefik.enable=false"
+
+  # State Service - Primary Instance
+  state-primary:
+    image: plantd-state:latest
+    container_name: plantd-state-primary
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: docker/state/Dockerfile.grpc
+    command: ["./build/plantd-state-grpc"]
+    volumes:
+      - state-data-primary:/app/data
+      - ./config/state.yml:/app/config.yml:ro
+      - app-logs:/app/logs
+    environment:
+      - PLANTD_ENV=production
+      - PLANTD_LOG_LEVEL=info
+      - PLANTD_STATE_DATA_PATH=/app/data
+      - PLANTD_GRPC_ADDR=0.0.0.0:8080
+      - PLANTD_HTTP_ADDR=0.0.0.0:8081
+      - PLANTD_INSTANCE_ID=primary
+    networks:
+      plantd-production:
+        aliases:
+          - plantd-state-primary
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd-production"
+      - "traefik.http.services.state-primary.loadbalancer.server.port=8080"
+      - "traefik.http.services.state-primary.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.state-primary.loadbalancer.healthcheck.interval=30s"
+
+  # State Service - Secondary Instance
+  state-secondary:
+    image: plantd-state:latest
+    container_name: plantd-state-secondary
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: docker/state/Dockerfile.grpc
+    command: ["./build/plantd-state-grpc"]
+    volumes:
+      - state-data-secondary:/app/data
+      - ./config/state.yml:/app/config.yml:ro
+      - app-logs:/app/logs
+    environment:
+      - PLANTD_ENV=production
+      - PLANTD_LOG_LEVEL=info
+      - PLANTD_STATE_DATA_PATH=/app/data
+      - PLANTD_GRPC_ADDR=0.0.0.0:8080
+      - PLANTD_HTTP_ADDR=0.0.0.0:8081
+      - PLANTD_INSTANCE_ID=secondary
+    networks:
+      plantd-production:
+        aliases:
+          - plantd-state-secondary
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd-production"
+      - "traefik.http.services.state-secondary.loadbalancer.server.port=8080"
+      - "traefik.http.services.state-secondary.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.state-secondary.loadbalancer.healthcheck.interval=30s"
+
+  # PostgreSQL - Primary Database for Identity Service
+  postgres-primary:
+    image: postgres:15-alpine
+    container_name: plantd-postgres-primary
+    restart: unless-stopped
+    volumes:
+      - identity-db-primary:/var/lib/postgresql/data
+      - ./identity/docker/postgres-init:/docker-entrypoint-initdb.d:ro
+    environment:
+      - POSTGRES_DB=plantd_identity
+      - POSTGRES_USER=plantd
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-secure_password_change_me}
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+    networks:
+      - plantd-production
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plantd -d plantd_identity"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+
+  # Identity Service - Primary Instance
+  identity-primary:
+    image: plantd-identity:latest
+    container_name: plantd-identity-primary
+    restart: unless-stopped
+    build:
+      context: ./identity
+      dockerfile: Dockerfile
+    volumes:
+      - ./identity/config.yml:/app/config.yml:ro
+      - app-logs:/app/logs
+    environment:
+      - PLANTD_ENV=production
+      - PLANTD_LOG_LEVEL=info
+      - PLANTD_HTTP_ADDR=0.0.0.0:8080
+      - PLANTD_INSTANCE_ID=primary
+      - DATABASE_URL=postgres://plantd:${POSTGRES_PASSWORD:-secure_password_change_me}@postgres-primary:5432/plantd_identity?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:-super_secret_jwt_key_change_me}
+    networks:
+      plantd-production:
+        aliases:
+          - plantd-identity-primary
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd-production"
+      - "traefik.http.services.identity-primary.loadbalancer.server.port=8080"
+      - "traefik.http.services.identity-primary.loadbalancer.healthcheck.path=/health"
+
+  # Identity Service - Secondary Instance
+  identity-secondary:
+    image: plantd-identity:latest
+    container_name: plantd-identity-secondary
+    restart: unless-stopped
+    build:
+      context: ./identity
+      dockerfile: Dockerfile
+    volumes:
+      - ./identity/config.yml:/app/config.yml:ro
+      - app-logs:/app/logs
+    environment:
+      - PLANTD_ENV=production
+      - PLANTD_LOG_LEVEL=info
+      - PLANTD_HTTP_ADDR=0.0.0.0:8080
+      - PLANTD_INSTANCE_ID=secondary
+      - DATABASE_URL=postgres://plantd:${POSTGRES_PASSWORD:-secure_password_change_me}@postgres-primary:5432/plantd_identity?sslmode=disable
+      - JWT_SECRET=${JWT_SECRET:-super_secret_jwt_key_change_me}
+    networks:
+      plantd-production:
+        aliases:
+          - plantd-identity-secondary
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd-production"
+      - "traefik.http.services.identity-secondary.loadbalancer.server.port=8080"
+      - "traefik.http.services.identity-secondary.loadbalancer.healthcheck.path=/health"
+
+  # Prometheus Monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: plantd-prometheus-prod
+    restart: unless-stopped
+    volumes:
+      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    networks:
+      - plantd-production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd-production"
+      - "traefik.http.services.prometheus.loadbalancer.server.port=9090"
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    container_name: plantd-grafana-prod
+    restart: unless-stopped
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin_change_me}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_SNAPSHOTS_EXTERNAL_ENABLED=false
+      - GF_SERVER_ROOT_URL=https://dashboard.plantd.com
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY=true
+      - GF_SECURITY_STRICT_TRANSPORT_SECURITY_MAX_AGE_SECONDS=31536000
+      - GF_SECURITY_CONTENT_TYPE_PROTECTION=true
+      - GF_SECURITY_X_CONTENT_TYPE_OPTIONS=nosniff
+      - GF_SECURITY_X_XSS_PROTECTION=true
+    networks:
+      - plantd-production
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=plantd-production"
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
+
+  # Jaeger Tracing
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: plantd-jaeger-prod
+    restart: unless-stopped
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - plantd-production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+
+  # Redis for Session Storage and Caching
+  redis:
+    image: redis:7-alpine
+    container_name: plantd-redis-prod
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    volumes:
+      - ./redis-data:/data
+    networks:
+      - plantd-production
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 64M
+
+  # Log Aggregation with Fluent Bit
+  fluent-bit:
+    image: fluent/fluent-bit:latest
+    container_name: plantd-fluent-bit-prod
+    restart: unless-stopped
+    volumes:
+      - ./config/logging/fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf:ro
+      - app-logs:/app/logs:ro
+      - traefik-logs:/traefik/logs:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    networks:
+      - plantd-production
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 64M 

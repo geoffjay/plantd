@@ -187,7 +187,7 @@ gateway/main.go                # Optional custom gateway
 
 ### Configuration
 ```
-traefik/traefik.yml           # Traefik config
+config/traefik/traefik.yml    # Traefik config
 docker-compose.plantd.yml     # Docker setup
 buf.gen.yaml                  # Code generation
 ```

@@ -895,7 +895,7 @@ func TestStateGRPCServer(t *testing.T) {
 
 #### 4.1.1 Development Configuration
 
-**traefik/traefik.dev.yml:**
+**config/traefik/traefik.dev.yml:**
 ```yaml
 # Traefik development configuration
 api:
@@ -944,7 +944,7 @@ tracing:
     localAgentHostPort: jaeger:6831
 ```
 
-**traefik/dynamic.yml:**
+**config/traefik/dynamic.yml:**
 ```yaml
 # Dynamic configuration for service routing
 http:
@@ -1047,8 +1047,8 @@ services:
       - "8081:8081"  # Traefik dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.dev.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
+      - ./config/traefik/traefik.dev.yml:/etc/traefik/traefik.yml:ro
+      - ./config/traefik/dynamic.yml:/etc/traefik/dynamic.yml:ro
       - ./data/letsencrypt:/letsencrypt
     networks:
       - plantd-network

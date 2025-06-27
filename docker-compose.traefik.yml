@@ -24,8 +24,8 @@ services:
       - "9000:8080"   # Traefik dashboard (mapped to different port)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./traefik/config:/etc/traefik/config:ro
+      - ./config/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./config/traefik/config:/etc/traefik/config:ro
       - traefik-ssl:/letsencrypt
     networks:
       - plantd

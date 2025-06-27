@@ -1,0 +1,192 @@
+# Traefik Production Configuration for PlantD gRPC Migration
+# Phase 7: Production Deployment
+
+# Global Configuration
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+# Entry Points - Production with SSL/TLS
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entrypoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        options: default
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers@file
+        - rate-limit@file
+
+  grpc:
+    address: ":8080"
+    http:
+      middlewares:
+        - auth-forward@file
+        - retry-policy@file
+        - rate-limit@file
+
+  grpc-secure:
+    address: ":8443"
+    http:
+      tls:
+        options: default
+        certResolver: letsencrypt
+      middlewares:
+        - security-headers@file
+        - auth-forward@file
+        - retry-policy@file
+        - rate-limit@file
+
+# Certificate Resolvers - Let's Encrypt Production
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      tlsChallenge: {}
+      email: admin@plantd.com
+      storage: /letsencrypt/acme.json
+      caServer: https://acme-v02.api.letsencrypt.org/directory
+      keyType: EC256
+
+# Provider Configuration
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: plantd-production
+    watch: true
+
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+# API and Dashboard - Disabled in Production
+api:
+  dashboard: false
+  debug: false
+  insecure: false
+
+# Metrics for Production Monitoring
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
+
+# Access Logs for Production
+accessLog:
+  filePath: "/var/log/traefik/access.log"
+  format: json
+  bufferingSize: 100
+  filters:
+    statusCodes:
+      - "400-499"
+      - "500-599"
+    retryAttempts: true
+    minDuration: "10ms"
+
+# Traefik Logs
+log:
+  level: INFO
+  filePath: "/var/log/traefik/traefik.log"
+  format: json
+
+# TLS Configuration
+tls:
+  options:
+    default:
+      sslStrategies:
+        - "tls.SniStrict"
+      minVersion: "VersionTLS12"
+      maxVersion: "VersionTLS13"
+      cipherSuites:
+        - "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305"
+        - "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"
+        - "TLS_RSA_WITH_AES_256_GCM_SHA384"
+        - "TLS_RSA_WITH_AES_128_GCM_SHA256"
+      curvePreferences:
+        - CurveP521
+        - CurveP384
+      sniStrict: true
+
+# Health Check
+ping:
+  entryPoint: "websecure"
+
+# Tracing for Production Observability
+tracing:
+  jaeger:
+    samplingServerURL: http://jaeger:14268/api/sampling
+    localAgentHostPort: jaeger:6831
+
+# Timeouts and Performance
+serversTransport:
+  insecureSkipVerify: false
+  rootCAs:
+    - /etc/ssl/certs/ca-certificates.crt
+  maxIdleConnsPerHost: 42
+  forwardingTimeouts:
+    dialTimeout: 30s
+    responseHeaderTimeout: 0s
+    idleConnTimeout: 90s
+
+# Logging
+log:
+  level: INFO
+  filepath: /var/log/traefik/traefik.log
+  format: json
+
+accessLog:
+  filepath: /var/log/traefik/access.log
+  format: json
+  fields:
+    headers:
+      defaultMode: drop
+      names:
+        User-Agent: keep
+        Authorization: drop
+        Content-Type: keep
+
+# Metrics
+metrics:
+  prometheus:
+    addEntryPointsLabels: true
+    addServicesLabels: true
+    addRoutersLabels: true
+    buckets:
+      - 0.1
+      - 0.3
+      - 1.2
+      - 5.0
+
+# Tracing
+tracing:
+  jaeger:
+    samplingType: const
+    samplingParam: 1.0
+    localAgentHostPort: jaeger:6831
+
+# Security
+serversTransport:
+  insecureSkipVerify: false
+  
+# Rate limiting (global)
+global:
+  rateLimiter:
+    burst: 100
+    average: 50 

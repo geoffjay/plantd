@@ -32,12 +32,12 @@ log_warning() {
 log_info "Testing file structure..."
 
 required_files=(
-    "traefik/traefik.yml"
-    "traefik/config/services.yml"
+    "config/traefik/traefik.yml"
+    "config/traefik/config/services.yml"
     "docker-compose.traefik.yml"
     "docker/state/Dockerfile.grpc"
     "scripts/traefik-dev.sh"
-    "monitoring/prometheus.yml"
+    "config/monitoring/prometheus.yml"
 )
 
 missing_files=()
@@ -61,7 +61,7 @@ fi
 log_info "Validating Traefik configuration..."
 
 if command -v traefik &> /dev/null; then
-    if traefik validate --configFile=traefik/traefik.yml &> /dev/null; then
+    if traefik validate --configFile=config/traefik/traefik.yml &> /dev/null; then
         log_success "✅ Traefik configuration is valid"
     else
         log_error "❌ Traefik configuration has syntax errors"
@@ -135,7 +135,7 @@ endpoints_to_check=(
 )
 
 for endpoint in "${endpoints_to_check[@]}"; do
-    if grep -q "$endpoint" traefik/config/services.yml; then
+    if grep -q "$endpoint" config/traefik/config/services.yml; then
         log_success "✅ Endpoint '$endpoint' configured in Traefik"
     else
         log_error "❌ Endpoint '$endpoint' not found in Traefik config"
