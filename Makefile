@@ -65,7 +65,7 @@ lint: ; $(info $(M) Lint projects...)
 
 build: build-pre proto-gen build-app build-broker build-client build-identity build-logger build-proxy build-state
 
-build-grpc: build-pre proto-gen build-state-grpc
+build-grpc: build-pre proto-gen build-state # Unified build - enable gRPC with PLANTD_STATE_ENABLE_GRPC=true
 
 build-all: build build-grpc build-client-grpc
 
@@ -111,10 +111,8 @@ build-state: ; $(info $(M) Building state service...)
 	go build -o ../build/plantd-state $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-build-state-grpc: ; $(info $(M) Building state gRPC service...)
-	@pushd state >/dev/null; \
-	go build -o ../build/plantd-state-grpc $(BUILD_ARGS) ./grpc_main.go ./grpc_server.go ./mdp_compat.go ./store.go; \
-	popd >/dev/null
+# Removed build-state-grpc - unified with build-state using transport interfaces
+# Use PLANTD_STATE_ENABLE_GRPC=true environment variable to enable gRPC transport
 
 build-module-echo: ; $(info $(M) Building echo module...)
 	@pushd module/echo >/dev/null; \

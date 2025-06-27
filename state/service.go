@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/core/util"
 	"github.com/geoffjay/plantd/identity/pkg/client"
 	"github.com/geoffjay/plantd/state/auth"
@@ -19,18 +18,19 @@ import (
 
 // Service defines the service type.
 type Service struct {
-	handler        *Handler
-	manager        *Manager
-	store          *Store
-	worker         *mdp.Worker
-	identityClient *client.Client
-	authMiddleware *auth.AuthMiddleware
+	handler          *Handler
+	manager          *Manager
+	store            *Store
+	identityClient   *client.Client
+	authMiddleware   *auth.AuthMiddleware
+	transportManager *TransportManager
 }
 
 // NewService creates an instance of the service.
 func NewService() *Service {
 	return &Service{
-		manager: NewManager(">tcp://localhost:11001"),
+		manager:          NewManager(">tcp://localhost:11001"),
+		transportManager: NewTransportManager(),
 	}
 }
 
@@ -161,13 +161,46 @@ func (s *Service) setupHandler() {
 	}
 }
 
-func (s *Service) setupWorker() {
-	var err error
-	endpoint := util.Getenv("PLANTD_STATE_BROKER_ENDPOINT",
-		"tcp://127.0.0.1:9797")
-	if s.worker, err = mdp.NewWorker(endpoint, "org.plantd.State"); err != nil {
-		log.WithFields(log.Fields{"err": err}).Panic(
-			"failed to setup message queue worker")
+func (s *Service) setupTransports() {
+	config := GetConfig()
+
+	// Allow environment variables to override config
+	enableMDP := config.Transport.EnableMDP
+	if envMDP := util.Getenv("PLANTD_STATE_ENABLE_MDP", ""); envMDP != "" {
+		enableMDP = envMDP == "true"
+	}
+
+	enableGRPC := config.Transport.EnableGRPC
+	if envGRPC := util.Getenv("PLANTD_STATE_ENABLE_GRPC", ""); envGRPC != "" {
+		enableGRPC = envGRPC == "true"
+	}
+
+	log.WithFields(log.Fields{
+		"mdp_enabled":  enableMDP,
+		"grpc_enabled": enableGRPC,
+	}).Info("Configuring transports")
+
+	// Add MDP transport if enabled
+	if enableMDP {
+		mdpEndpoint := util.Getenv("PLANTD_STATE_BROKER_ENDPOINT", config.BrokerEndpoint)
+		mdpTransport := NewMDPTransport(mdpEndpoint, "org.plantd.State", s.handler)
+		s.transportManager.AddTransport(mdpTransport)
+		log.WithField("endpoint", mdpEndpoint).Info("MDP transport configured")
+	}
+
+	// Add gRPC transport if enabled
+	if enableGRPC {
+		grpcPort := config.Transport.GRPCPort
+		if envPort := util.Getenv("PLANTD_STATE_GRPC_PORT", ""); envPort != "" {
+			grpcPort = envPort
+		}
+		grpcTransport := NewGRPCTransport(grpcPort, s.store)
+		s.transportManager.AddTransport(grpcTransport)
+		log.WithField("port", grpcPort).Info("gRPC transport configured")
+	}
+
+	if !enableMDP && !enableGRPC {
+		log.Fatal("At least one transport (MDP or gRPC) must be enabled")
 	}
 }
 
@@ -188,10 +221,10 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	s.setupIdentityClient()
 	s.setupHandler()
 	s.setupConsumers()
-	s.setupWorker()
+	s.setupTransports()
 
 	defer s.store.Unload()
-	defer s.worker.Close()
+	defer s.transportManager.StopAll()
 	defer s.manager.Shutdown()
 	defer func() {
 		if s.identityClient != nil {
@@ -205,10 +238,14 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("starting")
 
-	wg.Add(3)
+	// Start transports
+	if err := s.transportManager.StartAll(ctx, wg); err != nil {
+		log.WithError(err).Fatal("Failed to start transports")
+	}
+
+	wg.Add(2)
 	go s.runHealth(ctx, wg)
 	go s.manager.Run(ctx, wg)
-	go s.runWorker(ctx, wg)
 
 	<-ctx.Done()
 
@@ -354,49 +391,6 @@ func (s *Service) getAuthMode() string {
 		return "disabled"
 	}
 	return "enabled"
-}
-
-func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
-	var err error
-	fields := log.Fields{"context": "service.worker"}
-	defer wg.Done()
-
-	go func() {
-		var request, reply []string
-		for !s.worker.Terminated() {
-			log.WithFields(fields).Debug("waiting for request")
-
-			if request, err = s.worker.Recv(reply); err != nil {
-				log.WithFields(log.Fields{"error": err}).Error(
-					"failed while receiving request")
-				continue
-			}
-
-			log.WithFields(log.Fields{
-				"context": "service.worker",
-				"request": request,
-			}).Debug("received request")
-
-			if len(request) == 0 {
-				log.WithFields(fields).Debug("received request is empty")
-				continue
-			}
-
-			// Process the message - expecting format: [client_id, operation, data...]
-			// The client_id is included in the message for reply routing
-			reply = s.processMessage(ctx, request)
-
-			log.WithFields(log.Fields{
-				"context": "service.worker",
-				"reply":   reply,
-			}).Debug("prepared reply")
-		}
-	}()
-
-	<-ctx.Done()
-	s.worker.Shutdown()
-
-	log.WithFields(fields).Debug("exiting")
 }
 
 // processMessage processes a single MDP message for the state service

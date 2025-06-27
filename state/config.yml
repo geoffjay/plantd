@@ -15,4 +15,10 @@ database:
   path: ./plantd-state.db
 
 health:
-  port: 8081 
+  port: 8081
+
+# Transport configuration
+transport:
+  enable-mdp: true      # Enable MDP (ZeroMQ) transport
+  enable-grpc: false    # Enable gRPC transport  
+  grpc-port: "8080"     # Port for gRPC service

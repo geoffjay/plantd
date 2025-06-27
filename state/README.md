@@ -11,6 +11,26 @@ and allow for some kind of PUSH/PULL by the modules to load and store state.
 
 ## Quickstart
 
+### Modern Architecture (Recommended)
+
+The State service now supports multiple transport protocols through a unified interface:
+
+```bash
+# Build the unified state service
+make build-state
+
+# Run with gRPC transport (recommended)
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=false ./build/plantd-state
+
+# Run with both transports during migration
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=true ./build/plantd-state
+
+# Use gRPC client
+./build/plant state state-grpc get <key> --service=<scope> --grpc-endpoint=http://localhost:8080
+```
+
+### Legacy Architecture (Deprecated)
+
 * build and run a `broker`
 
 ```shell
@@ -38,6 +58,48 @@ make build-client
 ```shell
 ./build/plant state set --service="org.plantd.Client" foo bar
 ./build/plant state get --service="org.plantd.Client" foo
+```
+
+## Transport Configuration
+
+The State service supports multiple transport protocols:
+
+### Configuration File (`config.yml`)
+
+```yaml
+transport:
+  enable-mdp: true      # Enable MDP (ZeroMQ) transport
+  enable-grpc: false    # Enable gRPC transport  
+  grpc-port: "8080"     # Port for gRPC service
+```
+
+### Environment Variables
+
+```bash
+# Transport control
+PLANTD_STATE_ENABLE_MDP=true/false    # Override MDP transport
+PLANTD_STATE_ENABLE_GRPC=true/false   # Override gRPC transport  
+PLANTD_STATE_GRPC_PORT=8080           # Override gRPC port
+
+# Endpoints
+PLANTD_STATE_BROKER_ENDPOINT=tcp://127.0.0.1:9797  # MDP broker endpoint
+```
+
+### Migration Strategy
+
+1. **Current State**: MDP-only transport
+2. **Transition**: Both MDP and gRPC enabled
+3. **Target State**: gRPC-only transport
+
+```bash
+# Phase 1: Add gRPC alongside MDP
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=true ./build/plantd-state
+
+# Phase 2: Test gRPC client
+./build/plant state state-grpc get <key> --grpc-endpoint=http://localhost:8080
+
+# Phase 3: Disable MDP
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=false ./build/plantd-state
 ```
 
 ## Example

@@ -19,6 +19,12 @@ type identityConfig struct {
 	Retries  int    `mapstructure:"retries"`
 }
 
+type transportConfig struct {
+	EnableMDP  bool   `mapstructure:"enable-mdp"`
+	EnableGRPC bool   `mapstructure:"enable-grpc"`
+	GRPCPort   string `mapstructure:"grpc-port"`
+}
+
 // Config represents the configuration for the state service.
 type Config struct {
 	cfg.Config
@@ -28,6 +34,7 @@ type Config struct {
 	StateEndpoint  string            `mapstructure:"state-endpoint"`
 	Database       databaseConfig    `mapstructure:"database"`
 	Identity       identityConfig    `mapstructure:"identity"`
+	Transport      transportConfig   `mapstructure:"transport"`
 	Log            cfg.LogConfig     `mapstructure:"log"`
 	Service        cfg.ServiceConfig `mapstructure:"service"`
 }
@@ -36,17 +43,20 @@ var lock = &sync.Mutex{}
 var instance *Config
 
 var defaults = map[string]interface{}{
-	"env":               "development",
-	"broker-endpoint":   "tcp://localhost:9797",
-	"state-endpoint":    ">tcp://localhost:11001",
-	"database.adapter":  "bbolt",
-	"database.uri":      "plantd-state.db",
-	"identity.endpoint": "tcp://127.0.0.1:9797",
-	"identity.timeout":  "30s",
-	"identity.retries":  3,
-	"log.formatter":     "text",
-	"log.level":         "info",
-	"log.loki.address":  "http://localhost:3100",
+	"env":                   "development",
+	"broker-endpoint":       "tcp://localhost:9797",
+	"state-endpoint":        ">tcp://localhost:11001",
+	"database.adapter":      "bbolt",
+	"database.uri":          "plantd-state.db",
+	"identity.endpoint":     "tcp://127.0.0.1:9797",
+	"identity.timeout":      "30s",
+	"identity.retries":      3,
+	"transport.enable-mdp":  true,
+	"transport.enable-grpc": false,
+	"transport.grpc-port":   "8080",
+	"log.formatter":         "text",
+	"log.level":             "info",
+	"log.loki.address":      "http://localhost:3100",
 	"log.loki.labels": map[string]string{
 		"app": "state", "environment": "development"},
 	"service.id": "org.plantd.State",
