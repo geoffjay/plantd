@@ -16,6 +16,12 @@ type server struct {
 	Retries  int    `mapstructure:"retries"`
 }
 
+type grpcConfig struct {
+	GatewayEndpoint string `mapstructure:"gateway_endpoint"`
+	Timeout         string `mapstructure:"timeout"`
+	UseGRPC         bool   `mapstructure:"use_grpc"`
+}
+
 type identity struct {
 	Endpoint       string `mapstructure:"endpoint"`
 	DefaultProfile string `mapstructure:"default_profile"`
@@ -26,6 +32,7 @@ type identity struct {
 type defaults struct {
 	Service      string `mapstructure:"service"`
 	OutputFormat string `mapstructure:"output_format"`
+	UseGRPC      bool   `mapstructure:"use_grpc"`
 }
 
 type profile struct {
@@ -34,6 +41,7 @@ type profile struct {
 
 type clientConfig struct {
 	Server   server             `mapstructure:"server"`
+	GRPC     grpcConfig         `mapstructure:"grpc"`
 	Identity identity           `mapstructure:"identity"`
 	Defaults defaults           `mapstructure:"defaults"`
 	Profiles map[string]profile `mapstructure:"profiles"`
@@ -122,4 +130,25 @@ func GetDefaultProfile() string {
 		return config.Identity.DefaultProfile
 	}
 	return "default"
+}
+
+// GetGRPCGatewayEndpoint returns the gRPC gateway endpoint
+func GetGRPCGatewayEndpoint() string {
+	if config.GRPC.GatewayEndpoint != "" {
+		return config.GRPC.GatewayEndpoint
+	}
+	return "http://localhost:8080"
+}
+
+// ShouldUseGRPC returns whether gRPC should be used by default
+func ShouldUseGRPC() bool {
+	return config.Defaults.UseGRPC
+}
+
+// GetGRPCTimeout returns the gRPC timeout
+func GetGRPCTimeout() string {
+	if config.GRPC.Timeout != "" {
+		return config.GRPC.Timeout
+	}
+	return "30s"
 }

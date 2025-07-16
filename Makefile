@@ -119,20 +119,20 @@ build-module-echo: ; $(info $(M) Building echo module...)
 	go build -o ../../build/plantd-module-echo $(BUILD_ARGS) .; \
 	popd >/dev/null
 
-test: test-pre test-core test-broker test-identity test-state test-app
+test: test-pre test-core test-core-integration test-broker test-identity test-state test-app
 
 test-pre: ; $(info $(M) Testing projects...)
 	@mkdir -p coverage/
-
-test-integration:
-	@pushd core >/dev/null; \
-	go test --tags=integration ./... -v; \
-	popd >/dev/null
 
 test-core:
 	@pushd core >/dev/null; \
 	go test $(TEST_ARGS) ./... -v; \
 	if [[ -f coverage.txt ]]; then mv coverage.txt ../coverage/core.txt; fi; \
+	popd >/dev/null
+
+test-core-integration:
+	@pushd core >/dev/null; \
+	go test --tags=integration ./... -v; \
 	popd >/dev/null
 
 test-broker:

@@ -83,13 +83,19 @@ func init() {
 func createGRPCStateClient() (*grpc.StateClient, error) {
 	gatewayEndpoint := grpcEndpointFlag
 	if gatewayEndpoint == "" {
-		gatewayEndpoint = "http://localhost:8080"
+		gatewayEndpoint = GetGRPCGatewayEndpoint()
+	}
+
+	// Parse timeout
+	timeoutDuration, err := time.ParseDuration(GetGRPCTimeout())
+	if err != nil {
+		timeoutDuration = 30 * time.Second
 	}
 
 	// Create client configuration
 	config := &grpc.StateClientConfig{
 		BaseURL: gatewayEndpoint,
-		Timeout: 30 * time.Second,
+		Timeout: timeoutDuration,
 		AuthFunc: func() string {
 			tokenMgr := auth.NewTokenManager()
 			token, _ := tokenMgr.GetValidToken(profileFlag)

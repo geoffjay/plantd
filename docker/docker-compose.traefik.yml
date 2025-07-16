@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   plantd:
     driver: bridge
@@ -17,11 +15,11 @@ services:
     image: traefik:v3.0
     container_name: plantd-traefik
     ports:
-      - "80:80"       # HTTP
-      - "443:443"     # HTTPS
-      - "8080:8080"   # gRPC
-      - "8443:8443"   # gRPC over TLS
-      - "9000:8080"   # Traefik dashboard (mapped to different port)
+      - "80:80" # HTTP
+      - "443:443" # HTTPS
+      - "8080:8080" # gRPC
+      - "8443:8443" # gRPC over TLS
+      - "9000:8080" # Traefik dashboard (mapped to different port)
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./config/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
@@ -39,7 +37,7 @@ services:
   # State Service (gRPC)
   state:
     build:
-      context: .
+      context: ..
       dockerfile: docker/state/Dockerfile.grpc
     container_name: plantd-state
     environment:
@@ -69,7 +67,7 @@ services:
   # Identity Service
   identity:
     build:
-      context: .
+      context: ..
       dockerfile: identity/Dockerfile
     container_name: plantd-identity
     environment:
@@ -118,4 +116,4 @@ services:
       - prometheus-data:/prometheus
     networks:
       - plantd
-    restart: unless-stopped 
+    restart: unless-stopped

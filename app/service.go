@@ -60,7 +60,7 @@ func (s *service) init() {
 	}
 	s.brokerService = brokerService
 
-	// Initialize State Service
+	// Initialize State Service (using MDP for now, gRPC implementation available)
 	log.Debug("Initializing State Service")
 	stateService, err := services.NewStateService(config)
 	if err != nil {

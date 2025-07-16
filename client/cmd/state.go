@@ -85,7 +85,13 @@ func init() {
 func get(_ *cobra.Command, args []string) {
 	log.Println(endpoint)
 
-	// Execute with authentication
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() || useGRPCFlag {
+		getGRPC(nil, args)
+		return
+	}
+
+	// Execute with authentication using MDP
 	executeWithAuth(func(token string) error {
 		client, err := plantd.NewClient(endpoint)
 		if err != nil {
@@ -111,7 +117,13 @@ func get(_ *cobra.Command, args []string) {
 func set(_ *cobra.Command, args []string) {
 	log.Println(endpoint)
 
-	// Execute with authentication
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() || useGRPCFlag {
+		setGRPC(nil, args)
+		return
+	}
+
+	// Execute with authentication using MDP
 	executeWithAuth(func(token string) error {
 		client, err := plantd.NewClient(endpoint)
 		if err != nil {
@@ -281,7 +293,13 @@ func containsAny(str string, substrings []string) bool {
 func list(_ *cobra.Command, _ []string) {
 	log.Println(endpoint)
 
-	// Execute with authentication
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() || useGRPCFlag {
+		listGRPC(nil, nil)
+		return
+	}
+
+	// Execute with authentication using MDP
 	executeWithAuth(func(token string) error {
 		client, err := plantd.NewClient(endpoint)
 		if err != nil {
@@ -305,7 +323,13 @@ func list(_ *cobra.Command, _ []string) {
 func deleteKey(_ *cobra.Command, args []string) {
 	log.Println(endpoint)
 
-	// Execute with authentication
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() || useGRPCFlag {
+		deleteGRPC(nil, args)
+		return
+	}
+
+	// Execute with authentication using MDP
 	executeWithAuth(func(token string) error {
 		client, err := plantd.NewClient(endpoint)
 		if err != nil {

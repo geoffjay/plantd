@@ -2,22 +2,23 @@
 FROM golang:1.24-alpine AS builder
 
 # Install dependencies
-RUN apk add --no-cache git ca-certificates
+RUN apk add --no-cache git ca-certificates gcc musl-dev
 
 # Set working directory
 WORKDIR /build
 
-# Copy go mod files
-COPY go.work go.work.sum ./
+# Copy go mod files for all required modules
 COPY state/go.mod state/go.sum ./state/
 COPY gen/proto/go/go.mod gen/proto/go/go.sum ./gen/proto/go/
+COPY identity/go.mod identity/go.sum ./identity/
 
-# Download dependencies
-RUN cd state && go mod download
-
-# Copy source code
+# Copy source code for all required modules first
 COPY state/ ./state/
 COPY gen/proto/go/ ./gen/proto/go/
+COPY identity/ ./identity/
+
+# Download dependencies and tidy up
+RUN cd state && go mod tidy && go mod download
 
 # Build the unified state service
 RUN cd state && \

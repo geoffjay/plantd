@@ -17,11 +17,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// Service defines the service type.
+// Service defines the service type with transport support.
 type Service struct {
-	endpoint string
-	handler  *Handler
-	running  bool
+	endpoint         string
+	handler          *Handler
+	running          bool
+	transportManager *TransportManager
 
 	buses  []*bus.Bus
 	broker *mdp.Broker
@@ -33,12 +34,13 @@ func NewService() *Service {
 	config := GetConfig()
 
 	service := &Service{
-		buses:    initBuses(),
-		handler:  NewHandler(),
-		endpoint: config.Endpoint,
-		broker:   nil,
-		running:  false,
-		worker:   nil,
+		buses:            initBuses(),
+		handler:          NewHandler(),
+		endpoint:         config.Endpoint,
+		broker:           nil,
+		running:          false,
+		worker:           nil,
+		transportManager: NewTransportManager(),
 	}
 
 	service.dumpConfig()
@@ -56,6 +58,9 @@ func NewService() *Service {
 			"failed to initialize worker")
 		return nil
 	}
+
+	// Initialize transports based on environment variables
+	service.initTransports()
 
 	return service
 }
@@ -123,13 +128,61 @@ func (s *Service) initWorker() error {
 	return nil
 }
 
+// initTransports initializes transport layers based on environment variables
+func (s *Service) initTransports() {
+	config := GetConfig()
+
+	// Check environment variables for transport configuration
+	enableMDP := util.Getenv("PLANTD_BROKER_ENABLE_MDP", "true") == "true"
+	enableGRPC := util.Getenv("PLANTD_BROKER_ENABLE_GRPC", "false") == "true"
+	grpcPort := util.Getenv("PLANTD_BROKER_GRPC_PORT", "8082")
+
+	log.WithFields(log.Fields{
+		"enable_mdp":  enableMDP,
+		"enable_grpc": enableGRPC,
+		"grpc_port":   grpcPort,
+	}).Info("Initializing broker transports")
+
+	// Add MDP transport if enabled
+	if enableMDP {
+		mdpTransport := NewMDPTransport(config.ClientEndpoint, "org.plantd.Broker", s.handler, s.broker)
+		s.transportManager.AddTransport(mdpTransport)
+		log.WithFields(log.Fields{
+			"transport": "MDP",
+			"endpoint":  config.ClientEndpoint,
+		}).Info("Added MDP transport")
+	}
+
+	// Add gRPC transport if enabled
+	if enableGRPC {
+		grpcTransport := NewGRPCTransport(grpcPort)
+		s.transportManager.AddTransport(grpcTransport)
+		log.WithFields(log.Fields{
+			"transport": "gRPC",
+			"port":      grpcPort,
+		}).Info("Added gRPC transport")
+	}
+
+	if !enableMDP && !enableGRPC {
+		log.Warn("No transports enabled, broker will not be accessible")
+	}
+}
+
 // Run handles the service execution.
 func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
-	defer s.worker.Close()
-	defer wg.Done()
+	defer func() {
+		if s.worker != nil {
+			s.worker.Close()
+		}
+		if s.transportManager != nil {
+			s.transportManager.Stop()
+		}
+		wg.Done()
+	}()
 
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("starting")
 
+	// Start message buses
 	wg.Add(len(s.buses))
 	for _, item := range s.buses {
 		elem := item
@@ -140,18 +193,34 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 		}()
 	}
 
-	wg.Add(3)
+	// Start health endpoint
+	wg.Add(1)
 	go s.runHealth(ctx, wg)
-	go s.runBroker(ctx)
-	go s.runWorker(ctx, wg)
 
-	<-ctx.Done()
+	// Start broker (MDP) if it exists
+	if s.broker != nil {
+		go s.runBroker(ctx)
+	}
 
-	if err := s.broker.Close(); err != nil {
+	// Start transport manager (handles both MDP worker and gRPC)
+	if err := s.transportManager.Start(ctx); err != nil {
 		log.WithFields(log.Fields{
 			"context": "service.run",
 			"error":   err,
-		}).Error("failed to close broker")
+		}).Error("failed to start transport manager")
+		return
+	}
+
+	<-ctx.Done()
+
+	// Cleanup
+	if s.broker != nil {
+		if err := s.broker.Close(); err != nil {
+			log.WithFields(log.Fields{
+				"context": "service.run",
+				"error":   err,
+			}).Error("failed to close broker")
+		}
 	}
 
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("exiting")

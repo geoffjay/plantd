@@ -82,6 +82,12 @@ func init() {
 }
 
 func loginHandler(_ *cobra.Command, _ []string) {
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() {
+		loginGRPCHandler(nil, nil)
+		return
+	}
+
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -153,6 +159,12 @@ func loginHandler(_ *cobra.Command, _ []string) {
 }
 
 func logoutHandler(_ *cobra.Command, _ []string) {
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() {
+		logoutGRPCHandler(nil, nil)
+		return
+	}
+
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -192,6 +204,12 @@ func logoutHandler(_ *cobra.Command, _ []string) {
 }
 
 func statusHandler(_ *cobra.Command, _ []string) {
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() {
+		statusGRPCHandler(nil, nil)
+		return
+	}
+
 	tokenMgr := auth.NewTokenManager()
 
 	profile, err := tokenMgr.GetProfile(profileFlag)
@@ -215,6 +233,12 @@ func statusHandler(_ *cobra.Command, _ []string) {
 }
 
 func refreshHandler(_ *cobra.Command, _ []string) {
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() {
+		refreshGRPCHandler(nil, nil)
+		return
+	}
+
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -261,6 +285,12 @@ func refreshHandler(_ *cobra.Command, _ []string) {
 }
 
 func whoamiHandler(_ *cobra.Command, _ []string) {
+	// Check if we should use gRPC or MDP
+	if ShouldUseGRPC() {
+		whoamiGRPCHandler(nil, nil)
+		return
+	}
+
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
