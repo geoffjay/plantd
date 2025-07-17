@@ -11,27 +11,24 @@ and allow for some kind of PUSH/PULL by the modules to load and store state.
 
 ## Quickstart
 
-### Modern Architecture (Recommended)
+### Modern Architecture (gRPC)
 
-The State service now supports multiple transport protocols through a unified interface:
+The State service uses gRPC for all communication:
 
 ```bash
-# Build the unified state service
+# Build the state service
 make build-state
 
-# Run with gRPC transport (recommended)
-PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=false ./build/plantd-state
-
-# Run with both transports during migration
-PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=true ./build/plantd-state
+# Run with gRPC transport
+./build/plantd-state
 
 # Use gRPC client
-./build/plant state state-grpc get <key> --service=<scope> --grpc-endpoint=http://localhost:8080
+./build/plant state get <key> --service=<scope>
 ```
 
-### Legacy Architecture (Deprecated)
+### Legacy Setup (Deprecated)
 
-* build and run a `broker`
+For legacy deployments, you may need a broker for other services:
 
 ```shell
 git clone git@gitlab.com:plantd/broker.git
@@ -60,29 +57,21 @@ make build-client
 ./build/plant state get --service="org.plantd.Client" foo
 ```
 
-## Transport Configuration
+## Configuration
 
-The State service supports multiple transport protocols:
+The State service configuration:
 
 ### Configuration File (`config.yml`)
 
 ```yaml
 transport:
-  enable-mdp: true      # Enable MDP (ZeroMQ) transport
-  enable-grpc: false    # Enable gRPC transport  
-  grpc-port: "8080"     # Port for gRPC service
+  grpc-port: "9080"     # Port for gRPC service
 ```
 
 ### Environment Variables
 
 ```bash
-# Transport control
-PLANTD_STATE_ENABLE_MDP=true/false    # Override MDP transport
-PLANTD_STATE_ENABLE_GRPC=true/false   # Override gRPC transport  
-PLANTD_STATE_GRPC_PORT=8080           # Override gRPC port
-
-# Endpoints
-PLANTD_STATE_BROKER_ENDPOINT=tcp://127.0.0.1:9797  # MDP broker endpoint
+# gRPC configuration
 ```
 
 ### Migration Strategy

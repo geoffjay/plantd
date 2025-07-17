@@ -62,7 +62,7 @@ func main() {
 	log.WithFields(fields).Info("PlantD Identity Service starting")
 	log.WithFields(fields).Infof("environment: %s", cfg.Env)
 	log.WithFields(fields).Infof("database driver: %s", cfg.Database.Driver)
-	log.WithFields(fields).Infof("transport config - MDP: %v, gRPC: %v", cfg.Transport.EnableMDP, cfg.Transport.EnableGRPC)
+	log.WithFields(fields).Infof("transport config - gRPC port: %s", cfg.Transport.GRPCPort)
 
 	termChan := make(chan os.Signal, 1)
 	signal.Notify(termChan, syscall.SIGINT, syscall.SIGTERM)

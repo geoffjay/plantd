@@ -95,9 +95,8 @@ services:
       - PLANTD_ENV=production
       - PLANTD_LOG_LEVEL=info
       - PLANTD_STATE_DATA_PATH=/app/data
-      - PLANTD_STATE_ENABLE_GRPC=true
-      - PLANTD_STATE_ENABLE_MDP=false
-      - PLANTD_STATE_GRPC_PORT=8080
+      - PLANTD_STATE_DB=./plantd-state.db
+      - PLANTD_STATE_GRPC_PORT=9080
       - PLANTD_GRPC_ADDR=0.0.0.0:8080
       - PLANTD_HTTP_ADDR=0.0.0.0:8081
       - PLANTD_INSTANCE_ID=primary
@@ -143,9 +142,8 @@ services:
       - PLANTD_ENV=production
       - PLANTD_LOG_LEVEL=info
       - PLANTD_STATE_DATA_PATH=/app/data
-      - PLANTD_STATE_ENABLE_GRPC=true
-      - PLANTD_STATE_ENABLE_MDP=false
-      - PLANTD_STATE_GRPC_PORT=8080
+      - PLANTD_STATE_DB=./plantd-state.db
+      - PLANTD_STATE_GRPC_PORT=9080
       - PLANTD_GRPC_ADDR=0.0.0.0:8080
       - PLANTD_HTTP_ADDR=0.0.0.0:8081
       - PLANTD_INSTANCE_ID=secondary

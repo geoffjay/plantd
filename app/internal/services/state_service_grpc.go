@@ -84,26 +84,15 @@ func (ss *GRPCStateService) Close() error {
 
 // GetAllScopes retrieves a list of all state scopes.
 // Note: Since gRPC State service doesn't have ListScopes, this is a placeholder
-func (ss *GRPCStateService) GetAllScopes(ctx context.Context, userToken string) ([]StateScope, error) {
+func (ss *GRPCStateService) GetAllScopes(ctx context.Context, userToken string) ([]string, error) {
 	ss.logger.Debug("Getting all scopes via gRPC - using placeholder implementation")
 
 	// For now, return common scopes since the gRPC service doesn't have ListScopes yet
 	// TODO: Implement proper scope listing when available in the gRPC service
-	scopes := []StateScope{
-		{
-			Name:        "org.plantd.Client",
-			Description: "Default client scope",
-			KeyCount:    0,
-			LastUpdated: time.Now(),
-			AccessLevel: "read",
-		},
-		{
-			Name:        "system",
-			Description: "System configuration scope",
-			KeyCount:    0,
-			LastUpdated: time.Now(),
-			AccessLevel: "admin",
-		},
+	scopes := []string{
+		"org.plantd.Client",
+		"system",
+		"org.plantd.State",
 	}
 
 	ss.logger.WithField("scope_count", len(scopes)).Debug("Retrieved scopes via gRPC (placeholder)")
@@ -111,7 +100,7 @@ func (ss *GRPCStateService) GetAllScopes(ctx context.Context, userToken string) 
 }
 
 // GetStateValue retrieves a state value by key from the specified scope.
-func (ss *GRPCStateService) GetStateValue(ctx context.Context, userToken, scope, key string) (*StateData, error) {
+func (ss *GRPCStateService) GetStateValue(ctx context.Context, userToken, scope, key string) (*StateValue, error) {
 	ss.logger.WithFields(log.Fields{
 		"scope": scope,
 		"key":   key,
@@ -155,21 +144,18 @@ func (ss *GRPCStateService) GetStateValue(ctx context.Context, userToken, scope,
 		}
 	}
 
-	stateData := &StateData{
-		Scope:       scope,
-		Key:         key,
-		Value:       value,
-		Type:        "string", // Default type since gRPC response doesn't include type yet
-		LastUpdated: time.Now(),
-		Version:     1,           // Default version
-		CreatedBy:   "grpc-user", // Placeholder
-		UpdatedBy:   "grpc-user", // Placeholder
+	stateData := &StateValue{
+		Scope:   scope,
+		Key:     key,
+		Value:   value,
+		SetAt:   time.Now(),
+		Version: 1,
 	}
 
 	ss.logger.WithFields(log.Fields{
 		"scope": scope,
 		"key":   key,
-		"type":  stateData.Type,
+		"value": stateData.Value,
 	}).Debug("Retrieved state value via gRPC")
 
 	return stateData, nil

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,56 +9,30 @@ import (
 
 	"github.com/geoffjay/plantd/core/bus"
 	cfg "github.com/geoffjay/plantd/core/config"
-	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/core/util"
 
 	"github.com/nelkinda/health-go"
 	log "github.com/sirupsen/logrus"
 )
 
-// Service defines the service type with transport support.
+// Service defines the service type with gRPC-only transport support.
 type Service struct {
-	endpoint         string
-	handler          *Handler
-	running          bool
 	transportManager *TransportManager
-
-	buses  []*bus.Bus
-	broker *mdp.Broker
-	worker *mdp.Worker
+	buses            []*bus.Bus
+	running          bool
 }
 
 // NewService creates an instance of the service.
 func NewService() *Service {
-	config := GetConfig()
-
 	service := &Service{
 		buses:            initBuses(),
-		handler:          NewHandler(),
-		endpoint:         config.Endpoint,
-		broker:           nil,
 		running:          false,
-		worker:           nil,
 		transportManager: NewTransportManager(),
 	}
 
 	service.dumpConfig()
-	service.RegisterCallback("service", &serviceCallback{name: "service"})
-	service.RegisterCallback("services", &servicesCallback{name: "services"})
 
-	if err := service.initBroker(); err != nil {
-		log.WithFields(log.Fields{"err": err}).Error(
-			"failed to initialize broker")
-		return nil
-	}
-
-	if err := service.initWorker(); err != nil {
-		log.WithFields(log.Fields{"err": err}).Error(
-			"failed to initialize worker")
-		return nil
-	}
-
-	// Initialize transports based on environment variables
+	// Initialize gRPC-only transports
 	service.initTransports()
 
 	return service
@@ -99,81 +72,28 @@ func initBuses() (buses []*bus.Bus) {
 	return
 }
 
-func (s *Service) initBroker() error {
-	s.broker, _ = mdp.NewBroker(s.endpoint)
-	if err := s.broker.Bind(); err != nil {
-		log.WithFields(log.Fields{
-			"err":      err,
-			"endpoint": s.endpoint,
-		}).Error("failed to bind to endpoint")
-		return err
-	}
-
-	return nil
-}
-
-func (s *Service) initWorker() error {
-	var err error
-	config := GetConfig()
-
-	if s.worker, err = mdp.NewWorker(config.ClientEndpoint,
-		"org.plantd.Broker"); err != nil {
-		log.WithFields(log.Fields{
-			"err":             err,
-			"client-endpoint": config.ClientEndpoint,
-		}).Error("failed to setup message queue worker")
-		return err
-	}
-
-	return nil
-}
-
-// initTransports initializes transport layers based on environment variables
+// initTransports initializes gRPC transport based on environment variables
 func (s *Service) initTransports() {
-	config := GetConfig()
-
-	// Check environment variables for transport configuration
-	enableMDP := util.Getenv("PLANTD_BROKER_ENABLE_MDP", "true") == "true"
-	enableGRPC := util.Getenv("PLANTD_BROKER_ENABLE_GRPC", "false") == "true"
+	// Check environment variables for gRPC configuration
 	grpcPort := util.Getenv("PLANTD_BROKER_GRPC_PORT", "8082")
 
 	log.WithFields(log.Fields{
-		"enable_mdp":  enableMDP,
-		"enable_grpc": enableGRPC,
-		"grpc_port":   grpcPort,
-	}).Info("Initializing broker transports")
+		"grpc_enabled": true,
+		"grpc_port":    grpcPort,
+	}).Info("Initializing gRPC-only broker transport")
 
-	// Add MDP transport if enabled
-	if enableMDP {
-		mdpTransport := NewMDPTransport(config.ClientEndpoint, "org.plantd.Broker", s.handler, s.broker)
-		s.transportManager.AddTransport(mdpTransport)
-		log.WithFields(log.Fields{
-			"transport": "MDP",
-			"endpoint":  config.ClientEndpoint,
-		}).Info("Added MDP transport")
-	}
-
-	// Add gRPC transport if enabled
-	if enableGRPC {
-		grpcTransport := NewGRPCTransport(grpcPort)
-		s.transportManager.AddTransport(grpcTransport)
-		log.WithFields(log.Fields{
-			"transport": "gRPC",
-			"port":      grpcPort,
-		}).Info("Added gRPC transport")
-	}
-
-	if !enableMDP && !enableGRPC {
-		log.Warn("No transports enabled, broker will not be accessible")
-	}
+	// Add gRPC transport
+	grpcTransport := NewGRPCTransport(grpcPort)
+	s.transportManager.AddTransport(grpcTransport)
+	log.WithFields(log.Fields{
+		"transport": "gRPC",
+		"port":      grpcPort,
+	}).Info("Added gRPC transport")
 }
 
 // Run handles the service execution.
 func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer func() {
-		if s.worker != nil {
-			s.worker.Close()
-		}
 		if s.transportManager != nil {
 			s.transportManager.Stop()
 		}
@@ -197,12 +117,7 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	wg.Add(1)
 	go s.runHealth(ctx, wg)
 
-	// Start broker (MDP) if it exists
-	if s.broker != nil {
-		go s.runBroker(ctx)
-	}
-
-	// Start transport manager (handles both MDP worker and gRPC)
+	// Start transport manager (handles gRPC)
 	if err := s.transportManager.Start(ctx); err != nil {
 		log.WithFields(log.Fields{
 			"context": "service.run",
@@ -212,16 +127,6 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	}
 
 	<-ctx.Done()
-
-	// Cleanup
-	if s.broker != nil {
-		if err := s.broker.Close(); err != nil {
-			log.WithFields(log.Fields{
-				"context": "service.run",
-				"error":   err,
-			}).Error("failed to close broker")
-		}
-	}
 
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("exiting")
 }
@@ -258,103 +163,10 @@ func (s *Service) runHealth(ctx context.Context, wg *sync.WaitGroup) {
 	log.WithFields(log.Fields{"context": "service.run-health"}).Debug("exiting")
 }
 
-func (s *Service) runBroker(ctx context.Context) {
-	done := make(chan bool, 1)
-	go s.broker.Run(done)
-
-	SetLastError(errors.New("none"))
-	log.Debug("starting broker")
-
-	for {
-		var err error
-		var event mdp.Event
-		log.Debug("waiting for message")
-		select {
-		case event = <-s.broker.EventChannel:
-			log.Debug(event)
-		case err = <-s.broker.ErrorChannel:
-			SetLastError(err)
-			log.WithFields(log.Fields{"error": err}).Error(
-				"received error from message queue")
-		case <-ctx.Done():
-			done <- true
-			log.Debug("exiting broker")
-			return
-		}
-	}
-}
-
-// nolint: funlen
-func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
-	var err error
-
-	defer wg.Done()
-
-	go func() {
-		var request, reply []string
-		for !s.worker.Terminated() {
-			log.WithFields(log.Fields{"context": "service.worker"}).Debug(
-				"waiting for request")
-
-			if request, err = s.worker.Recv(reply); err != nil {
-				log.WithFields(log.Fields{"error": err}).Error(
-					"failed while receiving request")
-			}
-
-			log.WithFields(log.Fields{
-				"context": "service.worker",
-				"request": request,
-			}).Debug("received request")
-
-			if len(request) == 0 {
-				log.WithFields(log.Fields{
-					"context": "service.worker",
-				}).Debug("received request is empty")
-				continue
-			}
-
-			msgType := request[0]
-
-			// Reset reply
-			reply = []string{}
-
-			for _, part := range request[1:] {
-				log.WithFields(log.Fields{
-					"context": "worker",
-					"part":    part,
-				}).Debug("processing message")
-				var data []byte
-				switch msgType {
-				case "services", "service":
-					log.Tracef("part: %s", part)
-					if data, err = s.handler.callbacks[msgType].Execute(
-						part); err != nil {
-						log.WithFields(log.Fields{
-							"context": "worker",
-							"type":    msgType,
-							"error":   err,
-						}).Warn("message failed")
-						break
-					}
-					log.Tracef("data: %s", data)
-				default:
-					log.Error("invalid message type provided")
-				}
-
-				reply = append(reply, string(data))
-			}
-
-			log.Tracef("reply: %+v", reply)
-		}
-	}()
-
-	<-ctx.Done()
-	s.worker.Shutdown()
-
-	log.WithFields(log.Fields{"context": "worker"}).Debug("exiting")
-}
-
-// RegisterCallback is a pointless wrapper around the handler.
-func (s *Service) RegisterCallback(name string, callback HandlerCallback) {
-	s.handler.AddCallback(name, callback)
+// RegisterCallback is a legacy callback registration function (no longer used in gRPC-only mode)
+func (s *Service) RegisterCallback(name string, callback HandlerCallback) error {
+	log.WithFields(log.Fields{
+		"name": name,
+	}).Debug("Legacy callback registration ignored in gRPC-only mode")
+	return nil
 }

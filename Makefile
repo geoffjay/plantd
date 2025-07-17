@@ -93,7 +93,7 @@ client-deps: ; $(info $(M) Installing client dependencies...)
 
 build-identity: ; $(info $(M) Building identity service...)
 	@pushd identity >/dev/null; \
-	go build -o ../build/plantd-identity $(BUILD_ARGS) ./cmd/main.go; \
+	go build -o ../build/plantd-identity $(BUILD_ARGS) .; \
 	popd >/dev/null
 
 build-logger: ; $(info $(M) Building logger service...)

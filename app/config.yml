@@ -2,7 +2,6 @@
 version: "1"
 
 env: development
-client-endpoint: tcp://localhost:9797
 
 log:
   formatter: text
@@ -34,7 +33,6 @@ identity:
 
 # Services Integration (Phase 3) - now using gRPC through Traefik
 services:
-  broker_endpoint: tcp://127.0.0.1:9797  # Keep MDP for service discovery for now
   state_endpoint: http://localhost:8080   # Traefik gateway for gRPC
   gateway_endpoint: http://localhost:8080 # New: explicit Traefik gateway endpoint
   timeout: 30s

@@ -31,10 +31,7 @@ type ServerConfig struct {
 
 // TransportConfig represents transport configuration settings.
 type TransportConfig struct {
-	EnableMDP  bool   `mapstructure:"enable_mdp"`
-	EnableGRPC bool   `mapstructure:"enable_grpc"`
-	GRPCPort   string `mapstructure:"grpc_port"`
-	MDPBroker  string `mapstructure:"mdp_broker"`
+	GRPCPort string `mapstructure:"grpc_port"`
 }
 
 // SecurityConfig represents security configuration settings.
@@ -126,10 +123,7 @@ var defaults = map[string]interface{}{
 	"security.password_reset_expiry_hours":     2,
 
 	// Transport defaults
-	"transport.enable_mdp":  true,
-	"transport.enable_grpc": false,
-	"transport.grpc_port":   "8090",
-	"transport.mdp_broker":  "tcp://127.0.0.1:9797",
+	"transport.grpc_port": 8090,
 
 	// Logging defaults
 	"log.formatter":    "text",

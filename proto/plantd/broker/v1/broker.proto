@@ -198,3 +198,4 @@ enum BusType {
   BUS_TYPE_METRIC = 3;     // Metrics/telemetry bus
   BUS_TYPE_CONTROL = 4;    // Control command bus
 } 
+ 

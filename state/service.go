@@ -164,44 +164,21 @@ func (s *Service) setupHandler() {
 func (s *Service) setupTransports() {
 	config := GetConfig()
 
-	// Allow environment variables to override config
-	enableMDP := config.Transport.EnableMDP
-	if envMDP := util.Getenv("PLANTD_STATE_ENABLE_MDP", ""); envMDP != "" {
-		enableMDP = envMDP == "true"
-	}
-
-	enableGRPC := config.Transport.EnableGRPC
-	if envGRPC := util.Getenv("PLANTD_STATE_ENABLE_GRPC", ""); envGRPC != "" {
-		enableGRPC = envGRPC == "true"
+	// Allow environment variable to override config for gRPC port
+	grpcPort := config.Transport.GRPCPort
+	if envPort := util.Getenv("PLANTD_STATE_GRPC_PORT", ""); envPort != "" {
+		grpcPort = envPort
 	}
 
 	log.WithFields(log.Fields{
-		"mdp_enabled":  enableMDP,
-		"grpc_enabled": enableGRPC,
-	}).Info("Configuring transports")
+		"grpc_enabled": true,
+		"grpc_port":    grpcPort,
+	}).Info("Configuring gRPC-only transport")
 
-	// Add MDP transport if enabled
-	if enableMDP {
-		mdpEndpoint := util.Getenv("PLANTD_STATE_BROKER_ENDPOINT", config.BrokerEndpoint)
-		mdpTransport := NewMDPTransport(mdpEndpoint, "org.plantd.State", s.handler)
-		s.transportManager.AddTransport(mdpTransport)
-		log.WithField("endpoint", mdpEndpoint).Info("MDP transport configured")
-	}
-
-	// Add gRPC transport if enabled
-	if enableGRPC {
-		grpcPort := config.Transport.GRPCPort
-		if envPort := util.Getenv("PLANTD_STATE_GRPC_PORT", ""); envPort != "" {
-			grpcPort = envPort
-		}
-		grpcTransport := NewGRPCTransport(grpcPort, s.store)
-		s.transportManager.AddTransport(grpcTransport)
-		log.WithField("port", grpcPort).Info("gRPC transport configured")
-	}
-
-	if !enableMDP && !enableGRPC {
-		log.Fatal("At least one transport (MDP or gRPC) must be enabled")
-	}
+	// Add gRPC transport
+	grpcTransport := NewGRPCTransport(grpcPort, s.store)
+	s.transportManager.AddTransport(grpcTransport)
+	log.WithField("port", grpcPort).Info("gRPC transport configured")
 }
 
 func (s *Service) setupConsumers() {
@@ -393,66 +370,7 @@ func (s *Service) getAuthMode() string {
 	return "enabled"
 }
 
-// processMessage processes a single MDP message for the state service
-func (s *Service) processMessage(_ context.Context, message []string) []string {
-	log.WithFields(log.Fields{
-		"message_length": len(message),
-		"raw_message":    message,
-	}).Debug("State service received MDP message")
-
-	if len(message) < 2 {
-		log.Warn("Received message with insufficient frames")
-		return []string{`{"error": "Invalid message format"}`}
-	}
-
-	// Extract operation from message
-	// Message format: [operation, ...args]
-	operation := message[0]
-	args := message[1:]
-
-	log.WithFields(log.Fields{
-		"operation": operation,
-		"args":      args,
-	}).Debug("Processing state service request")
-
-	// Check if the operation is valid
-	callback, exists := s.handler.callbacks[operation]
-	if !exists {
-		log.WithFields(log.Fields{
-			"operation": operation,
-		}).Error("Invalid operation requested")
-		return []string{`{"error": "Invalid operation"}`}
-	}
-
-	// Process the arguments and execute the callback
-	var data []byte
-	var err error
-
-	// For most operations, we need to combine the args into a single string
-	// This matches the expected behavior of the original implementation
-	if len(args) > 0 {
-		argData := args[0] // Most operations expect a single argument
-		data, err = callback.Execute(argData)
-	} else {
-		// Some operations like "list-scopes" don't need arguments
-		data, err = callback.Execute("")
-	}
-
-	if err != nil {
-		log.WithFields(log.Fields{
-			"operation": operation,
-			"error":     err,
-		}).Warn("Operation failed")
-		return []string{fmt.Sprintf(`{"error": "Operation failed: %s"}`, err.Error())}
-	}
-
-	log.WithFields(log.Fields{
-		"operation":    operation,
-		"response_len": len(data),
-	}).Debug("State service operation completed successfully")
-
-	return []string{string(data)}
-}
+// Note: Legacy MDP processMessage function removed - all requests now handled via gRPC
 
 // RegisterCallback is a pointless wrapper around the handler.
 func (s *Service) RegisterCallback(name string,

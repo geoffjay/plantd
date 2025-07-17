@@ -3,11 +3,8 @@ log:
   level: info
   format: text
 
-broker:
-  endpoint: tcp://127.0.0.1:9797
-
 identity:
-  endpoint: tcp://127.0.0.1:9797
+  endpoint: http://localhost:5002  # Identity service gRPC endpoint (corrected port)
   timeout: 30s
   retries: 3
 
@@ -19,6 +16,5 @@ health:
 
 # Transport configuration
 transport:
-  enable-mdp: true      # Enable MDP (ZeroMQ) transport
-  enable-grpc: false    # Enable gRPC transport  
-  grpc-port: "8080"     # Port for gRPC service
+  enable-grpc: true     # Enable gRPC transport
+  grpc-port: "9080"     # Port for gRPC service

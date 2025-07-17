@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/gen/proto/go/plantd/state/v1/statev1connect"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/net/http2"
@@ -23,102 +22,6 @@ type Transport interface {
 
 	// Name returns the transport name for logging
 	Name() string
-}
-
-// MDPTransport implements the MDP transport layer
-type MDPTransport struct {
-	worker   *mdp.Worker
-	handler  *Handler
-	endpoint string
-	service  string
-}
-
-// NewMDPTransport creates a new MDP transport
-func NewMDPTransport(endpoint, service string, handler *Handler) *MDPTransport {
-	return &MDPTransport{
-		handler:  handler,
-		endpoint: endpoint,
-		service:  service,
-	}
-}
-
-func (t *MDPTransport) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	var err error
-
-	// Create MDP worker
-	t.worker, err = mdp.NewWorker(t.endpoint, t.service)
-	if err != nil {
-		return fmt.Errorf("failed to create MDP worker: %w", err)
-	}
-
-	log.WithFields(log.Fields{
-		"transport": "MDP",
-		"endpoint":  t.endpoint,
-		"service":   t.service,
-	}).Info("Starting MDP transport")
-
-	// Start worker in goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer t.worker.Close()
-
-		for {
-			select {
-			case <-ctx.Done():
-				log.WithField("transport", "MDP").Info("MDP transport context cancelled, shutting down")
-				return
-			default:
-				// Receive message from broker
-				message, err := t.worker.Recv([]string{})
-				if err != nil {
-					log.WithError(err).Error("Error receiving MDP message")
-					continue
-				}
-
-				// Process message through handler
-				response := t.processMessage(message)
-
-				// Send response back through worker
-				if err := t.worker.Reply(response); err != nil {
-					log.WithError(err).Error("Error sending MDP response")
-				}
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (t *MDPTransport) Stop() error {
-	if t.worker != nil {
-		t.worker.Close()
-	}
-	return nil
-}
-
-func (t *MDPTransport) Name() string {
-	return "MDP"
-}
-
-func (t *MDPTransport) processMessage(message []string) []string {
-	if len(message) < 2 {
-		return []string{"ERROR", "Invalid message format"}
-	}
-
-	command := message[0]
-	args := message[1:]
-
-	// Convert to handler format and execute
-	if callback, exists := t.handler.callbacks[command]; exists {
-		result, err := callback.Execute(args[0])
-		if err != nil {
-			return []string{"ERROR", err.Error()}
-		}
-		return []string{"OK", string(result)}
-	}
-
-	return []string{"ERROR", "Unknown command: " + command}
 }
 
 // GRPCTransport implements the gRPC transport layer
@@ -152,7 +55,7 @@ func (t *GRPCTransport) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	httpClient := &http.Client{}
 	grpcClient := statev1connect.NewStateServiceClient(httpClient, "http://localhost:"+t.port)
 
-	// Add MDP compatibility layer
+	// Add MDP compatibility layer for legacy clients
 	mdpHandler := NewMDPCompatibilityHandler(grpcClient)
 	mux.Handle("/mdp/", mdpHandler.ConvertMDPRequestToHTTP())
 

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/geoffjay/plantd/client/auth"
-	identityClient "github.com/geoffjay/plantd/identity/pkg/client"
+	"github.com/geoffjay/plantd/client/internal/grpc"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -58,10 +58,11 @@ var (
 	}
 
 	// Command flags
-	emailFlag    string
-	passwordFlag string
-	profileFlag  string
-	forceFlag    bool
+	emailFlag        string
+	passwordFlag     string
+	profileFlag      string
+	forceFlag        bool
+	grpcEndpointFlag string
 )
 
 func init() {
@@ -77,17 +78,28 @@ func init() {
 	authLoginCmd.Flags().StringVarP(&passwordFlag, "password", "p", "", "Password (will prompt if not provided)")
 	authLoginCmd.Flags().BoolVar(&forceFlag, "force", false, "Force login even if already authenticated")
 
-	// Global flags for profile selection
+	// Global flags for profile selection and gRPC endpoint
 	authCmd.PersistentFlags().StringVar(&profileFlag, "profile", "default", "Authentication profile to use")
+	authCmd.PersistentFlags().StringVar(&grpcEndpointFlag, "grpc-endpoint", "", "gRPC gateway endpoint (defaults to config)")
+}
+
+// createGRPCIdentityClient creates a gRPC identity client.
+func createGRPCIdentityClient() (*grpc.IdentityClient, error) {
+	gatewayEndpoint := grpcEndpointFlag
+	if gatewayEndpoint == "" {
+		gatewayEndpoint = GetGRPCGatewayEndpoint()
+	}
+
+	// Create client configuration
+	config := &grpc.IdentityClientConfig{
+		BaseURL: gatewayEndpoint,
+		Timeout: 30 * time.Second,
+	}
+
+	return grpc.NewIdentityClient(config), nil
 }
 
 func loginHandler(_ *cobra.Command, _ []string) {
-	// Check if we should use gRPC or MDP
-	if ShouldUseGRPC() {
-		loginGRPCHandler(nil, nil)
-		return
-	}
-
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -119,52 +131,39 @@ func loginHandler(_ *cobra.Command, _ []string) {
 		log.Info("") // Add newline after password input
 	}
 
-	// Get identity service endpoint from config
-	identityEndpoint := getIdentityEndpoint()
-
-	// Create identity client
-	clientConfig := getIdentityClientConfig(identityEndpoint)
-	client, err := identityClient.NewClient(clientConfig)
+	// Create gRPC identity client
+	client, err := createGRPCIdentityClient()
 	if err != nil {
-		log.WithError(err).Fatal("Failed to create identity client")
+		log.WithError(err).Fatal("Failed to create gRPC identity client")
 	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			log.WithError(closeErr).Warn("Failed to close identity client")
-		}
-	}()
 
-	// Attempt login
-	log.Info("Authenticating...")
-	response, err := client.LoginWithEmail(ctx, emailFlag, password)
+	// Perform login via gRPC
+	loginResp, err := client.Login(ctx, emailFlag, password)
 	if err != nil {
-		log.WithError(err).Fatal("Authentication failed")
+		log.WithError(err).Fatal("Login failed")
 	}
 
-	// Store tokens
-	profile := &auth.TokenProfile{
-		AccessToken:  response.AccessToken,
-		RefreshToken: response.RefreshToken,
-		ExpiresAt:    response.ExpiresAt,
-		UserEmail:    response.User.Email,
-		Endpoint:     identityEndpoint,
+	// Store tokens locally
+	tokenData := &auth.TokenProfile{
+		AccessToken:  loginResp.AccessToken,
+		RefreshToken: loginResp.RefreshToken,
+		ExpiresAt:    loginResp.ExpiresAt,
+		UserEmail:    loginResp.Email,
+		Endpoint:     grpcEndpointFlag,
 	}
 
-	if err := tokenMgr.StoreTokens(profileFlag, profile); err != nil {
-		log.WithError(err).Fatal("Failed to store authentication tokens")
+	if err := tokenMgr.StoreTokens(profileFlag, tokenData); err != nil {
+		log.WithError(err).Fatal("Failed to save authentication tokens")
 	}
 
-	log.Infof("Successfully authenticated as %s", response.User.Email)
-	log.Infof("Access token expires at: %s", profile.ExpiresAtFormatted())
+	log.WithFields(log.Fields{
+		"email":   loginResp.Email,
+		"user_id": loginResp.UserID,
+		"profile": profileFlag,
+	}).Info("Login successful")
 }
 
 func logoutHandler(_ *cobra.Command, _ []string) {
-	// Check if we should use gRPC or MDP
-	if ShouldUseGRPC() {
-		logoutGRPCHandler(nil, nil)
-		return
-	}
-
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -175,20 +174,11 @@ func logoutHandler(_ *cobra.Command, _ []string) {
 		return
 	}
 
-	// Get identity service endpoint
-	identityEndpoint := getIdentityEndpoint()
-
-	// Create identity client and logout
-	clientConfig := getIdentityClientConfig(identityEndpoint)
-	client, err := identityClient.NewClient(clientConfig)
+	// Create gRPC identity client and logout
+	client, err := createGRPCIdentityClient()
 	if err != nil {
-		log.WithError(err).Error("Failed to create identity client")
+		log.WithError(err).Error("Failed to create gRPC identity client")
 	} else {
-		defer func() {
-			if closeErr := client.Close(); closeErr != nil {
-				log.WithError(closeErr).Warn("Failed to close identity client")
-			}
-		}()
 		// Attempt to logout from server (invalidate token)
 		if err := client.Logout(ctx, token); err != nil {
 			log.WithError(err).Warn("Failed to logout from server")
@@ -204,12 +194,6 @@ func logoutHandler(_ *cobra.Command, _ []string) {
 }
 
 func statusHandler(_ *cobra.Command, _ []string) {
-	// Check if we should use gRPC or MDP
-	if ShouldUseGRPC() {
-		statusGRPCHandler(nil, nil)
-		return
-	}
-
 	tokenMgr := auth.NewTokenManager()
 
 	profile, err := tokenMgr.GetProfile(profileFlag)
@@ -220,25 +204,31 @@ func statusHandler(_ *cobra.Command, _ []string) {
 
 	log.Infof("Profile: %s", profileFlag)
 	log.Infof("User: %s", profile.UserEmail)
-	log.Infof("Identity Endpoint: %s", profile.Endpoint)
+	log.Infof("Endpoint: %s", profile.Endpoint)
 	log.Infof("Token Status: %s", profile.TokenStatus())
 	log.Infof("Expires At: %s", profile.ExpiresAtFormatted())
 
-	// Check if token is actually valid by testing it
+	// Check if token is actually valid by testing it via gRPC
 	if token, err := tokenMgr.GetValidToken(profileFlag); err == nil && token != "" {
-		log.Infof("Authentication: ✓ Valid")
+		ctx := context.Background()
+		client, err := createGRPCIdentityClient()
+		if err != nil {
+			log.Infof("Authentication: ✗ Cannot verify (gRPC client error)")
+			return
+		}
+
+		_, err = client.ValidateToken(ctx, token)
+		if err != nil {
+			log.Infof("Authentication: ✗ Invalid or expired")
+		} else {
+			log.Infof("Authentication: ✓ Valid")
+		}
 	} else {
 		log.Infof("Authentication: ✗ Invalid or expired")
 	}
 }
 
 func refreshHandler(_ *cobra.Command, _ []string) {
-	// Check if we should use gRPC or MDP
-	if ShouldUseGRPC() {
-		refreshGRPCHandler(nil, nil)
-		return
-	}
-
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -248,18 +238,11 @@ func refreshHandler(_ *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	// Create identity client
-	clientConfig := getIdentityClientConfig(profile.Endpoint)
-	client, err := identityClient.NewClient(clientConfig)
+	// Create gRPC identity client
+	client, err := createGRPCIdentityClient()
 	if err != nil {
-		log.WithError(err).Fatal("Failed to create identity client")
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to create gRPC identity client")
 	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			log.WithError(closeErr).Warn("Failed to close identity client")
-		}
-	}()
 
 	// Refresh token
 	log.Info("Refreshing authentication token...")
@@ -285,12 +268,6 @@ func refreshHandler(_ *cobra.Command, _ []string) {
 }
 
 func whoamiHandler(_ *cobra.Command, _ []string) {
-	// Check if we should use gRPC or MDP
-	if ShouldUseGRPC() {
-		whoamiGRPCHandler(nil, nil)
-		return
-	}
-
 	ctx := context.Background()
 	tokenMgr := auth.NewTokenManager()
 
@@ -300,26 +277,13 @@ func whoamiHandler(_ *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	profile, err := tokenMgr.GetProfile(profileFlag)
+	// Create gRPC identity client
+	client, err := createGRPCIdentityClient()
 	if err != nil {
-		log.WithError(err).Fatal("Failed to get profile information")
-		os.Exit(1)
+		log.WithError(err).Fatal("Failed to create gRPC identity client")
 	}
 
-	// Create identity client
-	clientConfig := getIdentityClientConfig(profile.Endpoint)
-	client, err := identityClient.NewClient(clientConfig)
-	if err != nil {
-		log.WithError(err).Fatal("Failed to create identity client")
-		os.Exit(1)
-	}
-	defer func() {
-		if closeErr := client.Close(); closeErr != nil {
-			log.WithError(closeErr).Warn("Failed to close identity client")
-		}
-	}()
-
-	// Validate token to get current user information
+	// Validate token to get current user information via gRPC
 	response, err := client.ValidateToken(ctx, token)
 	if err != nil {
 		log.WithError(err).Fatal("Failed to validate token")
@@ -332,7 +296,9 @@ func whoamiHandler(_ *cobra.Command, _ []string) {
 		os.Exit(1)
 	}
 
-	log.Infof("User ID: %d", *response.UserID)
+	if response.UserID != nil {
+		log.Infof("User ID: %d", *response.UserID)
+	}
 	log.Infof("Email: %s", response.Email)
 	log.Infof("Roles: %v", response.Roles)
 	log.Infof("Permissions: %v", response.Permissions)
@@ -341,28 +307,9 @@ func whoamiHandler(_ *cobra.Command, _ []string) {
 	}
 }
 
-// getIdentityEndpoint returns the identity service endpoint from configuration
-func getIdentityEndpoint() string {
-	// Use configuration system to get the identity endpoint for the current profile
-	return GetIdentityEndpoint(profileFlag)
-}
-
 // Helper functions for state command integration
 
 // getContext returns a context for operations
 func getContext() context.Context {
 	return context.Background()
-}
-
-// getIdentityClientConfig creates a client config for the given endpoint
-func getIdentityClientConfig(identityEndpoint string) *identityClient.Config {
-	return &identityClient.Config{
-		BrokerEndpoint: identityEndpoint,
-		Timeout:        30 * time.Second, // Set explicit timeout
-	}
-}
-
-// getIdentityClient creates a new identity client with the given config
-func getIdentityClient(config *identityClient.Config) (*identityClient.Client, error) {
-	return identityClient.NewClient(config)
 }

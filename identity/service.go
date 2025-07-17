@@ -125,44 +125,21 @@ func NewService(cfg *config.Config, db *gorm.DB) (*Service, error) {
 func (s *Service) setupTransports() {
 	config := s.config
 
-	// Allow environment variables to override config
-	enableMDP := config.Transport.EnableMDP
-	if envMDP := util.Getenv("PLANTD_IDENTITY_ENABLE_MDP", ""); envMDP != "" {
-		enableMDP = envMDP == "true"
-	}
-
-	enableGRPC := config.Transport.EnableGRPC
-	if envGRPC := util.Getenv("PLANTD_IDENTITY_ENABLE_GRPC", ""); envGRPC != "" {
-		enableGRPC = envGRPC == "true"
+	// Allow environment variable to override config for gRPC port
+	grpcPort := config.Transport.GRPCPort
+	if envPort := util.Getenv("PLANTD_IDENTITY_GRPC_PORT", ""); envPort != "" {
+		grpcPort = envPort
 	}
 
 	log.WithFields(log.Fields{
-		"mdp_enabled":  enableMDP,
-		"grpc_enabled": enableGRPC,
-	}).Info("Configuring transports")
+		"grpc_enabled": true,
+		"grpc_port":    grpcPort,
+	}).Info("Configuring gRPC-only transport")
 
-	// Add MDP transport if enabled
-	if enableMDP {
-		mdpBroker := util.Getenv("PLANTD_IDENTITY_BROKER_ENDPOINT", config.Transport.MDPBroker)
-		mdpTransport := NewMDPTransport(mdpBroker, "org.plantd.Identity", s.handlerRegistry)
-		s.transportManager.AddTransport(mdpTransport)
-		log.WithField("broker", mdpBroker).Info("MDP transport configured")
-	}
-
-	// Add gRPC transport if enabled
-	if enableGRPC {
-		grpcPort := config.Transport.GRPCPort
-		if envPort := util.Getenv("PLANTD_IDENTITY_GRPC_PORT", ""); envPort != "" {
-			grpcPort = envPort
-		}
-		grpcTransport := NewGRPCTransport(grpcPort, s.identityGRPCServer)
-		s.transportManager.AddTransport(grpcTransport)
-		log.WithField("port", grpcPort).Info("gRPC transport configured")
-	}
-
-	if !enableMDP && !enableGRPC {
-		log.Fatal("At least one transport (MDP or gRPC) must be enabled")
-	}
+	// Add gRPC transport
+	grpcTransport := NewGRPCTransport(grpcPort, s.identityGRPCServer)
+	s.transportManager.AddTransport(grpcTransport)
+	log.WithField("port", grpcPort).Info("gRPC transport configured")
 }
 
 // Run handles the service execution.

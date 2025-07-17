@@ -1,17 +1,16 @@
 ---
 server:
-  endpoint: "tcp://127.0.0.1:9797"  # Legacy MDP endpoint for compatibility
+  endpoint: "https://localhost:8443"  # App service endpoint
   timeout: 30s
   retries: 3
 
-# gRPC Configuration (new default)
+# gRPC Configuration
 grpc:
-  gateway_endpoint: "http://localhost:8080"  # Traefik gateway
+  gateway_endpoint: "https://localhost:8443"  # App service providing gRPC gateway
   timeout: 30s
-  use_grpc: true  # Default to gRPC for new functionality
 
 identity:
-  endpoint: "http://localhost:8080"  # Traefik gateway for gRPC
+  endpoint: "https://localhost:8443"  # App service for gRPC
   default_profile: "default"
   auto_refresh: true
   cache_duration: "5m"
@@ -19,11 +18,11 @@ identity:
 defaults:
   service: "org.plantd.Client"
   output_format: "json"  # json, yaml, table
-  use_grpc: true  # Default to gRPC for state operations
+  use_grpc: true
 
 profiles:
   default:
-    identity_endpoint: "http://localhost:8080"  # Traefik gateway
+    identity_endpoint: "https://localhost:8443"
   production:
     identity_endpoint: "http://production:8080"
   staging:

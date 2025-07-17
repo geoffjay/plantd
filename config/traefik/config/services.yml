@@ -112,17 +112,6 @@ http:
         - rate-limit
         - compression
 
-    # State service MDP compatibility routes
-    state-mdp:
-      rule: "PathPrefix(`/mdp/`)"
-      service: state-service
-      entryPoints:
-        - grpc
-      middlewares:
-        - auth-forward
-        - retry-policy
-        - cors-policy
-
     # Identity service gRPC routes
     identity-grpc:
       rule: "PathPrefix(`/plantd.identity.v1.IdentityService/`)"

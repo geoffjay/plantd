@@ -9,9 +9,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
-	"github.com/geoffjay/plantd/core/mdp"
 	identityv1connect "github.com/geoffjay/plantd/gen/proto/go/plantd/identity/v1/identityv1connect"
-	"github.com/geoffjay/plantd/identity/internal/handlers"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -21,130 +19,6 @@ type Transport interface {
 	Start(ctx context.Context, wg *sync.WaitGroup) error
 	Stop() error
 	Name() string
-}
-
-// MDPTransport implements the MDP (ZeroMQ) transport layer
-type MDPTransport struct {
-	worker          *mdp.Worker
-	endpoint        string
-	service         string
-	handlerRegistry *handlers.HandlerRegistry
-}
-
-// NewMDPTransport creates a new MDP transport
-func NewMDPTransport(endpoint, service string, handlerRegistry *handlers.HandlerRegistry) *MDPTransport {
-	return &MDPTransport{
-		endpoint:        endpoint,
-		service:         service,
-		handlerRegistry: handlerRegistry,
-	}
-}
-
-func (t *MDPTransport) Start(ctx context.Context, wg *sync.WaitGroup) error {
-	var err error
-
-	// Create MDP worker
-	t.worker, err = mdp.NewWorker(t.endpoint, t.service)
-	if err != nil {
-		return fmt.Errorf("failed to create MDP worker: %w", err)
-	}
-
-	log.WithFields(log.Fields{
-		"transport": "MDP",
-		"endpoint":  t.endpoint,
-		"service":   t.service,
-	}).Info("Starting MDP transport")
-
-	// Start worker in goroutine
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer t.worker.Close()
-
-		for {
-			select {
-			case <-ctx.Done():
-				log.WithField("transport", "MDP").Info("MDP transport context cancelled, shutting down")
-				return
-			default:
-				// Receive message from broker
-				message, err := t.worker.Recv([]string{})
-				if err != nil {
-					log.WithError(err).Error("Error receiving MDP message")
-					continue
-				}
-
-				// Process message through handler registry
-				response := t.processMessage(ctx, message)
-
-				// Send response back through worker
-				if err := t.worker.Reply(response); err != nil {
-					log.WithError(err).Error("Error sending MDP response")
-				}
-			}
-		}
-	}()
-
-	return nil
-}
-
-func (t *MDPTransport) Stop() error {
-	if t.worker != nil {
-		t.worker.Close()
-	}
-	return nil
-}
-
-func (t *MDPTransport) Name() string {
-	return "MDP"
-}
-
-func (t *MDPTransport) processMessage(ctx context.Context, message []string) []string {
-	log.WithFields(log.Fields{
-		"message_length": len(message),
-		"raw_message":    message,
-	}).Debug("Identity service received MDP message")
-
-	if len(message) < 1 {
-		log.Warn("Received empty MDP message")
-		return []string{}
-	}
-
-	// Extract service name and data from message
-	// MDP message format: [service_name, operation, data...]
-	serviceName := "identity.health" // Default to health check
-	messageData := message
-
-	// If message has multiple parts, first part might be service name
-	if len(message) > 1 {
-		// Check if first part looks like a service name
-		if len(message[0]) > 0 && (message[0] == "auth" || message[0] == "user" ||
-			message[0] == "organization" || message[0] == "role" || message[0] == "health") {
-			serviceName = "identity." + message[0]
-			messageData = message[1:]
-		}
-	}
-
-	log.WithFields(log.Fields{
-		"extracted_service": serviceName,
-		"message_data":      messageData,
-		"message_len":       len(messageData),
-	}).Debug("Processing MDP message")
-
-	// Route to appropriate handler
-	response, err := t.handlerRegistry.HandleMessage(ctx, serviceName, messageData)
-	if err != nil {
-		log.WithError(err).Error("Failed to handle MDP message")
-		return []string{fmt.Sprintf(`{"error": "Internal server error: %s"}`, err.Error())}
-	}
-
-	log.WithFields(log.Fields{
-		"service":       serviceName,
-		"response_len":  len(response),
-		"response_type": fmt.Sprintf("%T", response),
-	}).Debug("Identity service returning response")
-
-	return response
 }
 
 // GRPCTransport implements the gRPC transport layer

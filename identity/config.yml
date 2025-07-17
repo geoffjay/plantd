@@ -47,10 +47,7 @@ log:
 
 # Transport configuration
 transport:
-  enable_mdp: true        # Enable MDP (ZeroMQ) transport
-  enable_grpc: false      # Enable gRPC transport  
-  grpc_port: "8090"       # Port for gRPC service (different from State service)
-  mdp_broker: "tcp://127.0.0.1:9797"  # MDP broker endpoint
+  grpc_port: 5002       # Port for gRPC service (matches PLANTD_IDENTITY_PORT)
 
 # Service configuration
 service:
