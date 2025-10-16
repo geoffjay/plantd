@@ -175,8 +175,8 @@ func (s *Service) setupTransports() {
 		"grpc_port":    grpcPort,
 	}).Info("Configuring gRPC-only transport")
 
-	// Add gRPC transport
-	grpcTransport := NewGRPCTransport(grpcPort, s.store)
+	// Add gRPC transport with authentication middleware
+	grpcTransport := NewGRPCTransport(grpcPort, s.store, s.authMiddleware)
 	s.transportManager.AddTransport(grpcTransport)
 	log.WithField("port", grpcPort).Info("gRPC transport configured")
 }

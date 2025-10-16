@@ -46,7 +46,7 @@ func NewStateClient(config *StateClientConfig) *StateClient {
 	client := statev1connect.NewStateServiceClient(
 		httpClient,
 		config.BaseURL,
-		connect.WithGRPC(), // Use gRPC protocol
+		// connect.WithGRPC(), // Temporarily disable gRPC protocol to test connectivity
 	)
 
 	return &StateClient{

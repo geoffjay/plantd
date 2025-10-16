@@ -29,6 +29,11 @@ type identity struct {
 	CacheDuration  string `mapstructure:"cache_duration"`
 }
 
+type state struct {
+	Endpoint string `mapstructure:"endpoint"`
+	Timeout  string `mapstructure:"timeout"`
+}
+
 type defaults struct {
 	Service      string `mapstructure:"service"`
 	OutputFormat string `mapstructure:"output_format"`
@@ -37,12 +42,14 @@ type defaults struct {
 
 type profile struct {
 	IdentityEndpoint string `mapstructure:"identity_endpoint"`
+	StateEndpoint    string `mapstructure:"state_endpoint"`
 }
 
 type clientConfig struct {
 	Server   server             `mapstructure:"server"`
 	GRPC     grpcConfig         `mapstructure:"grpc"`
 	Identity identity           `mapstructure:"identity"`
+	State    state              `mapstructure:"state"`
 	Defaults defaults           `mapstructure:"defaults"`
 	Profiles map[string]profile `mapstructure:"profiles"`
 }
@@ -116,6 +123,20 @@ func GetIdentityEndpoint(profileName string) string {
 	return config.Identity.Endpoint
 }
 
+// GetStateEndpoint returns the state endpoint for the given profile
+func GetStateEndpoint(profileName string) string {
+	if profile, exists := config.Profiles[profileName]; exists {
+		if profile.StateEndpoint != "" {
+			return profile.StateEndpoint
+		}
+	}
+	// Fallback to default state endpoint
+	if config.State.Endpoint != "" {
+		return config.State.Endpoint
+	}
+	return "http://localhost:9080"
+}
+
 // GetDefaultService returns the default service scope
 func GetDefaultService() string {
 	if config.Defaults.Service != "" {
@@ -132,7 +153,7 @@ func GetDefaultProfile() string {
 	return "default"
 }
 
-// GetGRPCGatewayEndpoint returns the gRPC gateway endpoint
+// GetGRPCGatewayEndpoint returns the gRPC gateway endpoint (for Identity service)
 func GetGRPCGatewayEndpoint() string {
 	if config.GRPC.GatewayEndpoint != "" {
 		return config.GRPC.GatewayEndpoint

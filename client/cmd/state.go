@@ -86,14 +86,14 @@ func init() {
 
 // createGRPCStateClient creates a gRPC state client with authentication.
 func createGRPCStateClient() (*grpc.StateClient, error) {
-	gatewayEndpoint := GetGRPCGatewayEndpoint()
+	stateEndpoint := GetStateEndpoint(profileFlag)
 
 	// Use default timeout if config function not available
 	timeoutDuration := 30 * time.Second
 
 	// Create client configuration
 	config := &grpc.StateClientConfig{
-		BaseURL: gatewayEndpoint,
+		BaseURL: stateEndpoint,
 		Timeout: timeoutDuration,
 		AuthFunc: func() string {
 			tokenMgr := auth.NewTokenManager()

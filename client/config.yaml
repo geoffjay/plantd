@@ -1,19 +1,23 @@
 ---
 server:
-  endpoint: "https://localhost:8443"  # App service endpoint
+  endpoint: "http://localhost:9080"  # State service gRPC endpoint
   timeout: 30s
   retries: 3
 
 # gRPC Configuration
 grpc:
-  gateway_endpoint: "https://localhost:8443"  # App service providing gRPC gateway
+  gateway_endpoint: "http://localhost:5002"  # Identity service direct gRPC endpoint
   timeout: 30s
 
 identity:
-  endpoint: "https://localhost:8443"  # App service for gRPC
+  endpoint: "http://localhost:5002"  # Identity service direct gRPC endpoint
   default_profile: "default"
   auto_refresh: true
   cache_duration: "5m"
+
+state:
+  endpoint: "http://localhost:9080"  # State service gRPC endpoint
+  timeout: 30s
 
 defaults:
   service: "org.plantd.Client"
@@ -22,8 +26,11 @@ defaults:
 
 profiles:
   default:
-    identity_endpoint: "https://localhost:8443"
+    identity_endpoint: "http://localhost:5002"
+    state_endpoint: "http://localhost:9080"
   production:
-    identity_endpoint: "http://production:8080"
+    identity_endpoint: "https://production:5002"
+    state_endpoint: "https://production:9080"
   staging:
-    identity_endpoint: "http://staging:8080"
+    identity_endpoint: "https://staging:5002"
+    state_endpoint: "https://staging:9080"

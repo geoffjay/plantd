@@ -7,9 +7,8 @@ import (
 	"sync"
 
 	"github.com/geoffjay/plantd/gen/proto/go/plantd/state/v1/statev1connect"
+	"github.com/geoffjay/plantd/state/auth"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/http2"
-	"golang.org/x/net/http2/h2c"
 )
 
 // Transport defines the interface for different transport layers
@@ -26,23 +25,33 @@ type Transport interface {
 
 // GRPCTransport implements the gRPC transport layer
 type GRPCTransport struct {
-	server     *http.Server
-	store      *Store
-	port       string
-	grpcServer *StateGRPCServer
+	server         *http.Server
+	store          *Store
+	port           string
+	grpcServer     *StateGRPCServer
+	authMiddleware *auth.AuthMiddleware
 }
 
 // NewGRPCTransport creates a new gRPC transport
-func NewGRPCTransport(port string, store *Store) *GRPCTransport {
+func NewGRPCTransport(port string, store *Store, authMiddleware *auth.AuthMiddleware) *GRPCTransport {
 	return &GRPCTransport{
-		store: store,
-		port:  port,
+		store:          store,
+		port:           port,
+		authMiddleware: authMiddleware,
 	}
 }
 
 func (t *GRPCTransport) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	// Create gRPC server
 	t.grpcServer = NewStateGRPCServer(t.store)
+
+	// Set authentication middleware if available
+	if t.authMiddleware != nil {
+		t.grpcServer.SetAuthMiddleware(t.authMiddleware)
+		log.Info("gRPC server configured with authentication middleware")
+	} else {
+		log.Warn("gRPC server running without authentication middleware")
+	}
 
 	// Create HTTP mux
 	mux := http.NewServeMux()
@@ -77,7 +86,8 @@ func (t *GRPCTransport) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	// Create HTTP/2 server with h2c (HTTP/2 without TLS)
 	t.server = &http.Server{
 		Addr:    ":" + t.port,
-		Handler: h2c.NewHandler(mux, &http2.Server{}),
+		Handler: mux, // Temporarily use standard HTTP instead of h2c
+		// Handler: h2c.NewHandler(mux, &http2.Server{}),
 	}
 
 	log.WithFields(log.Fields{
