@@ -29,6 +29,11 @@ type ServerConfig struct {
 	IdleTimeout  int `mapstructure:"idle_timeout"`
 }
 
+// TransportConfig represents transport configuration settings.
+type TransportConfig struct {
+	GRPCPort string `mapstructure:"grpc_port"`
+}
+
 // SecurityConfig represents security configuration settings.
 type SecurityConfig struct {
 	// JWT Configuration
@@ -64,12 +69,13 @@ type SecurityConfig struct {
 type Config struct {
 	cfg.Config
 
-	Env      string            `mapstructure:"env"`
-	Database DatabaseConfig    `mapstructure:"database"`
-	Server   ServerConfig      `mapstructure:"server"`
-	Security SecurityConfig    `mapstructure:"security"`
-	Log      cfg.LogConfig     `mapstructure:"log"`
-	Service  cfg.ServiceConfig `mapstructure:"service"`
+	Env       string            `mapstructure:"env"`
+	Database  DatabaseConfig    `mapstructure:"database"`
+	Server    ServerConfig      `mapstructure:"server"`
+	Security  SecurityConfig    `mapstructure:"security"`
+	Transport TransportConfig   `mapstructure:"transport"`
+	Log       cfg.LogConfig     `mapstructure:"log"`
+	Service   cfg.ServiceConfig `mapstructure:"service"`
 }
 
 var lock = &sync.Mutex{}
@@ -115,6 +121,9 @@ var defaults = map[string]interface{}{
 	"security.require_email_verification":      true,
 	"security.email_verification_expiry_hours": 24,
 	"security.password_reset_expiry_hours":     2,
+
+	// Transport defaults
+	"transport.grpc_port": 8090,
 
 	// Logging defaults
 	"log.formatter":    "text",

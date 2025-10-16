@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/geoffjay/plantd/core/mdp"
 	"github.com/geoffjay/plantd/core/util"
 	"github.com/geoffjay/plantd/identity/pkg/client"
 	"github.com/geoffjay/plantd/state/auth"
@@ -19,18 +18,19 @@ import (
 
 // Service defines the service type.
 type Service struct {
-	handler        *Handler
-	manager        *Manager
-	store          *Store
-	worker         *mdp.Worker
-	identityClient *client.Client
-	authMiddleware *auth.AuthMiddleware
+	handler          *Handler
+	manager          *Manager
+	store            *Store
+	identityClient   *client.Client
+	authMiddleware   *auth.AuthMiddleware
+	transportManager *TransportManager
 }
 
 // NewService creates an instance of the service.
 func NewService() *Service {
 	return &Service{
-		manager: NewManager(">tcp://localhost:11001"),
+		manager:          NewManager(">tcp://localhost:11001"),
+		transportManager: NewTransportManager(),
 	}
 }
 
@@ -161,14 +161,24 @@ func (s *Service) setupHandler() {
 	}
 }
 
-func (s *Service) setupWorker() {
-	var err error
-	endpoint := util.Getenv("PLANTD_STATE_BROKER_ENDPOINT",
-		"tcp://127.0.0.1:9797")
-	if s.worker, err = mdp.NewWorker(endpoint, "org.plantd.State"); err != nil {
-		log.WithFields(log.Fields{"err": err}).Panic(
-			"failed to setup message queue worker")
+func (s *Service) setupTransports() {
+	config := GetConfig()
+
+	// Allow environment variable to override config for gRPC port
+	grpcPort := config.Transport.GRPCPort
+	if envPort := util.Getenv("PLANTD_STATE_GRPC_PORT", ""); envPort != "" {
+		grpcPort = envPort
 	}
+
+	log.WithFields(log.Fields{
+		"grpc_enabled": true,
+		"grpc_port":    grpcPort,
+	}).Info("Configuring gRPC-only transport")
+
+	// Add gRPC transport with authentication middleware
+	grpcTransport := NewGRPCTransport(grpcPort, s.store, s.authMiddleware)
+	s.transportManager.AddTransport(grpcTransport)
+	log.WithField("port", grpcPort).Info("gRPC transport configured")
 }
 
 func (s *Service) setupConsumers() {
@@ -188,10 +198,10 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	s.setupIdentityClient()
 	s.setupHandler()
 	s.setupConsumers()
-	s.setupWorker()
+	s.setupTransports()
 
 	defer s.store.Unload()
-	defer s.worker.Close()
+	defer s.transportManager.StopAll()
 	defer s.manager.Shutdown()
 	defer func() {
 		if s.identityClient != nil {
@@ -205,10 +215,14 @@ func (s *Service) Run(ctx context.Context, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.WithFields(log.Fields{"context": "service.run"}).Debug("starting")
 
-	wg.Add(3)
+	// Start transports
+	if err := s.transportManager.StartAll(ctx, wg); err != nil {
+		log.WithError(err).Fatal("Failed to start transports")
+	}
+
+	wg.Add(2)
 	go s.runHealth(ctx, wg)
 	go s.manager.Run(ctx, wg)
-	go s.runWorker(ctx, wg)
 
 	<-ctx.Done()
 
@@ -356,109 +370,7 @@ func (s *Service) getAuthMode() string {
 	return "enabled"
 }
 
-func (s *Service) runWorker(ctx context.Context, wg *sync.WaitGroup) {
-	var err error
-	fields := log.Fields{"context": "service.worker"}
-	defer wg.Done()
-
-	go func() {
-		var request, reply []string
-		for !s.worker.Terminated() {
-			log.WithFields(fields).Debug("waiting for request")
-
-			if request, err = s.worker.Recv(reply); err != nil {
-				log.WithFields(log.Fields{"error": err}).Error(
-					"failed while receiving request")
-				continue
-			}
-
-			log.WithFields(log.Fields{
-				"context": "service.worker",
-				"request": request,
-			}).Debug("received request")
-
-			if len(request) == 0 {
-				log.WithFields(fields).Debug("received request is empty")
-				continue
-			}
-
-			// Process the message - expecting format: [client_id, operation, data...]
-			// The client_id is included in the message for reply routing
-			reply = s.processMessage(ctx, request)
-
-			log.WithFields(log.Fields{
-				"context": "service.worker",
-				"reply":   reply,
-			}).Debug("prepared reply")
-		}
-	}()
-
-	<-ctx.Done()
-	s.worker.Shutdown()
-
-	log.WithFields(fields).Debug("exiting")
-}
-
-// processMessage processes a single MDP message for the state service
-func (s *Service) processMessage(_ context.Context, message []string) []string {
-	log.WithFields(log.Fields{
-		"message_length": len(message),
-		"raw_message":    message,
-	}).Debug("State service received MDP message")
-
-	if len(message) < 2 {
-		log.Warn("Received message with insufficient frames")
-		return []string{`{"error": "Invalid message format"}`}
-	}
-
-	// Extract operation from message
-	// Message format: [operation, ...args]
-	operation := message[0]
-	args := message[1:]
-
-	log.WithFields(log.Fields{
-		"operation": operation,
-		"args":      args,
-	}).Debug("Processing state service request")
-
-	// Check if the operation is valid
-	callback, exists := s.handler.callbacks[operation]
-	if !exists {
-		log.WithFields(log.Fields{
-			"operation": operation,
-		}).Error("Invalid operation requested")
-		return []string{`{"error": "Invalid operation"}`}
-	}
-
-	// Process the arguments and execute the callback
-	var data []byte
-	var err error
-
-	// For most operations, we need to combine the args into a single string
-	// This matches the expected behavior of the original implementation
-	if len(args) > 0 {
-		argData := args[0] // Most operations expect a single argument
-		data, err = callback.Execute(argData)
-	} else {
-		// Some operations like "list-scopes" don't need arguments
-		data, err = callback.Execute("")
-	}
-
-	if err != nil {
-		log.WithFields(log.Fields{
-			"operation": operation,
-			"error":     err,
-		}).Warn("Operation failed")
-		return []string{fmt.Sprintf(`{"error": "Operation failed: %s"}`, err.Error())}
-	}
-
-	log.WithFields(log.Fields{
-		"operation":    operation,
-		"response_len": len(data),
-	}).Debug("State service operation completed successfully")
-
-	return []string{string(data)}
-}
+// Note: Legacy MDP processMessage function removed - all requests now handled via gRPC
 
 // RegisterCallback is a pointless wrapper around the handler.
 func (s *Service) RegisterCallback(name string,

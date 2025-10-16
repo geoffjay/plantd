@@ -2,7 +2,6 @@
 version: "1"
 
 env: development
-client-endpoint: tcp://localhost:9797
 
 log:
   formatter: text
@@ -26,16 +25,16 @@ session:
   cookie-http-only: true
   cookie-same-site: "Lax"
 
-# Identity Service Integration (Phase 2)
+# Identity Service Integration (Phase 2) - now using gRPC
 identity:
-  endpoint: tcp://127.0.0.1:5002
+  endpoint: http://localhost:8080  # Traefik gateway for gRPC
   timeout: 30s
   client_id: plantd-app
 
-# Services Integration (Phase 3)
+# Services Integration (Phase 3) - now using gRPC through Traefik
 services:
-  broker_endpoint: tcp://127.0.0.1:9797
-  state_endpoint: tcp://127.0.0.1:5005
+  state_endpoint: http://localhost:8080   # Traefik gateway for gRPC
+  gateway_endpoint: http://localhost:8080 # New: explicit Traefik gateway endpoint
   timeout: 30s
 
 # Enhanced Session Management (Phase 2)

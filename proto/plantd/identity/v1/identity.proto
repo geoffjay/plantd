@@ -1,0 +1,185 @@
+syntax = "proto3";
+
+package plantd.identity.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "plantd/common/v1/common.proto";
+import "plantd/health/v1/health.proto";
+
+option go_package = "github.com/geoffjay/plantd/gen/proto/go/plantd/identity/v1;identityv1";
+
+// IdentityService handles authentication and authorization
+service IdentityService {
+  // Authentication
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc Logout(LogoutRequest) returns (google.protobuf.Empty);
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  
+  // User management
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (google.protobuf.Empty);
+  rpc ListUsers(ListUsersRequest) returns (stream ListUsersResponse);
+  
+  // Organization management
+  rpc CreateOrganization(CreateOrganizationRequest) returns (CreateOrganizationResponse);
+  rpc GetOrganization(GetOrganizationRequest) returns (GetOrganizationResponse);
+  
+  // Role and permission management
+  rpc AssignRole(AssignRoleRequest) returns (google.protobuf.Empty);
+  rpc RevokeRole(RevokeRoleRequest) returns (google.protobuf.Empty);
+  rpc CheckPermission(CheckPermissionRequest) returns (CheckPermissionResponse);
+  
+  // Service management
+  rpc Health(google.protobuf.Empty) returns (plantd.health.v1.HealthCheckResponse);
+}
+
+// Authentication messages
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+  string organization_id = 3;
+}
+
+message LoginResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  User user = 4;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+  repeated string required_permissions = 2;
+}
+
+message ValidateTokenResponse {
+  bool valid = 1;
+  User user = 2;
+  repeated string permissions = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+// User management messages
+message User {
+  string id = 1;
+  string email = 2;
+  string name = 3;
+  repeated string roles = 4;
+  string organization_id = 5;
+  plantd.common.v1.Metadata metadata = 6;
+  google.protobuf.Timestamp last_login = 7;
+  bool active = 8;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string name = 2;
+  string password = 3;
+  string organization_id = 4;
+  repeated string roles = 5;
+}
+
+message CreateUserResponse {
+  User user = 1;
+}
+
+message GetUserRequest {
+  string id = 1;
+}
+
+message GetUserResponse {
+  User user = 1;
+}
+
+message UpdateUserRequest {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  repeated string roles = 4;
+  bool active = 5;
+}
+
+message UpdateUserResponse {
+  User user = 1;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message ListUsersRequest {
+  string organization_id = 1;
+  plantd.common.v1.PageRequest page = 2;
+}
+
+message ListUsersResponse {
+  User user = 1;
+  plantd.common.v1.PageResponse page = 2;
+}
+
+// Organization management messages
+message Organization {
+  string id = 1;
+  string name = 2;
+  string domain = 3;
+  plantd.common.v1.Metadata metadata = 4;
+}
+
+message CreateOrganizationRequest {
+  string name = 1;
+  string domain = 2;
+}
+
+message CreateOrganizationResponse {
+  Organization organization = 1;
+}
+
+message GetOrganizationRequest {
+  string id = 1;
+}
+
+message GetOrganizationResponse {
+  Organization organization = 1;
+}
+
+// Role and permission messages
+message AssignRoleRequest {
+  string user_id = 1;
+  string role = 2;
+  string organization_id = 3;
+}
+
+message RevokeRoleRequest {
+  string user_id = 1;
+  string role = 2;
+  string organization_id = 3;
+}
+
+message CheckPermissionRequest {
+  string user_id = 1;
+  string permission = 2;
+  string organization_id = 3;
+}
+
+message CheckPermissionResponse {
+  bool allowed = 1;
+  string reason = 2;
+} 

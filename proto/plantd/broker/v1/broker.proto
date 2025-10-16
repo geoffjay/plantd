@@ -1,0 +1,201 @@
+syntax = "proto3";
+
+package plantd.broker.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "plantd/common/v1/common.proto";
+import "plantd/health/v1/health.proto";
+
+option go_package = "github.com/geoffjay/plantd/gen/proto/go/plantd/broker/v1;brokerv1";
+
+// BrokerService manages service discovery and message routing
+service BrokerService {
+  // Service discovery and management
+  rpc RegisterService(RegisterServiceRequest) returns (RegisterServiceResponse);
+  rpc UnregisterService(UnregisterServiceRequest) returns (google.protobuf.Empty);
+  rpc GetService(GetServiceRequest) returns (GetServiceResponse);
+  rpc ListServices(ListServicesRequest) returns (stream ListServicesResponse);
+  
+  // Message routing
+  rpc RouteMessage(RouteMessageRequest) returns (RouteMessageResponse);
+  rpc BroadcastMessage(BroadcastMessageRequest) returns (google.protobuf.Empty);
+  
+  // Service monitoring
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc GetServiceStatus(GetServiceStatusRequest) returns (GetServiceStatusResponse);
+  
+  // Bus management
+  rpc CreateBus(CreateBusRequest) returns (CreateBusResponse);
+  rpc DeleteBus(DeleteBusRequest) returns (google.protobuf.Empty);
+  rpc ListBuses(ListBusesRequest) returns (stream ListBusesResponse);
+  rpc PublishToBus(PublishToBusRequest) returns (google.protobuf.Empty);
+  rpc SubscribeToBus(SubscribeToBusRequest) returns (stream SubscribeToBusResponse);
+  
+  // Service management
+  rpc Health(google.protobuf.Empty) returns (plantd.health.v1.HealthCheckResponse);
+}
+
+// Service registration messages
+message RegisterServiceRequest {
+  string service_id = 1;           // e.g., "org.plantd.State"
+  string endpoint = 2;             // Service endpoint
+  repeated string capabilities = 3; // Service capabilities/operations
+  map<string, string> metadata = 4; // Additional service metadata
+}
+
+message RegisterServiceResponse {
+  string registration_id = 1;
+  google.protobuf.Timestamp registered_at = 2;
+}
+
+message UnregisterServiceRequest {
+  string service_id = 1;
+  string registration_id = 2;
+}
+
+// Service discovery messages
+message GetServiceRequest {
+  string service_id = 1;
+}
+
+message GetServiceResponse {
+  ServiceInfo service = 1;
+}
+
+message ListServicesRequest {
+  string filter = 1; // Optional filter pattern
+}
+
+message ListServicesResponse {
+  ServiceInfo service = 1;
+}
+
+// Message routing
+message RouteMessageRequest {
+  string target_service = 1;       // Target service ID
+  string operation = 2;            // Operation/method name
+  bytes payload = 3;               // Message payload
+  map<string, string> headers = 4; // Message headers
+}
+
+message RouteMessageResponse {
+  bytes payload = 1;               // Response payload
+  map<string, string> headers = 2; // Response headers
+  plantd.common.v1.Error error = 3; // Response error (if any)
+}
+
+message BroadcastMessageRequest {
+  string service_pattern = 1;      // Service pattern (e.g., "org.plantd.*")
+  string operation = 2;            // Operation/method name
+  bytes payload = 3;               // Message payload
+  map<string, string> headers = 4; // Message headers
+}
+
+// Heartbeat and monitoring
+message HeartbeatRequest {
+  string service_id = 1;
+  string registration_id = 2;
+  map<string, string> metrics = 3; // Service metrics
+}
+
+message HeartbeatResponse {
+  google.protobuf.Timestamp next_heartbeat = 1;
+  int32 heartbeat_interval_ms = 2;
+}
+
+message GetServiceStatusRequest {
+  string service_id = 1;
+}
+
+message GetServiceStatusResponse {
+  ServiceStatus status = 1;
+}
+
+// Bus management
+message CreateBusRequest {
+  string name = 1;                 // Bus name (e.g., "state", "event", "metric")
+  BusType type = 2;               // Bus type
+  map<string, string> config = 3; // Bus configuration
+}
+
+message CreateBusResponse {
+  string bus_id = 1;
+  google.protobuf.Timestamp created_at = 2;
+}
+
+message DeleteBusRequest {
+  string bus_id = 1;
+}
+
+message ListBusesRequest {
+  BusType type_filter = 1; // Optional type filter
+}
+
+message ListBusesResponse {
+  BusInfo bus = 1;
+}
+
+message PublishToBusRequest {
+  string bus_name = 1;             // Target bus name
+  string topic = 2;                // Message topic/key
+  bytes payload = 3;               // Message payload
+  map<string, string> headers = 4; // Message headers
+}
+
+message SubscribeToBusRequest {
+  string bus_name = 1;             // Target bus name
+  repeated string topics = 2;      // Topics to subscribe to
+}
+
+message SubscribeToBusResponse {
+  string topic = 1;                // Message topic/key
+  bytes payload = 2;               // Message payload
+  map<string, string> headers = 3; // Message headers
+  google.protobuf.Timestamp timestamp = 4; // Message timestamp
+}
+
+// Supporting data structures
+message ServiceInfo {
+  string service_id = 1;
+  string endpoint = 2;
+  repeated string capabilities = 3;
+  map<string, string> metadata = 4;
+  ServiceStatus status = 5;
+  google.protobuf.Timestamp registered_at = 6;
+  google.protobuf.Timestamp last_heartbeat = 7;
+}
+
+message ServiceStatus {
+  enum Status {
+    UNKNOWN = 0;
+    HEALTHY = 1;
+    UNHEALTHY = 2;
+    TIMEOUT = 3;
+    OFFLINE = 4;
+  }
+  
+  Status status = 1;
+  string message = 2;
+  map<string, string> metrics = 3;
+  google.protobuf.Timestamp last_check = 4;
+}
+
+message BusInfo {
+  string bus_id = 1;
+  string name = 2;
+  BusType type = 3;
+  map<string, string> config = 4;
+  int32 subscriber_count = 5;
+  int32 publisher_count = 6;
+  google.protobuf.Timestamp created_at = 7;
+}
+
+enum BusType {
+  BUS_TYPE_UNKNOWN = 0;
+  BUS_TYPE_STATE = 1;      // State data bus
+  BUS_TYPE_EVENT = 2;      // Event/alert bus  
+  BUS_TYPE_METRIC = 3;     // Metrics/telemetry bus
+  BUS_TYPE_CONTROL = 4;    // Control command bus
+} 
+ 

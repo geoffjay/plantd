@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package plantd.state.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+import "plantd/common/v1/common.proto";
+import "plantd/health/v1/health.proto";
+
+option go_package = "github.com/geoffjay/plantd/gen/proto/go/plantd/state/v1;statev1";
+
+// StateService manages distributed key-value state
+service StateService {
+  // Basic CRUD operations
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc Set(SetRequest) returns (SetResponse);
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  
+  // Bulk operations
+  rpc BatchGet(BatchGetRequest) returns (BatchGetResponse);
+  rpc BatchSet(BatchSetRequest) returns (BatchSetResponse);
+  
+  // Listing and searching
+  rpc List(ListRequest) returns (stream ListResponse);
+  rpc Search(SearchRequest) returns (SearchResponse);
+  
+  // Real-time updates
+  rpc Watch(WatchRequest) returns (stream WatchResponse);
+  
+  // Service management
+  rpc Health(google.protobuf.Empty) returns (plantd.health.v1.HealthCheckResponse);
+}
+
+// MDP Command Mapping:
+// "get" -> Get
+// "set" -> Set  
+// "delete" -> Delete
+// "list" -> List
+// "heartbeat" -> Health
+
+message GetRequest {
+  string key = 1;
+  string scope = 2;  // Organization/user scope
+  bool include_metadata = 3;
+}
+
+message GetResponse {
+  string value = 1;
+  plantd.common.v1.Metadata metadata = 2;
+}
+
+message SetRequest {
+  string key = 1;
+  string value = 2;
+  string scope = 3;
+  bool create_only = 4;  // Fail if exists
+  google.protobuf.Timestamp expires_at = 5;  // TTL support
+}
+
+message SetResponse {
+  plantd.common.v1.Metadata metadata = 1;
+}
+
+message DeleteRequest {
+  string key = 1;
+  string scope = 2;
+}
+
+message DeleteResponse {
+  bool existed = 1;
+  plantd.common.v1.Metadata last_metadata = 2;
+}
+
+message ListRequest {
+  string prefix = 1;
+  string scope = 2;
+  plantd.common.v1.PageRequest page = 3;
+  bool include_values = 4;
+}
+
+message ListResponse {
+  string key = 1;
+  string value = 2;  // Only if include_values=true
+  plantd.common.v1.Metadata metadata = 3;
+  plantd.common.v1.PageResponse page = 4;
+}
+
+message WatchRequest {
+  string key_prefix = 1;
+  string scope = 2;
+  bool include_initial = 3;  // Send current values first
+}
+
+message WatchResponse {
+  enum EventType {
+    EVENT_TYPE_UNSPECIFIED = 0;
+    EVENT_TYPE_CREATED = 1;
+    EVENT_TYPE_UPDATED = 2;
+    EVENT_TYPE_DELETED = 3;
+  }
+  
+  EventType event_type = 1;
+  string key = 2;
+  string value = 3;
+  plantd.common.v1.Metadata metadata = 4;
+}
+
+// Batch operations for efficiency
+message BatchGetRequest {
+  repeated string keys = 1;
+  string scope = 2;
+}
+
+message BatchGetResponse {
+  map<string, GetResponse> results = 1;
+  repeated string not_found = 2;
+}
+
+message BatchSetRequest {
+  message SetItem {
+    string key = 1;
+    string value = 2;
+  }
+  
+  repeated SetItem items = 1;
+  string scope = 2;
+}
+
+message BatchSetResponse {
+  map<string, SetResponse> results = 1;
+  repeated plantd.common.v1.Error errors = 2;
+}
+
+message SearchRequest {
+  string query = 1;  // Search pattern
+  string scope = 2;
+  plantd.common.v1.PageRequest page = 3;
+}
+
+message SearchResponse {
+  repeated ListResponse results = 1;
+  plantd.common.v1.PageResponse page = 2;
+} 

@@ -16,6 +16,12 @@ type server struct {
 	Retries  int    `mapstructure:"retries"`
 }
 
+type grpcConfig struct {
+	GatewayEndpoint string `mapstructure:"gateway_endpoint"`
+	Timeout         string `mapstructure:"timeout"`
+	UseGRPC         bool   `mapstructure:"use_grpc"`
+}
+
 type identity struct {
 	Endpoint       string `mapstructure:"endpoint"`
 	DefaultProfile string `mapstructure:"default_profile"`
@@ -23,18 +29,27 @@ type identity struct {
 	CacheDuration  string `mapstructure:"cache_duration"`
 }
 
+type state struct {
+	Endpoint string `mapstructure:"endpoint"`
+	Timeout  string `mapstructure:"timeout"`
+}
+
 type defaults struct {
 	Service      string `mapstructure:"service"`
 	OutputFormat string `mapstructure:"output_format"`
+	UseGRPC      bool   `mapstructure:"use_grpc"`
 }
 
 type profile struct {
 	IdentityEndpoint string `mapstructure:"identity_endpoint"`
+	StateEndpoint    string `mapstructure:"state_endpoint"`
 }
 
 type clientConfig struct {
 	Server   server             `mapstructure:"server"`
+	GRPC     grpcConfig         `mapstructure:"grpc"`
 	Identity identity           `mapstructure:"identity"`
+	State    state              `mapstructure:"state"`
 	Defaults defaults           `mapstructure:"defaults"`
 	Profiles map[string]profile `mapstructure:"profiles"`
 }
@@ -108,6 +123,20 @@ func GetIdentityEndpoint(profileName string) string {
 	return config.Identity.Endpoint
 }
 
+// GetStateEndpoint returns the state endpoint for the given profile
+func GetStateEndpoint(profileName string) string {
+	if profile, exists := config.Profiles[profileName]; exists {
+		if profile.StateEndpoint != "" {
+			return profile.StateEndpoint
+		}
+	}
+	// Fallback to default state endpoint
+	if config.State.Endpoint != "" {
+		return config.State.Endpoint
+	}
+	return "http://localhost:9080"
+}
+
 // GetDefaultService returns the default service scope
 func GetDefaultService() string {
 	if config.Defaults.Service != "" {
@@ -122,4 +151,25 @@ func GetDefaultProfile() string {
 		return config.Identity.DefaultProfile
 	}
 	return "default"
+}
+
+// GetGRPCGatewayEndpoint returns the gRPC gateway endpoint (for Identity service)
+func GetGRPCGatewayEndpoint() string {
+	if config.GRPC.GatewayEndpoint != "" {
+		return config.GRPC.GatewayEndpoint
+	}
+	return "http://localhost:8080"
+}
+
+// ShouldUseGRPC returns whether gRPC should be used by default
+func ShouldUseGRPC() bool {
+	return config.Defaults.UseGRPC
+}
+
+// GetGRPCTimeout returns the gRPC timeout
+func GetGRPCTimeout() string {
+	if config.GRPC.Timeout != "" {
+		return config.GRPC.Timeout
+	}
+	return "30s"
 }

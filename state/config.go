@@ -19,34 +19,36 @@ type identityConfig struct {
 	Retries  int    `mapstructure:"retries"`
 }
 
+type transportConfig struct {
+	GRPCPort string `mapstructure:"grpc-port"`
+}
+
 // Config represents the configuration for the state service.
 type Config struct {
 	cfg.Config
 
-	Env            string            `mapstructure:"env"`
-	BrokerEndpoint string            `mapstructure:"broker-endpoint"`
-	StateEndpoint  string            `mapstructure:"state-endpoint"`
-	Database       databaseConfig    `mapstructure:"database"`
-	Identity       identityConfig    `mapstructure:"identity"`
-	Log            cfg.LogConfig     `mapstructure:"log"`
-	Service        cfg.ServiceConfig `mapstructure:"service"`
+	Env       string            `mapstructure:"env"`
+	Database  databaseConfig    `mapstructure:"database"`
+	Identity  identityConfig    `mapstructure:"identity"`
+	Transport transportConfig   `mapstructure:"transport"`
+	Log       cfg.LogConfig     `mapstructure:"log"`
+	Service   cfg.ServiceConfig `mapstructure:"service"`
 }
 
 var lock = &sync.Mutex{}
 var instance *Config
 
 var defaults = map[string]interface{}{
-	"env":               "development",
-	"broker-endpoint":   "tcp://localhost:9797",
-	"state-endpoint":    ">tcp://localhost:11001",
-	"database.adapter":  "bbolt",
-	"database.uri":      "plantd-state.db",
-	"identity.endpoint": "tcp://127.0.0.1:9797",
-	"identity.timeout":  "30s",
-	"identity.retries":  3,
-	"log.formatter":     "text",
-	"log.level":         "info",
-	"log.loki.address":  "http://localhost:3100",
+	"env":                 "development",
+	"database.adapter":    "bbolt",
+	"database.uri":        "plantd-state.db",
+	"identity.endpoint":   "tcp://127.0.0.1:9797",
+	"identity.timeout":    "30s",
+	"identity.retries":    3,
+	"transport.grpc-port": "9080",
+	"log.formatter":       "text",
+	"log.level":           "info",
+	"log.loki.address":    "http://localhost:3100",
 	"log.loki.labels": map[string]string{
 		"app": "state", "environment": "development"},
 	"service.id": "org.plantd.State",
@@ -58,14 +60,11 @@ func GetConfig() *Config {
 		lock.Lock()
 		defer lock.Unlock()
 		if instance == nil {
-			if err := cfg.LoadConfigWithDefaults("state", &instance,
-				defaults); err != nil {
-				log.Fatalf("error reading config file: %s\n", err)
+			instance = &Config{}
+			if err := cfg.LoadConfig("state", instance); err != nil {
+				log.WithError(err).Fatal("failed to load configuration")
 			}
 		}
 	}
-
-	log.Tracef("config: %+v", instance)
-
 	return instance
 }

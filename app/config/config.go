@@ -31,9 +31,10 @@ type Config struct {
 
 	// Services endpoints
 	Services struct {
-		BrokerEndpoint string `yaml:"broker_endpoint" env:"PLANTD_APP_BROKER_ENDPOINT"`
-		StateEndpoint  string `yaml:"state_endpoint" env:"PLANTD_APP_STATE_ENDPOINT"`
-		Timeout        string `yaml:"timeout" env:"PLANTD_APP_SERVICES_TIMEOUT"`
+		BrokerEndpoint  string `yaml:"broker_endpoint" env:"PLANTD_APP_BROKER_ENDPOINT"`
+		StateEndpoint   string `yaml:"state_endpoint" env:"PLANTD_APP_STATE_ENDPOINT"`
+		GatewayEndpoint string `yaml:"gateway_endpoint" env:"PLANTD_APP_GATEWAY_ENDPOINT"`
+		Timeout         string `yaml:"timeout" env:"PLANTD_APP_SERVICES_TIMEOUT"`
 	} `yaml:"services" mapstructure:"services"`
 
 	// Enhanced session configuration
@@ -76,14 +77,15 @@ var defaults = map[string]interface{}{
 	"session.cookie-same-site": "Lax",
 
 	// Identity Service defaults
-	"identity.endpoint":  "tcp://127.0.0.1:7200",
+	"identity.endpoint":  "http://localhost:8080",
 	"identity.timeout":   "30s",
 	"identity.client_id": "plantd-app",
 
 	// Services defaults
-	"services.broker_endpoint": "tcp://127.0.0.1:9797",
-	"services.state_endpoint":  "tcp://127.0.0.1:7300",
-	"services.timeout":         "30s",
+	"services.broker_endpoint":  "tcp://127.0.0.1:9797",
+	"services.state_endpoint":   "http://localhost:8080",
+	"services.gateway_endpoint": "http://localhost:8080",
+	"services.timeout":          "30s",
 
 	// Enhanced session defaults
 	"enhanced_session.secret_key":  "", // Must be set via environment variable

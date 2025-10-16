@@ -3,11 +3,8 @@ log:
   level: info
   format: text
 
-broker:
-  endpoint: tcp://127.0.0.1:9797
-
 identity:
-  endpoint: tcp://127.0.0.1:9797
+  endpoint: http://localhost:5002  # Identity service gRPC endpoint (corrected port)
   timeout: 30s
   retries: 3
 
@@ -15,4 +12,9 @@ database:
   path: ./plantd-state.db
 
 health:
-  port: 8081 
+  port: 8081
+
+# Transport configuration
+transport:
+  enable-grpc: true     # Enable gRPC transport
+  grpc-port: "9080"     # Port for gRPC service

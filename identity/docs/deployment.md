@@ -29,7 +29,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 # Verify installation
 docker --version
-docker-compose --version
+docker compose --version
 ```
 
 ## Quick Start
@@ -120,13 +120,13 @@ Use the standard `docker-compose.yml` for development:
 
 ```bash
 # Start development environment
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f identity
+docker compose logs -f identity
 
 # Stop services
-docker-compose down
+docker compose down
 ```
 
 ### Production Deployment
@@ -135,7 +135,7 @@ Use the production configuration with enhanced security:
 
 ```bash
 # Use production compose file
-docker-compose -f docker/docker-compose.production.yml up -d
+docker compose -f docker/docker-compose.production.yml up -d
 
 # Or use the deployment script
 ./scripts/deploy.sh deploy
@@ -278,10 +278,10 @@ curl -s http://localhost:8080/health | jq .
 
 ```bash
 # View real-time logs
-docker-compose logs -f identity
+docker compose logs -f identity
 
 # Export logs for analysis
-docker-compose logs --since="24h" identity > identity-logs-$(date +%Y%m%d).log
+docker compose logs --since="24h" identity > identity-logs-$(date +%Y%m%d).log
 
 # Configure log rotation
 sudo logrotate -f /etc/logrotate.d/plantd-identity
@@ -342,13 +342,13 @@ The service exports metrics for monitoring:
 
 ```bash
 # Check container logs
-docker-compose logs identity
+docker compose logs identity
 
 # Check system resources
 docker stats
 
 # Verify environment variables
-docker-compose config
+docker compose config
 ```
 
 #### Database Connection Issues
@@ -358,7 +358,7 @@ docker-compose config
 docker exec plantd-identity-postgres pg_isready -U identity_user
 
 # Check database logs
-docker-compose logs postgres
+docker compose logs postgres
 
 # Verify network connectivity
 docker network ls
@@ -383,13 +383,13 @@ LIMIT 10;"
 
 ```bash
 # Search for errors
-docker-compose logs identity | grep -i error
+docker compose logs identity | grep -i error
 
 # Check authentication failures
-docker-compose logs identity | grep "authentication failed"
+docker compose logs identity | grep "authentication failed"
 
 # Monitor rate limiting
-docker-compose logs identity | grep "rate limit"
+docker compose logs identity | grep "rate limit"
 ```
 
 ### Debug Mode
@@ -401,10 +401,10 @@ Enable debug logging:
 echo "LOG_LEVEL=debug" >> .env
 
 # Restart service
-docker-compose restart identity
+docker compose restart identity
 
 # View debug logs
-docker-compose logs -f identity
+docker compose logs -f identity
 ```
 
 ## Maintenance
@@ -421,10 +421,10 @@ docker-compose logs -f identity
 
 ```bash
 # Pull latest images
-docker-compose pull
+docker compose pull
 
 # Restart with new images
-docker-compose up -d --force-recreate
+docker compose up -d --force-recreate
 
 # Verify deployment
 ./scripts/deploy.sh health
@@ -442,7 +442,7 @@ docker pull redis:7-alpine
 docker build -t geoffjay/plantd-identity:latest -f Dockerfile .
 
 # Rolling update
-docker-compose up -d --no-deps identity
+docker compose up -d --no-deps identity
 ```
 
 ## Integration with Other Services

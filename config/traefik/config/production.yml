@@ -1,0 +1,285 @@
+# Traefik Production Dynamic Configuration
+# Phase 7: Production Deployment - Security and Performance Middleware
+
+http:
+  # Security Headers Middleware
+  middlewares:
+    security-headers:
+      headers:
+        accessControlAllowMethods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+          - OPTIONS
+        accessControlAllowOriginList:
+          - "https://plantd.com"
+          - "https://*.plantd.com"
+        accessControlMaxAge: 100
+        addVaryHeader: true
+        browserXssFilter: true
+        contentTypeNosniff: true
+        forceSTSHeader: true
+        frameDeny: true
+        stsIncludeSubdomains: true
+        stsPreload: true
+        stsSeconds: 31536000
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Robots-Tag: "noindex,nofollow,nosnippet,noarchive,notranslate,noimageindex"
+          Server: "PlantD"
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "DENY"
+          X-XSS-Protection: "1; mode=block"
+          Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"
+          Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' wss: https:; frame-ancestors 'none'"
+
+    # Rate Limiting Middleware
+    rate-limit:
+      rateLimit:
+        average: 100
+        burst: 200
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # Enhanced Rate Limiting for API endpoints
+    rate-limit-api:
+      rateLimit:
+        average: 50
+        burst: 100
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # Strict Rate Limiting for Authentication endpoints
+    rate-limit-auth:
+      rateLimit:
+        average: 10
+        burst: 20
+        period: 1m
+        sourceCriterion:
+          ipStrategy:
+            depth: 1
+
+    # Circuit Breaker Middleware
+    circuit-breaker:
+      circuitBreaker:
+        expression: "NetworkErrorRatio() > 0.3 || ResponseCodeRatio(500, 600, 0, 600) > 0.3"
+        checkPeriod: 10s
+        fallbackDuration: 30s
+        recoveryDuration: 30s
+
+    # Retry Policy Middleware
+    retry-policy:
+      retry:
+        attempts: 3
+        initialInterval: 100ms
+
+    # Auth Forward Middleware for Production
+    auth-forward:
+      forwardAuth:
+        address: "http://plantd-identity:8080/auth/validate"
+        authResponseHeaders:
+          - "X-User-ID"
+          - "X-User-Email"
+          - "X-User-Roles"
+          - "X-Organization-ID"
+        authRequestHeaders:
+          - "Authorization"
+          - "X-Forwarded-User"
+        trustForwardHeader: true
+
+    # CORS Middleware for Production
+    cors-policy:
+      headers:
+        accessControlAllowCredentials: true
+        accessControlAllowHeaders:
+          - "Accept"
+          - "Authorization"
+          - "Content-Type"
+          - "X-Requested-With"
+          - "X-User-Agent"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowOriginList:
+          - "https://plantd.com"
+          - "https://*.plantd.com"
+        accessControlExposeHeaders:
+          - "X-Request-ID"
+          - "X-Response-Time"
+        accessControlMaxAge: 86400
+
+    # IP Whitelist for Admin endpoints
+    admin-whitelist:
+      ipWhiteList:
+        sourceRange:
+          - "10.0.0.0/8"
+          - "172.16.0.0/12"
+          - "192.168.0.0/16"
+          - "127.0.0.1/32"
+
+    # Request/Response Size Limits
+    size-limit:
+      buffering:
+        maxRequestBodyBytes: 1048576  # 1MB
+        maxResponseBodyBytes: 1048576  # 1MB
+        memRequestBodyBytes: 1048576   # 1MB
+        memResponseBodyBytes: 1048576  # 1MB
+
+    # Compression Middleware
+    compression:
+      compress:
+        excludedContentTypes:
+          - "text/event-stream"
+          - "application/grpc"
+
+  # Production Services Configuration
+  services:
+    # State Service with High Availability
+    state-service-prod:
+      loadBalancer:
+        servers:
+          - url: "h2c://plantd-state-primary:8080"
+          - url: "h2c://plantd-state-secondary:8080"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 10s
+          scheme: http
+        sticky:
+          cookie:
+            name: "plantd-state-affinity"
+            secure: true
+            httpOnly: true
+
+    # Identity Service with High Availability
+    identity-service-prod:
+      loadBalancer:
+        servers:
+          - url: "http://plantd-identity-primary:8080"
+          - url: "http://plantd-identity-secondary:8080"
+        healthCheck:
+          path: "/health"
+          interval: 30s
+          timeout: 10s
+          scheme: http
+        sticky:
+          cookie:
+            name: "plantd-identity-affinity"
+            secure: true
+            httpOnly: true
+
+    # Monitoring Service
+    prometheus-prod:
+      loadBalancer:
+        servers:
+          - url: "http://prometheus:9090"
+        healthCheck:
+          path: "/-/healthy"
+          interval: 30s
+          timeout: 5s
+
+    # Grafana Service
+    grafana-prod:
+      loadBalancer:
+        servers:
+          - url: "http://grafana:3000"
+        healthCheck:
+          path: "/api/health"
+          interval: 30s
+          timeout: 5s
+
+  # Production Routers
+  routers:
+    # State Service Router - HTTPS
+    state-grpc-prod:
+      rule: "Host(`api.plantd.com`) && PathPrefix(`/plantd.state.v1.StateService/`)"
+      entryPoints:
+        - "grpc-secure"
+      service: "state-service-prod"
+      middlewares:
+        - "security-headers"
+        - "auth-forward"
+        - "retry-policy"
+        - "rate-limit-api"
+        - "circuit-breaker"
+        - "size-limit"
+      tls:
+        certResolver: "letsencrypt"
+
+    # Identity Service Router - HTTPS
+    identity-prod:
+      rule: "Host(`auth.plantd.com`)"
+      entryPoints:
+        - "websecure"
+      service: "identity-service-prod"
+      middlewares:
+        - "security-headers"
+        - "cors-policy"
+        - "retry-policy"
+        - "rate-limit-auth"
+        - "circuit-breaker"
+        - "size-limit"
+      tls:
+        certResolver: "letsencrypt"
+
+    # Monitoring Router - Admin Access Only
+    monitoring-prod:
+      rule: "Host(`monitoring.plantd.com`)"
+      entryPoints:
+        - "websecure"
+      service: "prometheus-prod"
+      middlewares:
+        - "security-headers"
+        - "admin-whitelist"
+        - "rate-limit"
+      tls:
+        certResolver: "letsencrypt"
+
+    # Grafana Router - Admin Access Only
+    grafana-prod:
+      rule: "Host(`dashboard.plantd.com`)"
+      entryPoints:
+        - "websecure"
+      service: "grafana-prod"
+      middlewares:
+        - "security-headers"
+        - "admin-whitelist"
+        - "rate-limit"
+        - "compression"
+      tls:
+        certResolver: "letsencrypt"
+
+    # Health Check Router - Public
+    health-check-prod:
+      rule: "Host(`status.plantd.com`) && Path(`/health`)"
+      entryPoints:
+        - "websecure"
+      service: "state-service-prod"
+      middlewares:
+        - "security-headers"
+        - "rate-limit"
+      tls:
+        certResolver: "letsencrypt"
+
+# TLS Configuration for Production
+tls:
+  certificates:
+    - certFile: "/etc/traefik/certs/plantd.crt"
+      keyFile: "/etc/traefik/certs/plantd.key"
+      stores:
+        - default
+
+  stores:
+    default:
+      defaultCertificate:
+        certFile: "/etc/traefik/certs/plantd.crt"
+        keyFile: "/etc/traefik/certs/plantd.key" 

@@ -45,6 +45,10 @@ log:
       app: identity
       environment: development
 
+# Transport configuration
+transport:
+  grpc_port: 5002       # Port for gRPC service (matches PLANTD_IDENTITY_PORT)
+
 # Service configuration
 service:
   id: org.plantd.Identity 

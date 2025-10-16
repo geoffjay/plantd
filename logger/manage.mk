@@ -6,7 +6,7 @@ db/g/migration: ; $(info $(M) Generating a new migration...)
 ifeq ($(MIGRATION),)
 	@echo "usage: MIGRATION=create_foo_table make db/g/migration"
 else
-	@cp templates/db/migration.go logger/db/migrations/$(NOW)_$(MIGRATION).go
+	@cp logger/templates/db/migration.go logger/db/migrations/$(NOW)_$(MIGRATION).go
 endif
 
 .PHONY: up down rollback

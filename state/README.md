@@ -11,7 +11,24 @@ and allow for some kind of PUSH/PULL by the modules to load and store state.
 
 ## Quickstart
 
-* build and run a `broker`
+### Modern Architecture (gRPC)
+
+The State service uses gRPC for all communication:
+
+```bash
+# Build the state service
+make build-state
+
+# Run with gRPC transport
+./build/plantd-state
+
+# Use gRPC client
+./build/plant state get <key> --service=<scope>
+```
+
+### Legacy Setup (Deprecated)
+
+For legacy deployments, you may need a broker for other services:
 
 ```shell
 git clone git@gitlab.com:plantd/broker.git
@@ -38,6 +55,40 @@ make build-client
 ```shell
 ./build/plant state set --service="org.plantd.Client" foo bar
 ./build/plant state get --service="org.plantd.Client" foo
+```
+
+## Configuration
+
+The State service configuration:
+
+### Configuration File (`config.yml`)
+
+```yaml
+transport:
+  grpc-port: "9080"     # Port for gRPC service
+```
+
+### Environment Variables
+
+```bash
+# gRPC configuration
+```
+
+### Migration Strategy
+
+1. **Current State**: MDP-only transport
+2. **Transition**: Both MDP and gRPC enabled
+3. **Target State**: gRPC-only transport
+
+```bash
+# Phase 1: Add gRPC alongside MDP
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=true ./build/plantd-state
+
+# Phase 2: Test gRPC client
+./build/plant state state-grpc get <key> --grpc-endpoint=http://localhost:8080
+
+# Phase 3: Disable MDP
+PLANTD_STATE_ENABLE_GRPC=true PLANTD_STATE_ENABLE_MDP=false ./build/plantd-state
 ```
 
 ## Example

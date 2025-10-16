@@ -208,7 +208,7 @@ restore_volumes() {
     # Stop services before restoring volumes
     log_info "Stopping services for volume restore..."
     cd "$PROJECT_DIR"
-    docker-compose down
+    docker compose down
     
     # Restore volumes
     if docker run --rm \
@@ -220,7 +220,7 @@ restore_volumes() {
         
         # Restart services
         log_info "Restarting services..."
-        docker-compose up -d
+        docker compose up -d
     else
         log_error "Failed to restore volumes"
         exit 1
