@@ -11,7 +11,7 @@ require (
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
-	github.com/containerd/containerd v1.7.27 // indirect
+	github.com/containerd/containerd v1.7.29 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/docker v25.0.6+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
@@ -35,9 +35,8 @@ require (
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/yukitsune/lokirus v1.0.1 // indirect
 	github.com/zeromq/goczmq/v4 v4.2.1-0.20210413114303-4e50cfc0edc9 // indirect
-	golang.org/x/net v0.39.0 // indirect
-	golang.org/x/sys v0.32.0 // indirect
-	golang.org/x/text v0.24.0 // indirect
+	golang.org/x/sys v0.34.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.66.4 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
